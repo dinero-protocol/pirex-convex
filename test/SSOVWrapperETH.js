@@ -83,4 +83,19 @@ describe("SSOVWrapperEth", () => {
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
   });
+
+  describe("getEpochStrike", () => {
+    it("Should get the correct epoch-strike", async () => {
+      const epochStrikeBefore = await ssov.getEpochStrike(1, 1);
+
+      await ssov.configureEpochStrike(1, 1, admin.address, true);
+
+      const epochStrikeAfter = await ssov.getEpochStrike(1, 1);
+
+      expect(epochStrikeBefore.token).to.equal("0x0000000000000000000000000000000000000000");
+      expect(epochStrikeBefore.withdrawable).to.equal(false);
+      expect(epochStrikeAfter.token).to.equal(admin.address);
+      expect(epochStrikeAfter.withdrawable).to.equal(true);
+    });
+  });
 });
