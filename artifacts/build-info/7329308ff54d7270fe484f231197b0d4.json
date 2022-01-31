@@ -1,0 +1,108 @@
+{
+  "id": "7329308ff54d7270fe484f231197b0d4",
+  "_format": "hh-sol-build-info-1",
+  "solcVersion": "0.7.5",
+  "solcLongVersion": "0.7.5+commit.eb77ed08",
+  "input": {
+    "language": "Solidity",
+    "sources": {
+      "contracts/SSOVWrapperETH.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.7.5;\n\ncontract SSOVWrapperETH {}\n"
+      }
+    },
+    "settings": {
+      "optimizer": {
+        "enabled": false,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ],
+          "": [
+            "ast"
+          ]
+        }
+      }
+    }
+  },
+  "output": {
+    "contracts": {
+      "contracts/SSOVWrapperETH.sol": {
+        "SSOVWrapperETH": {
+          "abi": [],
+          "evm": {
+            "bytecode": {
+              "generatedSources": [],
+              "linkReferences": {},
+              "object": "6080604052348015600f57600080fd5b50603f80601d6000396000f3fe6080604052600080fdfea26469706673582212203645903962547819f4b4fee3d401ebadf88bf6594c86219525f8d009edfbd5a564736f6c63430007050033",
+              "opcodes": "PUSH1 0x80 PUSH1 0x40 MSTORE CALLVALUE DUP1 ISZERO PUSH1 0xF JUMPI PUSH1 0x0 DUP1 REVERT JUMPDEST POP PUSH1 0x3F DUP1 PUSH1 0x1D PUSH1 0x0 CODECOPY PUSH1 0x0 RETURN INVALID PUSH1 0x80 PUSH1 0x40 MSTORE PUSH1 0x0 DUP1 REVERT INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 CALLDATASIZE GASLIMIT SWAP1 CODECOPY PUSH3 0x547819 DELEGATECALL 0xB4 INVALID 0xE3 0xD4 ADD 0xEB 0xAD 0xF8 DUP12 0xF6 MSIZE 0x4C DUP7 0x21 SWAP6 0x25 0xF8 0xD0 MULMOD 0xED 0xFB 0xD5 0xA5 PUSH5 0x736F6C6343 STOP SMOD SDIV STOP CALLER ",
+              "sourceMap": "57:26:0:-:0;;;;;;;;;;;;;;;;;;;"
+            },
+            "deployedBytecode": {
+              "generatedSources": [],
+              "immutableReferences": {},
+              "linkReferences": {},
+              "object": "6080604052600080fdfea26469706673582212203645903962547819f4b4fee3d401ebadf88bf6594c86219525f8d009edfbd5a564736f6c63430007050033",
+              "opcodes": "PUSH1 0x80 PUSH1 0x40 MSTORE PUSH1 0x0 DUP1 REVERT INVALID LOG2 PUSH5 0x6970667358 0x22 SLT KECCAK256 CALLDATASIZE GASLIMIT SWAP1 CODECOPY PUSH3 0x547819 DELEGATECALL 0xB4 INVALID 0xE3 0xD4 ADD 0xEB 0xAD 0xF8 DUP12 0xF6 MSIZE 0x4C DUP7 0x21 SWAP6 0x25 0xF8 0xD0 MULMOD 0xED 0xFB 0xD5 0xA5 PUSH5 0x736F6C6343 STOP SMOD SDIV STOP CALLER ",
+              "sourceMap": "57:26:0:-:0;;;;;"
+            },
+            "methodIdentifiers": {}
+          },
+          "metadata": "{\"compiler\":{\"version\":\"0.7.5+commit.eb77ed08\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/SSOVWrapperETH.sol\":\"SSOVWrapperETH\"},\"evmVersion\":\"istanbul\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"contracts/SSOVWrapperETH.sol\":{\"keccak256\":\"0xe46f7be029544990ad4fe085fe0cf7432506c9374329d99c2f11f27b6126f538\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://dff3b686ba4233686a6408c73374a173f5458c2d1a98f8f925e7cf476908e508\",\"dweb:/ipfs/QmatNhkMsZw5Fm5acfTyhaHddHySTNwakGwTpuYpHovm4E\"]}},\"version\":1}"
+        }
+      }
+    },
+    "sources": {
+      "contracts/SSOVWrapperETH.sol": {
+        "ast": {
+          "absolutePath": "contracts/SSOVWrapperETH.sol",
+          "exportedSymbols": {
+            "SSOVWrapperETH": [
+              2
+            ]
+          },
+          "id": 3,
+          "license": "MIT",
+          "nodeType": "SourceUnit",
+          "nodes": [
+            {
+              "id": 1,
+              "literals": [
+                "solidity",
+                "^",
+                "0.7",
+                ".5"
+              ],
+              "nodeType": "PragmaDirective",
+              "src": "32:23:0"
+            },
+            {
+              "abstract": false,
+              "baseContracts": [],
+              "contractDependencies": [],
+              "contractKind": "contract",
+              "fullyImplemented": true,
+              "id": 2,
+              "linearizedBaseContracts": [
+                2
+              ],
+              "name": "SSOVWrapperETH",
+              "nodeType": "ContractDefinition",
+              "nodes": [],
+              "scope": 3,
+              "src": "57:26:0"
+            }
+          ],
+          "src": "32:52:0"
+        },
+        "id": 0
+      }
+    }
+  }
+}
