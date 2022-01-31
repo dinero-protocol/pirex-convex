@@ -1,3 +1,4 @@
+require('dotenv').config()
 require("@nomiclabs/hardhat-waffle");
 
 /**
@@ -5,4 +6,16 @@ require("@nomiclabs/hardhat-waffle");
  */
 module.exports = {
   solidity: "0.7.5",
+  networks: {
+    hardhat: {
+      chainId: 31337,
+      forking: {
+        url:
+          process.env.MAINNET_URL !== undefined ? process.env.MAINNET_URL : "",
+      },
+      accounts: {
+        mnemonic: process.env.SEED,
+      },
+    },
+  },
 };
