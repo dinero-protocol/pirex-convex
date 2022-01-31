@@ -3,7 +3,13 @@ pragma solidity ^0.7.5;
 
 import {Ownable} from "./base/Ownable.sol";
 
+interface DopexSSOVEth {
+    function deposit(uint256 strikeIndex, address user) external returns (bool);
+}
+
 contract SSOVWrapperEth is Ownable {
+    address public dopexSsovEth;
+
     struct EpochStrike {
         uint256 deposits;
         uint256 funds;
@@ -15,12 +21,25 @@ contract SSOVWrapperEth is Ownable {
 
     mapping(bytes32 => EpochStrike) epochStrikes;
 
+    event SetDopexSsovEth(address _dopexSsovEth);
     event ConfigureEpochStrike(
         uint256 epoch,
         uint256 strike,
         address token,
         bool withdrawable
     );
+
+    constructor(address _dopexSsovEth) {
+        require(_dopexSsovEth != address(0), "_dopexSsovEth is invalid");
+        dopexSsovEth = _dopexSsovEth;
+    }
+
+    function setDopexSsovEth(address _dopexSsovEth) external onlyOwner {
+        require(_dopexSsovEth != address(0), "_dopexSsovEth is invalid");
+        dopexSsovEth = _dopexSsovEth;
+
+        emit SetDopexSsovEth(dopexSsovEth);
+    }
 
     /**
         @notice Configure the epoch-strike by setting the token and withdrawable properties

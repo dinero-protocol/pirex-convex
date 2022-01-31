@@ -6,13 +6,39 @@ describe("SSOVWrapperEth", () => {
   let admin;
   let notAdmin;
 
+  const dopexSsovEth = "0x2c9C1E9b4BDf6Bf9CB59C77e0e8C0892cE3A9d5f";
+
   before(async () => {
     [admin, notAdmin] = await ethers.getSigners();
 
-    ssov = await (await ethers.getContractFactory("SSOVWrapperEth")).deploy();
+    ssov = await (
+      await ethers.getContractFactory("SSOVWrapperEth")
+    ).deploy(dopexSsovEth);
   });
 
-  describe("ConfigureEpochStrike", () => {
+  describe("setDopexSsovEth", () => {
+    it("Should set dopexSsovEth", async () => {
+      const dopexSsovEthBefore = await ssov.dopexSsovEth();
+
+      await ssov.setDopexSsovEth(admin.address);
+
+      const dopexSsovEthAfter = await ssov.dopexSsovEth();
+
+      expect(dopexSsovEthBefore).to.equal(dopexSsovEth);
+      expect(dopexSsovEthAfter).to.equal(admin.address);
+
+      // Set back to correct address
+      await ssov.setDopexSsovEth(dopexSsovEth);
+    });
+
+    it("Should revert if not owner", async () => {
+      await expect(
+        ssov.connect(notAdmin).setDopexSsovEth(notAdmin.address)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+  });
+
+  describe("configureEpochStrike", () => {
     it("Should set token for an epoch-strike", async () => {
       const tokenBefore = (await ssov.getEpochStrike(0, 0)).token;
       const [events] = (
