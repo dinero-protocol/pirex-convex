@@ -5,15 +5,25 @@ describe("SSOVWrapperEth", () => {
   let ssov;
   let admin;
   let notAdmin;
-
-  const dopexSsovEth = "0x2c9C1E9b4BDf6Bf9CB59C77e0e8C0892cE3A9d5f";
+  let dopexSsovEth;
 
   before(async () => {
     [admin, notAdmin] = await ethers.getSigners();
 
+    dopexSsovEth = await (
+      await ethers.getContractFactory("ArbEthSSOVV2")
+    ).deploy(
+      // TO DO: Replace as necessary with valid contract addresses
+      admin.address,
+      admin.address,
+      admin.address,
+      admin.address,
+      admin.address,
+      admin.address
+    );
     ssov = await (
       await ethers.getContractFactory("SSOVWrapperEth")
-    ).deploy(dopexSsovEth);
+    ).deploy(dopexSsovEth.address);
   });
 
   describe("setDopexSsovEth", () => {
@@ -24,11 +34,11 @@ describe("SSOVWrapperEth", () => {
 
       const dopexSsovEthAfter = await ssov.dopexSsovEth();
 
-      expect(dopexSsovEthBefore).to.equal(dopexSsovEth);
+      expect(dopexSsovEthBefore).to.equal(dopexSsovEth.address);
       expect(dopexSsovEthAfter).to.equal(admin.address);
 
       // Set back to correct address
-      await ssov.setDopexSsovEth(dopexSsovEth);
+      await ssov.setDopexSsovEth(dopexSsovEth.address);
     });
 
     it("Should revert if not owner", async () => {
@@ -92,7 +102,9 @@ describe("SSOVWrapperEth", () => {
 
       const epochStrikeAfter = await ssov.getEpochStrike(1, 1);
 
-      expect(epochStrikeBefore.token).to.equal("0x0000000000000000000000000000000000000000");
+      expect(epochStrikeBefore.token).to.equal(
+        "0x0000000000000000000000000000000000000000"
+      );
       expect(epochStrikeBefore.withdrawable).to.equal(false);
       expect(epochStrikeAfter.token).to.equal(admin.address);
       expect(epochStrikeAfter.withdrawable).to.equal(true);

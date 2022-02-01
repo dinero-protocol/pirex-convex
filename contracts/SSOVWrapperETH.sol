@@ -3,7 +3,7 @@ pragma solidity ^0.7.5;
 
 import {Ownable} from "./base/Ownable.sol";
 
-interface DopexSSOVEth {
+interface IDopexSSOVEth {
     function deposit(uint256 strikeIndex, address user) external returns (bool);
 }
 
@@ -96,5 +96,9 @@ contract SSOVWrapperEth is Ownable {
         ];
 
         return (e.deposits, e.funds, e.dpx, e.rdpx, e.token, e.withdrawable);
+    }
+
+    function deposit(uint256 strike, address user) external payable {
+        IDopexSSOVEth(dopexSsovEth).deposit(strike, user);
     }
 }
