@@ -54,17 +54,17 @@ describe("PirexCVX", () => {
     it("Should deposit CVX", async () => {
       const cvxBalanceBeforeDeposit = await cvx.balanceOf(admin.address);
       const vlCvxBalanceBeforeDeposit = await cvxLocker.balanceOf(
-        admin.address
+        pirexCvx.address
       );
-      const lockAmount = ethers.BigNumber.from(`${1e18}`);
+      const depositAmount = ethers.BigNumber.from(`${1e18}`);
       const spendRatio = 0;
 
-      await cvx.approve(pirexCvx.address, lockAmount);
+      await cvx.approve(pirexCvx.address, depositAmount);
 
       const { events } = await (
-        await pirexCvx.lock(admin.address, lockAmount, spendRatio)
+        await pirexCvx.deposit(depositAmount, spendRatio)
       ).wait();
-      const lockEvent = events[events.length - 1];
+      const depositEvent = events[events.length - 1];
       const rewardsDuration = Number(
         (await cvxLocker.rewardsDuration()).toString()
       );
@@ -74,20 +74,19 @@ describe("PirexCVX", () => {
       await network.provider.send("evm_mine");
 
       const cvxBalanceAfterDeposit = await cvx.balanceOf(admin.address);
-      const vlCvxBalanceAfterDeposit = await cvxLocker.balanceOf(admin.address);
+      const vlCvxBalanceAfterDeposit = await cvxLocker.balanceOf(pirexCvx.address);
 
       expect(cvxBalanceAfterDeposit).to.equal(
-        cvxBalanceBeforeDeposit.sub(lockAmount)
+        cvxBalanceBeforeDeposit.sub(depositAmount)
       );
       expect(vlCvxBalanceAfterDeposit).to.equal(
-        vlCvxBalanceBeforeDeposit.add(lockAmount)
+        vlCvxBalanceBeforeDeposit.add(depositAmount)
       );
-      expect(lockEvent.eventSignature).to.equal(
-        "Lock(address,uint256,uint256)"
+      expect(depositEvent.eventSignature).to.equal(
+        "Deposited(uint256,uint256)"
       );
-      expect(lockEvent.args.account).to.equal(admin.address);
-      expect(lockEvent.args.amount).to.equal(lockAmount);
-      expect(lockEvent.args.spendRatio).to.equal(spendRatio);
+      expect(depositEvent.args.amount).to.equal(depositAmount);
+      expect(depositEvent.args.spendRatio).to.equal(spendRatio);
     });
   });
 });

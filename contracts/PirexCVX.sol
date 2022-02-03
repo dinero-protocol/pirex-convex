@@ -16,8 +16,9 @@ interface ICvxLocker {
 contract PirexCVX is Ownable {
     using SafeERC20 for IERC20;
 
-    struct vlCVX {
+    struct Deposit {
         uint256 amount;
+        uint256 lockExpiry;
         mapping(uint256 => mapping(address => uint256)) rewards;
     }
 
@@ -26,9 +27,9 @@ contract PirexCVX is Ownable {
     uint256 public currentEpoch;
     uint256 public depositDuration;
 
-    mapping(uint256 => vlCVX) public voteLockedCVX;
+    mapping(uint256 => Deposit) public deposits;
 
-    event Lock(address account, uint256 amount, uint256 spendRatio);
+    event Deposited(uint256 amount, uint256 spendRatio);
 
     constructor(address _cvxLocker, address _cvx, uint256 _depositDuration) {
         require(_cvxLocker != address(0), "Invalid _cvxLocker");
@@ -43,20 +44,18 @@ contract PirexCVX is Ownable {
         currentEpoch = (block.timestamp / depositDuration) * depositDuration;
     }
 
-    function lock(
-        address account,
+    function deposit(
         uint256 amount,
         uint256 spendRatio
     ) external {
-        require(account != address(0), "Invalid account");
         require(amount > 0, "Invalid amount");
 
         // Necessary as CvxLocker's lock method uses msg.sender when transferring
         IERC20(cvx).safeTransferFrom(msg.sender, address(this), amount);
 
         IERC20(cvx).safeIncreaseAllowance(cvxLocker, amount);
-        ICvxLocker(cvxLocker).lock(account, amount, spendRatio);
+        ICvxLocker(cvxLocker).lock(address(this), amount, spendRatio);
 
-        emit Lock(account, amount, spendRatio);
+        emit Deposited(amount, spendRatio);
     }
 }
