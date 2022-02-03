@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {Ownable} from "./base/Ownable.sol";
-import {IERC20} from "./interfaces/IERC20.sol";
-import {SafeERC20} from "./utils/SafeERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface ICvxLocker {
     function lock(
@@ -56,6 +56,8 @@ contract PirexCVX is Ownable {
         IERC20(cvx).safeIncreaseAllowance(cvxLocker, amount);
         ICvxLocker(cvxLocker).lock(address(this), amount, spendRatio);
 
+        // Mint tokens
+        // Set struct
         emit Deposited(amount, spendRatio);
     }
 }

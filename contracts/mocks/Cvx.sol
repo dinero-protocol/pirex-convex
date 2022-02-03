@@ -3,9 +3,7 @@
 
 pragma solidity ^0.8.0;
 
-// https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/master/contracts/token/ERC20/ERC20.sol
-
-import {ERC20} from "../base/ERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract Cvx is ERC20("Convex", "CVX") {
     function mint(address account, uint256 amount) external {
