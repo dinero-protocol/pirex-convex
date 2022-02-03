@@ -19,17 +19,15 @@ contract PirexCVX is Ownable {
     struct Deposit {
         uint256 amount;
         uint256 lockExpiry;
-        mapping(uint256 => mapping(address => uint256)) rewards;
     }
 
     address public cvxLocker;
     address public cvx;
-    uint256 public currentEpoch;
     uint256 public depositDuration;
 
     mapping(uint256 => Deposit) public deposits;
 
-    event Deposited(uint256 amount, uint256 spendRatio);
+    event Deposited(uint256 amount, uint256 spendRatio, uint256 currentEpoch, uint256 totalAmount, uint256 lockExpiry);
 
     constructor(address _cvxLocker, address _cvx, uint256 _depositDuration) {
         require(_cvxLocker != address(0), "Invalid _cvxLocker");
@@ -40,8 +38,6 @@ contract PirexCVX is Ownable {
 
         require(_depositDuration > 0, "Invalid _depositDuration");
         depositDuration = _depositDuration;
-
-        currentEpoch = (block.timestamp / depositDuration) * depositDuration;
     }
 
     function deposit(
@@ -56,8 +52,14 @@ contract PirexCVX is Ownable {
         IERC20(cvx).safeIncreaseAllowance(cvxLocker, amount);
         ICvxLocker(cvxLocker).lock(address(this), amount, spendRatio);
 
-        // Mint tokens
-        // Set struct
-        emit Deposited(amount, spendRatio);
+        // Periods during which users can deposit CVX are every 2 weeks (i.e. epochs)
+        uint256 currentEpoch = (block.timestamp / depositDuration) * depositDuration;
+        Deposit storage d = deposits[currentEpoch];
+        d.amount = d.amount + amount;
+        
+        // CVX can be withdrawn 4 months after the end of the epoch
+        d.lockExpiry = currentEpoch + depositDuration + 17 weeks;
+
+        emit Deposited(amount, spendRatio, currentEpoch, d.amount, d.lockExpiry);
     }
 }
