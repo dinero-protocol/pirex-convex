@@ -26,6 +26,8 @@ contract PirexCVX is Ownable {
 
     mapping(uint256 => vlCVX) public voteLockedCVX;
 
+    event Lock(address account, uint256 amount, uint256 spendRatio);
+
     constructor(address _cvxLocker, address _cvx) {
         require(_cvxLocker != address(0), "Invalid _cvxLocker");
         cvxLocker = _cvxLocker;
@@ -47,5 +49,7 @@ contract PirexCVX is Ownable {
 
         IERC20(cvx).safeIncreaseAllowance(cvxLocker, amount);
         ICvxLocker(cvxLocker).lock(account, amount, spendRatio);
+
+        emit Lock(account, amount, spendRatio);
     }
 }
