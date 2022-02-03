@@ -35,18 +35,11 @@ describe("PirexCVX", () => {
       const _cvxLocker = await pirexCvx.cvxLocker();
       const _cvx = await pirexCvx.cvx();
       const _depositDuration = await pirexCvx.depositDuration();
-      const currentEpoch = await pirexCvx.currentEpoch();
-      const { timestamp } = await ethers.provider.getBlock();
 
       expect(owner).to.equal(admin.address);
       expect(_cvxLocker).to.equal(cvxLocker.address);
       expect(_cvx).to.equal(cvx.address);
       expect(_depositDuration).to.equal(depositDuration);
-      expect(currentEpoch).to.equal(
-        ethers.BigNumber.from(timestamp)
-          .div(_depositDuration)
-          .mul(_depositDuration)
-      );
     });
   });
 
@@ -74,7 +67,18 @@ describe("PirexCVX", () => {
       await network.provider.send("evm_mine");
 
       const cvxBalanceAfterDeposit = await cvx.balanceOf(admin.address);
-      const vlCvxBalanceAfterDeposit = await cvxLocker.balanceOf(pirexCvx.address);
+      const vlCvxBalanceAfterDeposit = await cvxLocker.balanceOf(
+        pirexCvx.address
+      );
+      const depositDuration = await pirexCvx.depositDuration();
+      const currentEpoch = ethers.BigNumber.from(
+        `${
+          Math.floor(
+            (await ethers.provider.getBlock()).timestamp / depositDuration
+          ) * depositDuration
+        }`
+      );
+      const { amount: totalAmount, lockExpiry } = await pirexCvx.deposits(currentEpoch);
 
       expect(cvxBalanceAfterDeposit).to.equal(
         cvxBalanceBeforeDeposit.sub(depositAmount)
@@ -83,10 +87,13 @@ describe("PirexCVX", () => {
         vlCvxBalanceBeforeDeposit.add(depositAmount)
       );
       expect(depositEvent.eventSignature).to.equal(
-        "Deposited(uint256,uint256)"
+        "Deposited(uint256,uint256,uint256,uint256,uint256)"
       );
       expect(depositEvent.args.amount).to.equal(depositAmount);
       expect(depositEvent.args.spendRatio).to.equal(spendRatio);
+      expect(depositEvent.args.currentEpoch).to.equal(currentEpoch);
+      expect(depositEvent.args.totalAmount).to.equal(totalAmount);
+      expect(depositEvent.args.lockExpiry).to.equal(lockExpiry);
     });
   });
 });
