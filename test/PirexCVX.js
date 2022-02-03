@@ -6,6 +6,7 @@ describe("PirexCVX", () => {
   let cvxLocker;
   let pirexCvx;
   const initialCvxBalanceForAdmin = ethers.BigNumber.from(`${10e18}`);
+  const depositDuration = 1209600; // 2 weeks in seconds
 
   before(async () => {
     [admin, notAdmin] = await ethers.getSigners();
@@ -18,7 +19,7 @@ describe("PirexCVX", () => {
 
     pirexCvx = await (
       await ethers.getContractFactory("PirexCVX")
-    ).deploy(cvxLocker.address, cvx.address);
+    ).deploy(cvxLocker.address, cvx.address, depositDuration);
 
     await cvxLocker.setStakingContract(
       "0xe096ccec4a1d36f191189fe61e803d8b2044dfc3"
@@ -33,10 +34,19 @@ describe("PirexCVX", () => {
       const owner = await pirexCvx.owner();
       const _cvxLocker = await pirexCvx.cvxLocker();
       const _cvx = await pirexCvx.cvx();
+      const _depositDuration = await pirexCvx.depositDuration();
+      const currentEpoch = await pirexCvx.currentEpoch();
+      const { timestamp } = await ethers.provider.getBlock();
 
       expect(owner).to.equal(admin.address);
       expect(_cvxLocker).to.equal(cvxLocker.address);
       expect(_cvx).to.equal(cvx.address);
+      expect(_depositDuration).to.equal(depositDuration);
+      expect(currentEpoch).to.equal(
+        ethers.BigNumber.from(timestamp)
+          .div(_depositDuration)
+          .mul(_depositDuration)
+      );
     });
   });
 
