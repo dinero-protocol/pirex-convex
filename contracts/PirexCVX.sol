@@ -23,17 +23,24 @@ contract PirexCVX is Ownable {
 
     address public cvxLocker;
     address public cvx;
+    uint256 public currentEpoch;
+    uint256 public depositDuration;
 
     mapping(uint256 => vlCVX) public voteLockedCVX;
 
     event Lock(address account, uint256 amount, uint256 spendRatio);
 
-    constructor(address _cvxLocker, address _cvx) {
+    constructor(address _cvxLocker, address _cvx, uint256 _depositDuration) {
         require(_cvxLocker != address(0), "Invalid _cvxLocker");
         cvxLocker = _cvxLocker;
 
         require(_cvx != address(0), "Invalid _cvx");
         cvx = _cvx;
+
+        require(_depositDuration > 0, "Invalid _depositDuration");
+        depositDuration = _depositDuration;
+
+        currentEpoch = (block.timestamp / depositDuration) * depositDuration;
     }
 
     function lock(
