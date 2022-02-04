@@ -28,7 +28,8 @@ contract PirexCVX is Ownable {
 
     address public cvxLocker;
     address public cvx;
-    uint256 public depositDuration;
+    uint256 public epochDepositDuration;
+    uint256 public lockDuration;
     address public immutable erc20Implementation;
 
     mapping(uint256 => Deposit) public deposits;
@@ -45,7 +46,8 @@ contract PirexCVX is Ownable {
     constructor(
         address _cvxLocker,
         address _cvx,
-        uint256 _depositDuration
+        uint256 _epochDepositDuration,
+        uint256 _lockDuration
     ) {
         require(_cvxLocker != address(0), "Invalid _cvxLocker");
         cvxLocker = _cvxLocker;
@@ -53,8 +55,11 @@ contract PirexCVX is Ownable {
         require(_cvx != address(0), "Invalid _cvx");
         cvx = _cvx;
 
-        require(_depositDuration > 0, "Invalid _depositDuration");
-        depositDuration = _depositDuration;
+        require(_epochDepositDuration > 0, "Invalid _epochDepositDuration");
+        epochDepositDuration = _epochDepositDuration;
+
+        require(_lockDuration > 0, "Invalid _lockDuration");
+        lockDuration = _lockDuration;
 
         erc20Implementation = address(new ERC20PresetMinterPauserUpgradeable());
     }
@@ -74,13 +79,13 @@ contract PirexCVX is Ownable {
         ICvxLocker(cvxLocker).lock(address(this), amount, spendRatio);
 
         // Periods during which users can deposit CVX are every 2 weeks (i.e. epochs)
-        uint256 currentEpoch = (block.timestamp / depositDuration) *
-            depositDuration;
+        uint256 currentEpoch = (block.timestamp / epochDepositDuration) *
+            epochDepositDuration;
         Deposit storage d = deposits[currentEpoch];
         d.amount = d.amount + amount;
 
-        // CVX can be withdrawn 17 weeks after the end of the epoch ()
-        d.lockExpiry = currentEpoch + depositDuration + 17 weeks;
+        // CVX can be withdrawn 17 weeks after the end of the epoch
+        d.lockExpiry = currentEpoch + epochDepositDuration + lockDuration;
 
         mintVoteLockedCvx(msg.sender, amount, currentEpoch);
 
@@ -106,6 +111,7 @@ contract PirexCVX is Ownable {
 
         if (d.token != address(0)) {
             ERC20PresetMinterPauserUpgradeable(d.token).mint(recipient, amount);
+            return;
         }
 
         // Create a new vlCVX token for current epoch if it doesn't exist
