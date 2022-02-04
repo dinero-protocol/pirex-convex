@@ -99,6 +99,12 @@ contract PirexCVX is Ownable {
         );
     }
 
+    /**
+        @notice Mints vlCVX
+        @param  recipient  uint256  Account receiving vlCVX
+        @param  amount     uint256  Amount of vlCVX
+        @param  epoch      uint256  Epoch to mint vlCVX for
+     */
     function mintVoteLockedCvx(
         address recipient,
         uint256 amount,
