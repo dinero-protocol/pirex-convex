@@ -78,7 +78,14 @@ describe("PirexCVX", () => {
           ) * depositDuration
         }`
       );
-      const { amount: totalAmount, lockExpiry } = await pirexCvx.deposits(currentEpoch);
+      const { amount: totalAmount, lockExpiry } = await pirexCvx.deposits(
+        currentEpoch
+      );
+      const depositToken = await ethers.getContractAt(
+        "ERC20PresetMinterPauserUpgradeable",
+        depositEvent.args.token
+      );
+      const pirexVlCVXBalance = await depositToken.balanceOf(admin.address);
 
       expect(cvxBalanceAfterDeposit).to.equal(
         cvxBalanceBeforeDeposit.sub(depositAmount)
@@ -87,13 +94,17 @@ describe("PirexCVX", () => {
         vlCvxBalanceBeforeDeposit.add(depositAmount)
       );
       expect(depositEvent.eventSignature).to.equal(
-        "Deposited(uint256,uint256,uint256,uint256,uint256)"
+        "Deposited(uint256,uint256,uint256,uint256,uint256,address)"
       );
       expect(depositEvent.args.amount).to.equal(depositAmount);
       expect(depositEvent.args.spendRatio).to.equal(spendRatio);
       expect(depositEvent.args.currentEpoch).to.equal(currentEpoch);
       expect(depositEvent.args.totalAmount).to.equal(totalAmount);
       expect(depositEvent.args.lockExpiry).to.equal(lockExpiry);
+      expect(depositEvent.args.token).to.not.equal(
+        "0x0000000000000000000000000000000000000000"
+      );
+      expect(pirexVlCVXBalance).to.equal(depositAmount);
     });
   });
 });
