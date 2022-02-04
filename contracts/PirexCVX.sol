@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "hardhat/console.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -9,11 +10,33 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 interface ICvxLocker {
+    struct LockedBalance {
+        uint112 amount;
+        uint112 boosted;
+        uint32 unlockTime;
+    }
+
     function lock(
         address _account,
         uint256 _amount,
         uint256 _spendRatio
     ) external;
+
+    function processExpiredLocks(
+        bool _relock,
+        uint256 _spendRatio,
+        address _withdrawTo
+    ) external;
+
+    function lockedBalances(address _user)
+        external
+        view
+        returns (
+            uint256 total,
+            uint256 unlockable,
+            uint256 locked,
+            LockedBalance[] memory lockData
+        );
 }
 
 contract PirexCVX is Ownable {
@@ -130,5 +153,50 @@ contract PirexCVX is Ownable {
         d.token = address(_erc20);
 
         _erc20.mint(recipient, amount);
+    }
+
+    /**
+        @notice Withdraw deposit
+        @param  epoch      uint256  Epoch to mint vlCVX for
+     */
+    function withdraw(uint256 epoch, uint256 spendRatio) external {
+        Deposit storage d = deposits[epoch];
+        require(
+            d.lockExpiry <= block.timestamp,
+            "Cannot withdraw before lock expiry"
+        );
+
+        uint256 epochTokenBalance = ERC20PresetMinterPauserUpgradeable(d.token)
+            .balanceOf(msg.sender);
+
+        require(epochTokenBalance > 0, "Sender does not have vlCVX for epoch");
+
+        // Burn user vlCVX
+        ERC20PresetMinterPauserUpgradeable(d.token).burnFrom(
+            msg.sender,
+            epochTokenBalance
+        );
+
+        (, uint256 unlockable, , ) = ICvxLocker(cvxLocker).lockedBalances(
+            address(this)
+        );
+
+        // Withdraw all unlockable tokens
+        if (unlockable > 0) {
+            ICvxLocker(cvxLocker).processExpiredLocks(
+                false,
+                spendRatio,
+                address(this)
+            );
+        }
+
+        IERC20(cvx).safeIncreaseAllowance(address(this), epochTokenBalance);
+
+        // Only send user what they are owed
+        IERC20(cvx).safeTransferFrom(
+            address(this),
+            msg.sender,
+            epochTokenBalance
+        );
     }
 }
