@@ -5,11 +5,12 @@ describe("PirexCVX", () => {
   let cvx;
   let cvxLocker;
   let pirexCvx;
-  const initialCvxBalanceForAdmin = ethers.BigNumber.from(`${10e18}`);
-  const epochDepositDuration = 1209600; // 2 weeks in seconds
   let cvxLockerLockDuration;
   let firstDepositEpoch;
   let secondDepositEpoch;
+
+  const initialCvxBalanceForAdmin = ethers.BigNumber.from(`${10e18}`);
+  const epochDepositDuration = 1209600; // 2 weeks in seconds
 
   before(async () => {
     [admin, notAdmin] = await ethers.getSigners();
@@ -46,12 +47,16 @@ describe("PirexCVX", () => {
       const _cvx = await pirexCvx.cvx();
       const _epochDepositDuration = await pirexCvx.epochDepositDuration();
       const _lockDuration = await pirexCvx.lockDuration();
+      const erc20Implementation = await pirexCvx.erc20Implementation();
 
       expect(owner).to.equal(admin.address);
       expect(_cvxLocker).to.equal(cvxLocker.address);
       expect(_cvx).to.equal(cvx.address);
       expect(_epochDepositDuration).to.equal(epochDepositDuration);
       expect(_lockDuration).to.equal(cvxLockerLockDuration);
+      expect(erc20Implementation).to.not.equal(
+        "0x0000000000000000000000000000000000000000"
+      );
     });
   });
 
