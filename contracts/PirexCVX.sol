@@ -96,6 +96,14 @@ contract PirexCVX is Ownable {
     }
 
     /**
+        @notice Get current epoch
+        @return uint256 Current epoch
+     */
+    function getCurrentEpoch() public view returns (uint256) {
+        return (block.timestamp / epochDepositDuration) * epochDepositDuration;
+    }
+
+    /**
         @notice Deposit CVX into our protocol
         @param  amount      uint256  CVX amount
         @param  spendRatio  uint256  Used to calculate the spend amount and boost ratio
@@ -110,8 +118,7 @@ contract PirexCVX is Ownable {
         ICvxLocker(cvxLocker).lock(address(this), amount, spendRatio);
 
         // Periods during which users can deposit CVX are every 2 weeks (i.e. epochs)
-        uint256 currentEpoch = (block.timestamp / epochDepositDuration) *
-            epochDepositDuration;
+        uint256 currentEpoch = getCurrentEpoch();
 
         Deposit storage d = deposits[currentEpoch];
         d.amount = d.amount + amount;
