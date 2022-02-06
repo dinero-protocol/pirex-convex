@@ -124,7 +124,7 @@ describe("PirexCVX", () => {
       );
       expect(depositEvent.args.amount).to.equal(depositAmount);
       expect(depositEvent.args.spendRatio).to.equal(spendRatio);
-      expect(depositEvent.args.currentEpoch).to.equal(currentEpoch);
+      expect(depositEvent.args.epoch).to.equal(currentEpoch);
       expect(depositEvent.args.totalAmount).to.equal(totalAmount);
       expect(depositEvent.args.lockExpiry).to.equal(lockExpiry);
       expect(depositEvent.args.token).to.not.equal(
@@ -268,7 +268,7 @@ describe("PirexCVX", () => {
         depositTokenBalanceBeforeWithdraw
       );
       expect(withdrawEvent.args.spendRatio).to.equal(spendRatio);
-      expect(withdrawEvent.args.currentEpoch).to.equal(firstDepositEpoch);
+      expect(withdrawEvent.args.epoch).to.equal(firstDepositEpoch);
       expect(withdrawEvent.args.totalAmount).to.equal(totalAmount);
       expect(withdrawEvent.args.lockExpiry).to.equal(lockExpiry);
       expect(withdrawEvent.args.token).to.equal(depositToken.address);
@@ -301,6 +301,122 @@ describe("PirexCVX", () => {
       expect(cvxBalanceAfterWithdraw).to.equal(
         cvxBalanceBeforeWithdraw.add(depositTokenBalanceBeforeWithdraw)
       );
+    });
+  });
+
+  describe("stake", () => {
+    it("Should stake vlCVX", async () => {
+      const depositAmount = ethers.BigNumber.from(`${1e18}`);
+      const spendRatio = 0;
+
+      await cvx.approve(pirexCvx.address, depositAmount);
+
+      const { events } = await (
+        await pirexCvx.deposit(depositAmount, spendRatio)
+      ).wait();
+      const depositEvent = events[events.length - 1];
+      const depositToken = await ethers.getContractAt(
+        "ERC20PresetMinterPauserUpgradeable",
+        depositEvent.args.token
+      );
+      const depositTokenBalanceBeforeStaking = await depositToken.balanceOf(
+        admin.address
+      );
+
+      await depositToken.approve(
+        pirexCvx.address,
+        depositTokenBalanceBeforeStaking
+      );
+      const { events: stakeEvents } = await (
+        await pirexCvx.stake(depositEvent.args.epoch)
+      ).wait();
+      const stakeEvent = stakeEvents[stakeEvents.length - 1];
+
+      const depositTokenBalanceAfterStaking = await depositToken.balanceOf(
+        admin.address
+      );
+
+      expect(depositTokenBalanceAfterStaking).to.equal(0);
+      expect(stakeEvent.eventSignature).to.equal(
+        "Staked(uint256,uint256,uint256)"
+      );
+      expect(stakeEvent.args.amount).to.equal(depositTokenBalanceBeforeStaking);
+      expect(stakeEvent.args.stakedEpoch).to.equal(
+        await pirexCvx.getCurrentEpoch()
+      );
+      expect(stakeEvent.args.lockedEpoch).to.equal(depositEvent.args.epoch);
+    });
+
+    it("Should revert if after staking after lockExpiry", async () => {
+      const epochDepositDuration = Number(
+        (await pirexCvx.epochDepositDuration()).toString()
+      );
+      const lockDuration = Number((await pirexCvx.lockDuration()).toString());
+      const depositAmount = ethers.BigNumber.from(`${1e18}`);
+      const spendRatio = 0;
+
+      await cvx.approve(pirexCvx.address, depositAmount);
+
+      const { events } = await (
+        await pirexCvx.deposit(depositAmount, spendRatio)
+      ).wait();
+      const depositEvent = events[events.length - 1];
+
+      // Fast forward to after lock expiry
+      await ethers.provider.send("evm_increaseTime", [
+        epochDepositDuration + lockDuration,
+      ]);
+      await network.provider.send("evm_mine");
+
+      const depositToken = await ethers.getContractAt(
+        "ERC20PresetMinterPauserUpgradeable",
+        depositEvent.args.token
+      );
+      const depositTokenBalanceBeforeStaking = await depositToken.balanceOf(
+        admin.address
+      );
+
+      await depositToken.approve(
+        pirexCvx.address,
+        depositTokenBalanceBeforeStaking
+      );
+
+      await expect(pirexCvx.stake(depositEvent.args.epoch)).to.be.revertedWith(
+        "Cannot stake after lock expiry"
+      );
+    });
+
+    it("Should revert if caller does not have tokens for epoch", async () => {
+      const depositAmount = ethers.BigNumber.from(`${1e18}`);
+      const spendRatio = 0;
+
+      await cvx.approve(pirexCvx.address, depositAmount);
+
+      const { events } = await (
+        await pirexCvx.deposit(depositAmount, spendRatio)
+      ).wait();
+      const depositEvent = events[events.length - 1];
+      const depositToken = await ethers.getContractAt(
+        "ERC20PresetMinterPauserUpgradeable",
+        depositEvent.args.token
+      );
+
+      const adminBalanceBeforeTransfer = await depositToken.balanceOf(
+        admin.address
+      );
+
+      await depositToken.transfer(notAdmin.address, adminBalanceBeforeTransfer);
+
+      const adminBalanceAfterTransfer = await depositToken.balanceOf(
+        admin.address
+      );
+      const notAdminBalance = await depositToken.balanceOf(notAdmin.address);
+
+      await expect(pirexCvx.stake(depositEvent.args.epoch)).to.be.revertedWith(
+        "Sender does not have vlCVX for epoch"
+      );
+      expect(adminBalanceAfterTransfer).to.equal(0);
+      expect(notAdminBalance).to.equal(adminBalanceBeforeTransfer);
     });
   });
 });
