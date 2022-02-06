@@ -226,6 +226,9 @@ describe("PirexCVX", () => {
         token
       );
       const spendRatio = 0;
+      const { amount: totalAmount } = await pirexCvx.deposits(
+        firstDepositEpoch
+      );
 
       // Fast forward to after lock expiry
       await ethers.provider.send("evm_increaseTime", [
@@ -245,7 +248,10 @@ describe("PirexCVX", () => {
         pirexCvx.address,
         depositTokenBalanceBeforeWithdraw
       );
-      await pirexCvx.withdraw(firstDepositEpoch, spendRatio);
+      const { events } = await (
+        await pirexCvx.withdraw(firstDepositEpoch, spendRatio)
+      ).wait();
+      const withdrawEvent = events[events.length - 1];
 
       const depositTokenBalanceAfterWithdraw = await depositToken.balanceOf(
         admin.address
@@ -257,6 +263,17 @@ describe("PirexCVX", () => {
       expect(cvxBalanceAfterWithdraw).to.equal(
         cvxBalanceBeforeWithdraw.add(depositTokenBalanceBeforeWithdraw)
       );
+      expect(withdrawEvent.eventSignature).to.equal(
+        "Withdrew(uint256,uint256,uint256,uint256,uint256,address)"
+      );
+      expect(withdrawEvent.args.amount).to.equal(
+        depositTokenBalanceBeforeWithdraw
+      );
+      expect(withdrawEvent.args.spendRatio).to.equal(spendRatio);
+      expect(withdrawEvent.args.currentEpoch).to.equal(firstDepositEpoch);
+      expect(withdrawEvent.args.totalAmount).to.equal(totalAmount);
+      expect(withdrawEvent.args.lockExpiry).to.equal(lockExpiry);
+      expect(withdrawEvent.args.token).to.equal(depositToken.address);
     });
 
     it("Should withdraw CVX if after lock expiry (second epoch deposit)", async () => {

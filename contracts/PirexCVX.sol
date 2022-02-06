@@ -65,6 +65,14 @@ contract PirexCVX is Ownable {
         uint256 lockExpiry,
         address token
     );
+    event Withdrew(
+        uint256 amount,
+        uint256 spendRatio,
+        uint256 currentEpoch,
+        uint256 totalAmount,
+        uint256 lockExpiry,
+        address token
+    );
 
     constructor(
         address _cvxLocker,
@@ -104,11 +112,14 @@ contract PirexCVX is Ownable {
         // Periods during which users can deposit CVX are every 2 weeks (i.e. epochs)
         uint256 currentEpoch = (block.timestamp / epochDepositDuration) *
             epochDepositDuration;
+
         Deposit storage d = deposits[currentEpoch];
         d.amount = d.amount + amount;
 
-        // CVX can be withdrawn 17 weeks after the end of the epoch
-        d.lockExpiry = currentEpoch + epochDepositDuration + lockDuration;
+        if (d.lockExpiry == 0) {
+            // CVX can be withdrawn 17 weeks after the end of the epoch
+            d.lockExpiry = currentEpoch + epochDepositDuration + lockDuration;
+        }
 
         mintVoteLockedCvx(msg.sender, amount, currentEpoch);
 
@@ -148,55 +159,61 @@ contract PirexCVX is Ownable {
                 Clones.clone(erc20Implementation)
             );
 
-        _erc20.initialize(name, name);
-
         d.token = address(_erc20);
 
+        _erc20.initialize(name, name);
         _erc20.mint(recipient, amount);
     }
 
     /**
         @notice Withdraw deposit
-        @param  epoch      uint256  Epoch to mint vlCVX for
+        @param  epoch       uint256  Epoch to mint vlCVX for
+        @param  spendRatio  uint256  Used to calculate the spend amount and boost ratio
      */
     function withdraw(uint256 epoch, uint256 spendRatio) external {
-        Deposit storage d = deposits[epoch];
+        Deposit memory d = deposits[epoch];
         require(
             d.lockExpiry <= block.timestamp,
             "Cannot withdraw before lock expiry"
         );
 
-        uint256 epochTokenBalance = ERC20PresetMinterPauserUpgradeable(d.token)
-            .balanceOf(msg.sender);
-
+        ERC20PresetMinterPauserUpgradeable _erc20 = ERC20PresetMinterPauserUpgradeable(
+                d.token
+            );
+        uint256 epochTokenBalance = _erc20.balanceOf(msg.sender);
         require(epochTokenBalance > 0, "Sender does not have vlCVX for epoch");
 
         // Burn user vlCVX
-        ERC20PresetMinterPauserUpgradeable(d.token).burnFrom(
-            msg.sender,
-            epochTokenBalance
-        );
+        _erc20.burnFrom(msg.sender, epochTokenBalance);
 
-        (, uint256 unlockable, , ) = ICvxLocker(cvxLocker).lockedBalances(
-            address(this)
+        unlockCvx(spendRatio);
+
+        IERC20 _cvx = IERC20(cvx);
+
+        // Send msg.sender CVX equal to the amount of their epoch token balance
+        _cvx.safeIncreaseAllowance(address(this), epochTokenBalance);
+        _cvx.safeTransferFrom(address(this), msg.sender, epochTokenBalance);
+
+        emit Withdrew(
+            epochTokenBalance,
+            spendRatio,
+            epoch,
+            d.amount,
+            d.lockExpiry,
+            d.token
         );
+    }
+
+    /**
+        @notice Unlock CVX (if any)
+     */
+    function unlockCvx(uint256 spendRatio) public {
+        ICvxLocker _cvxLocker = ICvxLocker(cvxLocker);
+        (, uint256 unlockable, , ) = _cvxLocker.lockedBalances(address(this));
 
         // Withdraw all unlockable tokens
         if (unlockable > 0) {
-            ICvxLocker(cvxLocker).processExpiredLocks(
-                false,
-                spendRatio,
-                address(this)
-            );
+            _cvxLocker.processExpiredLocks(false, spendRatio, address(this));
         }
-
-        IERC20(cvx).safeIncreaseAllowance(address(this), epochTokenBalance);
-
-        // Only send user what they are owed
-        IERC20(cvx).safeTransferFrom(
-            address(this),
-            msg.sender,
-            epochTokenBalance
-        );
     }
 }
