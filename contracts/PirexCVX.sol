@@ -44,7 +44,6 @@ contract PirexCVX is Ownable {
     using Strings for uint256;
 
     struct Deposit {
-        uint256 amount;
         uint256 lockExpiry;
         address token;
     }
@@ -61,7 +60,6 @@ contract PirexCVX is Ownable {
         uint256 amount,
         uint256 spendRatio,
         uint256 epoch,
-        uint256 totalAmount,
         uint256 lockExpiry,
         address token
     );
@@ -69,7 +67,6 @@ contract PirexCVX is Ownable {
         uint256 amount,
         uint256 spendRatio,
         uint256 epoch,
-        uint256 totalAmount,
         uint256 lockExpiry,
         address token
     );
@@ -121,7 +118,6 @@ contract PirexCVX is Ownable {
         uint256 currentEpoch = getCurrentEpoch();
 
         Deposit storage d = deposits[currentEpoch];
-        d.amount = d.amount + amount;
 
         if (d.lockExpiry == 0) {
             // CVX can be withdrawn 17 weeks after the end of the epoch
@@ -134,7 +130,6 @@ contract PirexCVX is Ownable {
             amount,
             spendRatio,
             currentEpoch,
-            d.amount,
             d.lockExpiry,
             d.token
         );
@@ -205,7 +200,6 @@ contract PirexCVX is Ownable {
             epochTokenBalance,
             spendRatio,
             epoch,
-            d.amount,
             d.lockExpiry,
             d.token
         );
