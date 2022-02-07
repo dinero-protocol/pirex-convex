@@ -119,20 +119,15 @@ contract PirexCVX is Ownable {
 
         Deposit storage d = deposits[currentEpoch];
 
+        address token = mintVoteLockedCvx(msg.sender, amount, currentEpoch);
+
         if (d.lockExpiry == 0) {
             // CVX can be withdrawn 17 weeks after the end of the epoch
             d.lockExpiry = currentEpoch + epochDepositDuration + lockDuration;
+            d.token = token;
         }
 
-        mintVoteLockedCvx(msg.sender, amount, currentEpoch);
-
-        emit Deposited(
-            amount,
-            spendRatio,
-            currentEpoch,
-            d.lockExpiry,
-            d.token
-        );
+        emit Deposited(amount, spendRatio, currentEpoch, d.lockExpiry, d.token);
     }
 
     /**
@@ -145,15 +140,16 @@ contract PirexCVX is Ownable {
         address recipient,
         uint256 amount,
         uint256 epoch
-    ) internal {
+    ) internal returns (address) {
         string memory name = string(
             abi.encodePacked("vlCVX-", epoch.toString())
         );
-        Deposit storage d = deposits[epoch];
+        Deposit memory d = deposits[epoch];
 
         if (d.token != address(0)) {
             ERC20PresetMinterPauserUpgradeable(d.token).mint(recipient, amount);
-            return;
+
+            return d.token;
         }
 
         // Create a new vlCVX token for current epoch if it doesn't exist
@@ -161,10 +157,10 @@ contract PirexCVX is Ownable {
                 Clones.clone(erc20Implementation)
             );
 
-        d.token = address(_erc20);
-
         _erc20.initialize(name, name);
         _erc20.mint(recipient, amount);
+
+        return address(_erc20);
     }
 
     /**
