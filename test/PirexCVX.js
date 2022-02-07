@@ -4,11 +4,16 @@ const { ethers } = require("hardhat");
 describe("PirexCVX", () => {
   let cvx;
   let cvxLocker;
+  let cvxRewardPool;
   let pirexCvx;
   let cvxLockerLockDuration;
   let firstDepositEpoch;
   let secondDepositEpoch;
 
+  const crvAddr = "0xd533a949740bb3306d119cc777fa900ba034cd52";
+  const crvDepositorAddr = "0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae";
+  const cvxCrvRewardsAddr = "0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e";
+  const cvxCrvTokenAddr = "0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7";
   const initialCvxBalanceForAdmin = ethers.BigNumber.from(`${10e18}`);
   const epochDepositDuration = 1209600; // 2 weeks in seconds
 
@@ -19,12 +24,24 @@ describe("PirexCVX", () => {
     cvxLocker = await (
       await ethers.getContractFactory("CvxLocker")
     ).deploy(cvx.address);
+    cvxRewardPool = await (
+      await ethers.getContractFactory("cvxRewardPool")
+    ).deploy(
+      cvx.address,
+      crvAddr,
+      crvDepositorAddr,
+      cvxCrvRewardsAddr,
+      cvxCrvTokenAddr,
+      admin.address,
+      admin.address
+    );
     cvxLockerLockDuration = await cvxLocker.lockDuration();
     pirexCvx = await (
       await ethers.getContractFactory("PirexCVX")
     ).deploy(
       cvxLocker.address,
       cvx.address,
+      cvxRewardPool.address,
       epochDepositDuration,
       cvxLockerLockDuration
     );
@@ -285,6 +302,44 @@ describe("PirexCVX", () => {
       expect(depositTokenBalanceAfterWithdraw).to.equal(0);
       expect(cvxBalanceAfterWithdraw).to.equal(
         cvxBalanceBeforeWithdraw.add(depositTokenBalanceBeforeWithdraw)
+      );
+    });
+  });
+
+  describe("stake", () => {
+    it("Should stake unlocked CVX", async () => {
+      const depositAmount = ethers.BigNumber.from(`${1e18}`);
+      const spendRatio = 0;
+      const lockDuration = Number((await pirexCvx.lockDuration()).toString());
+
+      await cvx.approve(pirexCvx.address, depositAmount);
+
+      await pirexCvx.deposit(depositAmount, spendRatio);
+
+      const { timestamp } = await ethers.provider.getBlock();
+
+      // Fast forward to after lock expiry
+      await ethers.provider.send("evm_increaseTime", [
+        timestamp + lockDuration,
+      ]);
+      await network.provider.send("evm_mine");
+
+      const { unlockable } = await cvxLocker.lockedBalances(pirexCvx.address);
+
+      await pirexCvx.unlockCvx(spendRatio);
+
+      const stakedCvxBalanceBefore = await cvxRewardPool.balanceOf(
+        pirexCvx.address
+      );
+
+      await pirexCvx.stakeCvx();
+
+      const stakedCvxBalanceAfter = await cvxRewardPool.balanceOf(
+        pirexCvx.address
+      );
+
+      expect(stakedCvxBalanceAfter).to.equal(
+        stakedCvxBalanceBefore.add(unlockable)
       );
     });
   });
