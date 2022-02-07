@@ -49,11 +49,6 @@ contract PirexCVX is Ownable {
         address token;
     }
 
-    struct Stake {
-        uint256 amount;
-        uint256 epoch;
-    }
-
     address public cvxLocker;
     address public cvx;
     uint256 public epochDepositDuration;
@@ -61,7 +56,6 @@ contract PirexCVX is Ownable {
     address public immutable erc20Implementation;
 
     mapping(uint256 => Deposit) public deposits;
-    mapping(address => mapping(uint256 => Stake)) stakes;
 
     event Deposited(
         uint256 amount,
@@ -78,11 +72,6 @@ contract PirexCVX is Ownable {
         uint256 totalAmount,
         uint256 lockExpiry,
         address token
-    );
-    event Staked(
-        uint256 amount,
-        uint256 stakedEpoch,
-        uint256 lockedEpoch
     );
 
     constructor(
@@ -233,33 +222,5 @@ contract PirexCVX is Ownable {
         if (unlockable > 0) {
             _cvxLocker.processExpiredLocks(false, spendRatio, address(this));
         }
-    }
-
-    /**
-        @notice Stake vlCVX
-     */
-    function stake(uint256 epoch) public {
-        Deposit memory d = deposits[epoch];
-        require(
-            d.lockExpiry >= block.timestamp,
-            "Cannot stake after lock expiry"
-        );
-
-        uint256 epochTokenBalance = ERC20PresetMinterPauserUpgradeable(d.token)
-            .balanceOf(msg.sender);
-        require(epochTokenBalance > 0, "Sender does not have vlCVX for epoch");
-
-        IERC20(d.token).safeTransferFrom(
-            msg.sender,
-            address(this),
-            epochTokenBalance
-        );
-
-        uint256 stakedEpoch = getCurrentEpoch();
-        Stake storage s = stakes[msg.sender][epoch];
-        s.amount = s.amount + epochTokenBalance;
-        s.epoch = stakedEpoch;
-
-        emit Staked(epochTokenBalance, stakedEpoch, epoch);
     }
 }
