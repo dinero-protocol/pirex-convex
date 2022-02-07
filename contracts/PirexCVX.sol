@@ -39,6 +39,10 @@ interface ICvxLocker {
         );
 }
 
+interface IcvxRewardPool {
+    function stake(uint256 _amount) external;
+}
+
 contract PirexCVX is Ownable {
     using SafeERC20 for IERC20;
     using Strings for uint256;
@@ -50,6 +54,7 @@ contract PirexCVX is Ownable {
 
     address public cvxLocker;
     address public cvx;
+    address public cvxRewardPool;
     uint256 public epochDepositDuration;
     uint256 public lockDuration;
     address public immutable erc20Implementation;
@@ -70,10 +75,12 @@ contract PirexCVX is Ownable {
         uint256 lockExpiry,
         address token
     );
+    event Staked(uint256 amount);
 
     constructor(
         address _cvxLocker,
         address _cvx,
+        address _cvxRewardPool,
         uint256 _epochDepositDuration,
         uint256 _lockDuration
     ) {
@@ -82,6 +89,9 @@ contract PirexCVX is Ownable {
 
         require(_cvx != address(0), "Invalid _cvx");
         cvx = _cvx;
+
+        require(_cvxRewardPool != address(0), "Invalid _cvxRewardPool");
+        cvxRewardPool = _cvxRewardPool;
 
         require(_epochDepositDuration > 0, "Invalid _epochDepositDuration");
         epochDepositDuration = _epochDepositDuration;
@@ -190,6 +200,9 @@ contract PirexCVX is Ownable {
         // Only unlock CVX if contract does not have enough for withdrawal
         if (cvxBalance < epochTokenBalance) {
             unlockCvx(spendRatio);
+
+            // TODO: Unstake CVX if unlocked balance is not enough
+            // If unlocked balance is greater than epochTokenBalance, stake remainder
         }
 
         // Send msg.sender CVX equal to the amount of their epoch token balance
@@ -207,6 +220,7 @@ contract PirexCVX is Ownable {
 
     /**
         @notice Unlock CVX (if any)
+        @param  spendRatio  uint256  Used to calculate the spend amount and boost ratio
      */
     function unlockCvx(uint256 spendRatio) public {
         ICvxLocker _cvxLocker = ICvxLocker(cvxLocker);
@@ -216,5 +230,17 @@ contract PirexCVX is Ownable {
         if (unlockable > 0) {
             _cvxLocker.processExpiredLocks(false, spendRatio, address(this));
         }
+    }
+
+    /**
+        @notice Stake CVX
+     */
+    function stakeCvx() public {
+        uint256 balance = IERC20(cvx).balanceOf(address(this));
+
+        IERC20(cvx).safeIncreaseAllowance(cvxRewardPool, balance);
+        IcvxRewardPool(cvxRewardPool).stake(balance);
+
+        emit Staked(balance);
     }
 }
