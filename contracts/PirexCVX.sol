@@ -184,9 +184,13 @@ contract PirexCVX is Ownable {
         // Burn user vlCVX
         _erc20.burnFrom(msg.sender, epochTokenBalance);
 
-        unlockCvx(spendRatio);
-
         IERC20 _cvx = IERC20(cvx);
+        uint256 cvxBalance = _cvx.balanceOf(address(this));
+
+        // Only unlock CVX if contract does not have enough for withdrawal
+        if (cvxBalance < epochTokenBalance) {
+            unlockCvx(spendRatio);
+        }
 
         // Send msg.sender CVX equal to the amount of their epoch token balance
         _cvx.safeIncreaseAllowance(address(this), epochTokenBalance);
