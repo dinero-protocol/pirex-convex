@@ -343,8 +343,40 @@ describe("PirexCVX", () => {
       expect(stakedCvxBalanceAfter).to.equal(
         stakedCvxBalanceBefore.add(unlockable)
       );
-      expect(stakeEvent.eventSignature).to.equal('Staked(uint256)');
+      expect(stakeEvent.eventSignature).to.equal("Staked(uint256)");
       expect(stakeEvent.args.amount).to.equal(cvxBalanceBeforeStaking);
+    });
+  });
+
+  describe("unstake", () => {
+    it("Should unstake a specified amount of staked CVX", async () => {
+      const stakedCvxBalanceBeforeUnstaking = await cvxRewardPool.balanceOf(
+        pirexCvx.address
+      );
+      const cvxBalanceBeforeUnstaking = await cvx.balanceOf(pirexCvx.address);
+      const unstakeAmount = (
+        await cvxRewardPool.balanceOf(pirexCvx.address)
+      ).div(2);
+
+      const { events } = await (
+        await pirexCvx.unstakeCvx(unstakeAmount)
+      ).wait();
+      const unstakeEvent = events[events.length - 1];
+
+      const cvxBalanceAfterUnstaking = await cvx.balanceOf(pirexCvx.address);
+      const stakedCvxBalanceAfterUnstaking = await cvxRewardPool.balanceOf(
+        pirexCvx.address
+      );
+
+      expect(unstakeAmount.gt(0)).to.equal(true);
+      expect(stakedCvxBalanceAfterUnstaking).to.equal(
+        stakedCvxBalanceBeforeUnstaking.sub(unstakeAmount)
+      );
+      expect(cvxBalanceAfterUnstaking).to.equal(
+        cvxBalanceBeforeUnstaking.add(unstakeAmount)
+      );
+      expect(unstakeEvent.eventSignature).to.equal("Unstaked(uint256)");
+      expect(unstakeEvent.args.amount).to.equal(unstakeAmount);
     });
   });
 });

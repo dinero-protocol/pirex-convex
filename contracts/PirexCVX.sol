@@ -41,6 +41,8 @@ interface ICvxLocker {
 
 interface IcvxRewardPool {
     function stake(uint256 _amount) external;
+
+    function withdraw(uint256 _amount, bool claim) external;
 }
 
 contract PirexCVX is Ownable {
@@ -76,6 +78,7 @@ contract PirexCVX is Ownable {
         address token
     );
     event Staked(uint256 amount);
+    event Unstaked(uint256 amount);
 
     constructor(
         address _cvxLocker,
@@ -221,8 +224,9 @@ contract PirexCVX is Ownable {
     /**
         @notice Unlock CVX (if any)
         @param  spendRatio  uint256  Used to calculate the spend amount and boost ratio
+        @return unlocked    uint256  Amount of unlocked CVX
      */
-    function unlockCvx(uint256 spendRatio) public {
+    function unlockCvx(uint256 spendRatio) public returns (uint256 unlocked) {
         ICvxLocker _cvxLocker = ICvxLocker(cvxLocker);
         (, uint256 unlockable, , ) = _cvxLocker.lockedBalances(address(this));
 
@@ -230,6 +234,8 @@ contract PirexCVX is Ownable {
         if (unlockable > 0) {
             _cvxLocker.processExpiredLocks(false, spendRatio, address(this));
         }
+
+        return unlockable;
     }
 
     /**
@@ -242,5 +248,15 @@ contract PirexCVX is Ownable {
         IcvxRewardPool(cvxRewardPool).stake(balance);
 
         emit Staked(balance);
+    }
+
+    /**
+        @notice Stake CVX
+        @param  amount  uint256  Amount of CVX to unstake
+     */
+    function unstakeCvx(uint256 amount) public {
+        IcvxRewardPool(cvxRewardPool).withdraw(amount, false);
+
+        emit Unstaked(amount);
     }
 }
