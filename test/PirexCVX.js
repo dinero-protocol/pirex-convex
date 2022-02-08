@@ -331,8 +331,10 @@ describe("PirexCVX", () => {
       const stakedCvxBalanceBefore = await cvxRewardPool.balanceOf(
         pirexCvx.address
       );
+      const cvxBalanceBeforeStaking = await cvx.balanceOf(pirexCvx.address);
 
-      await pirexCvx.stakeCvx();
+      const { events } = await (await pirexCvx.stakeCvx()).wait();
+      const stakeEvent = events[events.length - 1];
 
       const stakedCvxBalanceAfter = await cvxRewardPool.balanceOf(
         pirexCvx.address
@@ -341,6 +343,8 @@ describe("PirexCVX", () => {
       expect(stakedCvxBalanceAfter).to.equal(
         stakedCvxBalanceBefore.add(unlockable)
       );
+      expect(stakeEvent.eventSignature).to.equal('Staked(uint256)');
+      expect(stakeEvent.args.amount).to.equal(cvxBalanceBeforeStaking);
     });
   });
 });
