@@ -58,6 +58,9 @@ describe("PirexCVX", () => {
     await cvx.mint(admin.address, initialCvxBalanceForAdmin);
   });
 
+  const getDepositToken = async (address) =>
+    await ethers.getContractAt("ERC20PresetMinterPauserUpgradeable", address);
+
   describe("constructor", () => {
     it("Should set up contract state", async () => {
       const owner = await pirexCvx.owner();
@@ -121,10 +124,7 @@ describe("PirexCVX", () => {
       // Store to conveniently withdraw tokens for a specific epoch later
       firstDepositEpoch = currentEpoch;
 
-      const depositToken = await ethers.getContractAt(
-        "ERC20PresetMinterPauserUpgradeable",
-        depositEvent.args.token
-      );
+      const depositToken = await getDepositToken(depositEvent.args.token);
       const pirexVlCVXBalance = await depositToken.balanceOf(admin.address);
 
       expect(cvxBalanceAfterDeposit).to.equal(
@@ -149,10 +149,7 @@ describe("PirexCVX", () => {
     it("Should mint the correct number of vlCVX tokens on subsequent deposits", async () => {
       const currentEpoch = await pirexCvx.getCurrentEpoch();
       const { token } = await pirexCvx.deposits(currentEpoch);
-      const depositToken = await ethers.getContractAt(
-        "ERC20PresetMinterPauserUpgradeable",
-        token
-      );
+      const depositToken = await getDepositToken(token);
       const pirexVlCVXBalanceBefore = await depositToken.balanceOf(
         admin.address
       );
@@ -179,8 +176,7 @@ describe("PirexCVX", () => {
       const { token: currentEpochToken } = await pirexCvx.deposits(
         currentEpoch
       );
-      const depositTokenForCurrentEpoch = await ethers.getContractAt(
-        "ERC20PresetMinterPauserUpgradeable",
+      const depositTokenForCurrentEpoch = await getDepositToken(
         currentEpochToken
       );
       const nextEpoch = currentEpoch.add(epochDepositDuration);
@@ -196,10 +192,7 @@ describe("PirexCVX", () => {
       await pirexCvx.deposit(depositAmount, spendRatio);
 
       const { token: nextEpochToken } = await pirexCvx.deposits(nextEpoch);
-      const depositTokenForNextEpoch = await ethers.getContractAt(
-        "ERC20PresetMinterPauserUpgradeable",
-        nextEpochToken
-      );
+      const depositTokenForNextEpoch = await getDepositToken(nextEpochToken);
 
       expect(await depositTokenForCurrentEpoch.name()).to.equal(
         `vlCVX-${currentEpoch}`
@@ -231,10 +224,7 @@ describe("PirexCVX", () => {
         await pirexCvx.lockDuration()
       );
       const { token, lockExpiry } = await pirexCvx.deposits(firstDepositEpoch);
-      const depositToken = await ethers.getContractAt(
-        "ERC20PresetMinterPauserUpgradeable",
-        token
-      );
+      const depositToken = await getDepositToken(token);
       const spendRatio = 0;
 
       // Fast forward to after lock expiry
@@ -281,10 +271,7 @@ describe("PirexCVX", () => {
 
     it("Should withdraw CVX if after lock expiry (second epoch deposit)", async () => {
       const { token } = await pirexCvx.deposits(secondDepositEpoch);
-      const depositToken = await ethers.getContractAt(
-        "ERC20PresetMinterPauserUpgradeable",
-        token
-      );
+      const depositToken = await getDepositToken(token);
       const spendRatio = 0;
       const depositTokenBalanceBeforeWithdraw = await depositToken.balanceOf(
         admin.address
