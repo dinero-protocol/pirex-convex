@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { callAndReturnEvent, increaseBlockTimestamp } = require("./helpers");
 
 describe("PirexCVX", () => {
   let cvx;
@@ -95,17 +96,16 @@ describe("PirexCVX", () => {
 
       await cvx.approve(pirexCvx.address, depositAmount);
 
-      const { events } = await (
-        await pirexCvx.deposit(depositAmount, spendRatio)
-      ).wait();
-      const depositEvent = events[events.length - 1];
+      const depositEvent = await callAndReturnEvent(pirexCvx.deposit, [
+        depositAmount,
+        spendRatio,
+      ]);
       const rewardsDuration = Number(
         (await cvxLocker.rewardsDuration()).toString()
       );
 
       // Fast forward 1 rewards duration so that balance is reflected
-      await ethers.provider.send("evm_increaseTime", [rewardsDuration]);
-      await network.provider.send("evm_mine");
+      await increaseBlockTimestamp(rewardsDuration);
 
       const cvxBalanceAfterDeposit = await cvx.balanceOf(admin.address);
       const vlCvxBalanceAfterDeposit = await cvxLocker.balanceOf(
@@ -186,8 +186,7 @@ describe("PirexCVX", () => {
       secondDepositEpoch = nextEpoch;
 
       // Fast forward 1 epoch
-      await ethers.provider.send("evm_increaseTime", [epochDepositDuration]);
-      await network.provider.send("evm_mine");
+      await increaseBlockTimestamp(epochDepositDuration);
       await cvx.approve(pirexCvx.address, depositAmount);
       await pirexCvx.deposit(depositAmount, spendRatio);
 
@@ -232,10 +231,7 @@ describe("PirexCVX", () => {
       const spendRatio = 0;
 
       // Fast forward to after lock expiry
-      await ethers.provider.send("evm_increaseTime", [
-        epochDepositDuration + lockDuration,
-      ]);
-      await network.provider.send("evm_mine");
+      await increaseBlockTimestamp(epochDepositDuration + lockDuration);
 
       const depositTokenBalanceBeforeWithdraw = await depositToken.balanceOf(
         admin.address
@@ -250,10 +246,10 @@ describe("PirexCVX", () => {
         depositTokenBalanceBeforeWithdraw
       );
 
-      const { events } = await (
-        await pirexCvx.withdraw(firstDepositEpoch, spendRatio)
-      ).wait();
-      const withdrawEvent = events[events.length - 1];
+      const withdrawEvent = await callAndReturnEvent(pirexCvx.withdraw, [
+        firstDepositEpoch,
+        spendRatio,
+      ]);
       const depositTokenBalanceAfterWithdraw = await depositToken.balanceOf(
         admin.address
       );
@@ -310,19 +306,16 @@ describe("PirexCVX", () => {
     it("Should stake unlocked CVX", async () => {
       const depositAmount = ethers.BigNumber.from(`${1e18}`);
       const spendRatio = 0;
+      const epochDepositDuration = Number(
+        (await pirexCvx.epochDepositDuration()).toString()
+      );
       const lockDuration = Number((await pirexCvx.lockDuration()).toString());
 
       await cvx.approve(pirexCvx.address, depositAmount);
-
       await pirexCvx.deposit(depositAmount, spendRatio);
 
-      const { timestamp } = await ethers.provider.getBlock();
-
       // Fast forward to after lock expiry
-      await ethers.provider.send("evm_increaseTime", [
-        timestamp + lockDuration,
-      ]);
-      await network.provider.send("evm_mine");
+      await increaseBlockTimestamp(epochDepositDuration + lockDuration);
 
       const { unlockable } = await cvxLocker.lockedBalances(pirexCvx.address);
 
@@ -332,10 +325,9 @@ describe("PirexCVX", () => {
         pirexCvx.address
       );
       const cvxBalanceBeforeStaking = await cvx.balanceOf(pirexCvx.address);
-
-      const { events } = await (await pirexCvx.stakeCvx()).wait();
-      const stakeEvent = events[events.length - 1];
-
+      const stakeEvent = await callAndReturnEvent(pirexCvx.stakeCvx, [
+        cvxBalanceBeforeStaking,
+      ]);
       const stakedCvxBalanceAfter = await cvxRewardPool.balanceOf(
         pirexCvx.address
       );
@@ -357,12 +349,9 @@ describe("PirexCVX", () => {
       const unstakeAmount = (
         await cvxRewardPool.balanceOf(pirexCvx.address)
       ).div(2);
-
-      const { events } = await (
-        await pirexCvx.unstakeCvx(unstakeAmount)
-      ).wait();
-      const unstakeEvent = events[events.length - 1];
-
+      const unstakeEvent = await callAndReturnEvent(pirexCvx.unstakeCvx, [
+        unstakeAmount,
+      ]);
       const cvxBalanceAfterUnstaking = await cvx.balanceOf(pirexCvx.address);
       const stakedCvxBalanceAfterUnstaking = await cvxRewardPool.balanceOf(
         pirexCvx.address
