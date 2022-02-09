@@ -121,26 +121,30 @@ contract PirexCvx is Ownable {
     function deposit(uint256 amount, uint256 spendRatio) external {
         require(amount > 0, "Invalid amount");
 
-        // Necessary as CvxLocker's lock method uses msg.sender when transferring
+        // CvxLocker transfers CVX from msg.sender (this contract) to itself
         IERC20(cvx).safeTransferFrom(msg.sender, address(this), amount);
 
         IERC20(cvx).safeIncreaseAllowance(cvxLocker, amount);
         ICvxLocker(cvxLocker).lock(address(this), amount, spendRatio);
 
-        // Periods during which users can deposit CVX are every 2 weeks (i.e. epochs)
+        // Deposit periods are every 2 weeks
         uint256 currentEpoch = getCurrentEpoch();
 
         Deposit storage d = deposits[currentEpoch];
 
+        // CVX can be withdrawn 17 weeks *after the end of the epoch*
+        uint256 lockExpiry = currentEpoch + epochDepositDuration + lockDuration;
         address token = mintVoteLockedCvx(msg.sender, amount, currentEpoch);
 
         if (d.lockExpiry == 0) {
-            // CVX can be withdrawn 17 weeks after the end of the epoch
-            d.lockExpiry = currentEpoch + epochDepositDuration + lockDuration;
+            d.lockExpiry = lockExpiry;
             d.token = token;
         }
 
-        emit Deposited(amount, spendRatio, currentEpoch, d.lockExpiry, d.token);
+        assert(d.lockExpiry != 0);
+        assert(d.token != address(0));
+
+        emit Deposited(amount, spendRatio, currentEpoch, lockExpiry, token);
     }
 
     /**
@@ -178,7 +182,7 @@ contract PirexCvx is Ownable {
 
     /**
         @notice Withdraw deposit
-        @param  epoch       uint256  Epoch to mint vlCVX for
+        @param  epoch       uint256  Epoch to withdraw vlCVX for
         @param  spendRatio  uint256  Used to calculate the spend amount and boost ratio
      */
     function withdraw(uint256 epoch, uint256 spendRatio) external {
