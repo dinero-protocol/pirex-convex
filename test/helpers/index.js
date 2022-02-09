@@ -12,7 +12,11 @@ const increaseBlockTimestamp = async (time) => {
   await network.provider.send("evm_mine");
 };
 
+// This method prevents the overflow error when calling toNumber() directly on large #s
+const convertBigNumberToNumber = (bigNumber) => Number(bigNumber.toString());
+
 module.exports = {
   callAndReturnEvent,
   increaseBlockTimestamp,
+  convertBigNumberToNumber,
 };
