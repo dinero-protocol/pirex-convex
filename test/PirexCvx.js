@@ -373,6 +373,16 @@ describe("PirexCvx", () => {
   });
 
   describe("stake", () => {
+    it("Should revert if amount is 0", async () => {
+      await expect(pirexCvx.stakeCvx(0)).to.be.revertedWith("Invalid amount");
+    });
+
+    it("Should revert if amount is greater than balance", async () => {
+      await expect(pirexCvx.stakeCvx(`${1e18}`)).to.be.revertedWith(
+        "ERC20: transfer amount exceeds balance"
+      );
+    });
+
     it("Should stake unlocked CVX", async () => {
       const depositAmount = toBN(1e18);
       const epochDepositDuration = convertBigNumberToNumber(
@@ -392,46 +402,56 @@ describe("PirexCvx", () => {
 
       await pirexCvx.unlockCvx(defaultSpendRatio);
 
-      const stakedCvxBalanceBefore = await cvxRewardPool.balanceOf(
+      const pirexStakedCvxTokensBefore = await cvxRewardPool.balanceOf(
         pirexCvx.address
       );
-      const cvxBalanceBeforeStaking = await cvx.balanceOf(pirexCvx.address);
-      const stakeEvent = await callAndReturnEvent(pirexCvx.stakeCvx, []);
-      const stakedCvxBalanceAfter = await cvxRewardPool.balanceOf(
+      const pirexCvxTokensBeforeStaking = await cvx.balanceOf(pirexCvx.address);
+      const stakeEvent = await callAndReturnEvent(pirexCvx.stakeCvx, [depositAmount]);
+      const pirexStakedCvxTokensAfter = await cvxRewardPool.balanceOf(
         pirexCvx.address
       );
 
-      expect(stakedCvxBalanceAfter).to.equal(
-        stakedCvxBalanceBefore.add(unlockable)
+      expect(pirexStakedCvxTokensAfter).to.equal(
+        pirexStakedCvxTokensBefore.add(unlockable)
       );
       expect(stakeEvent.eventSignature).to.equal("Staked(uint256)");
-      expect(stakeEvent.args.amount).to.equal(cvxBalanceBeforeStaking);
+      expect(stakeEvent.args.amount).to.equal(pirexCvxTokensBeforeStaking);
     });
   });
 
   describe("unstake", () => {
+    it("Should revert if amount to unstake is 0", async () => {
+      await expect(pirexCvx.unstakeCvx(0)).to.be.revertedWith("Invalid amount");
+    });
+
     it("Should unstake a specified amount of staked CVX", async () => {
-      const stakedCvxBalanceBeforeUnstaking = await cvxRewardPool.balanceOf(
+      const pirexStakedCvxTokensBeforeUnstaking = await cvxRewardPool.balanceOf(
         pirexCvx.address
       );
-      const cvxBalanceBeforeUnstaking = await cvx.balanceOf(pirexCvx.address);
+      const pirexCvxTokensBeforeUnstaking = await cvx.balanceOf(
+        pirexCvx.address
+      );
+
+      // Transfer half in order to test unstaking only the specified amount
       const unstakeAmount = (
         await cvxRewardPool.balanceOf(pirexCvx.address)
       ).div(2);
       const unstakeEvent = await callAndReturnEvent(pirexCvx.unstakeCvx, [
         unstakeAmount,
       ]);
-      const cvxBalanceAfterUnstaking = await cvx.balanceOf(pirexCvx.address);
-      const stakedCvxBalanceAfterUnstaking = await cvxRewardPool.balanceOf(
+      const pirexCvxTokensAfterUnstaking = await cvx.balanceOf(
+        pirexCvx.address
+      );
+      const pirexStakedCvxTokensAfterUnstaking = await cvxRewardPool.balanceOf(
         pirexCvx.address
       );
 
       expect(unstakeAmount.gt(0)).to.equal(true);
-      expect(stakedCvxBalanceAfterUnstaking).to.equal(
-        stakedCvxBalanceBeforeUnstaking.sub(unstakeAmount)
+      expect(pirexStakedCvxTokensAfterUnstaking).to.equal(
+        pirexStakedCvxTokensBeforeUnstaking.sub(unstakeAmount)
       );
-      expect(cvxBalanceAfterUnstaking).to.equal(
-        cvxBalanceBeforeUnstaking.add(unstakeAmount)
+      expect(pirexCvxTokensAfterUnstaking).to.equal(
+        pirexCvxTokensBeforeUnstaking.add(unstakeAmount)
       );
       expect(unstakeEvent.eventSignature).to.equal("Unstaked(uint256)");
       expect(unstakeEvent.args.amount).to.equal(unstakeAmount);

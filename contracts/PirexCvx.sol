@@ -221,7 +221,7 @@ contract PirexCvx is Ownable {
 
         // Stake remaining CVX to keep assets productive
         if (stakeableCvx > 0) {
-            stakeCvx();
+            stakeCvx(stakeableCvx);
         }
 
         emit Withdrew(
@@ -254,23 +254,24 @@ contract PirexCvx is Ownable {
 
     /**
         @notice Stake CVX
+        @param  amount  uint256  Amount of CVX to stake
      */
-    function stakeCvx() public {
-        uint256 balance = IERC20(cvx).balanceOf(address(this));
+    function stakeCvx(uint256 amount) public {
+        require(amount > 0, "Invalid amount");
 
-        IERC20(cvx).safeIncreaseAllowance(cvxRewardPool, balance);
-        IcvxRewardPool(cvxRewardPool).stake(balance);
+        IERC20(cvx).safeIncreaseAllowance(cvxRewardPool, amount);
+        IcvxRewardPool(cvxRewardPool).stake(amount);
 
-        emit Staked(balance);
+        emit Staked(amount);
     }
 
     /**
-        @notice Stake CVX
+        @notice Unstake CVX
         @param  amount  uint256  Amount of CVX to unstake
      */
     function unstakeCvx(uint256 amount) public {
         require(amount > 0, "Invalid amount");
-        
+
         IcvxRewardPool(cvxRewardPool).withdraw(amount, false);
 
         emit Unstaked(amount);
