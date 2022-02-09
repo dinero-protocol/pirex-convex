@@ -75,7 +75,9 @@ contract PirexCvx is Ownable {
         uint256 spendRatio,
         uint256 epoch,
         uint256 lockExpiry,
-        address token
+        address token,
+        uint256 unlocked,
+        uint256 staked
     );
     event Staked(uint256 amount);
     event Unstaked(uint256 amount);
@@ -187,6 +189,7 @@ contract PirexCvx is Ownable {
      */
     function withdraw(uint256 epoch, uint256 spendRatio) external {
         Deposit memory d = deposits[epoch];
+        require(d.lockExpiry > 0 && d.token != address(0), "Invalid epoch");
         require(
             d.lockExpiry <= block.timestamp,
             "Cannot withdraw before lock expiry"
@@ -196,32 +199,39 @@ contract PirexCvx is Ownable {
                 d.token
             );
         uint256 epochTokenBalance = _erc20.balanceOf(msg.sender);
-        require(epochTokenBalance > 0, "Sender does not have vlCVX for epoch");
+        require(
+            epochTokenBalance > 0,
+            "Msg.sender does not have vlCVX for epoch"
+        );
 
         // Burn user vlCVX
         _erc20.burnFrom(msg.sender, epochTokenBalance);
 
-        IERC20 _cvx = IERC20(cvx);
-        uint256 cvxBalance = _cvx.balanceOf(address(this));
+        uint256 unlocked = unlockCvx(spendRatio);
 
-        // Only unlock CVX if contract does not have enough for withdrawal
-        if (cvxBalance < epochTokenBalance) {
-            unlockCvx(spendRatio);
-
-            // TODO: Unstake CVX if unlocked balance is not enough
-            // If unlocked balance is greater than epochTokenBalance, stake remainder
+        // Unstake CVX if we do not have enough to complete withdrawal
+        if (unlocked < epochTokenBalance) {
+            unstakeCvx(epochTokenBalance - unlocked);
         }
 
         // Send msg.sender CVX equal to the amount of their epoch token balance
-        _cvx.safeIncreaseAllowance(address(this), epochTokenBalance);
-        _cvx.safeTransferFrom(address(this), msg.sender, epochTokenBalance);
+        IERC20(cvx).safeTransfer(msg.sender, epochTokenBalance);
+
+        uint256 stakeableCvx = IERC20(cvx).balanceOf(address(this));
+
+        // Stake remaining CVX to keep assets productive
+        if (stakeableCvx > 0) {
+            stakeCvx();
+        }
 
         emit Withdrew(
             epochTokenBalance,
             spendRatio,
             epoch,
             d.lockExpiry,
-            d.token
+            d.token,
+            unlocked,
+            stakeableCvx
         );
     }
 
@@ -259,6 +269,8 @@ contract PirexCvx is Ownable {
         @param  amount  uint256  Amount of CVX to unstake
      */
     function unstakeCvx(uint256 amount) public {
+        require(amount > 0, "Invalid amount");
+        
         IcvxRewardPool(cvxRewardPool).withdraw(amount, false);
 
         emit Unstaked(amount);

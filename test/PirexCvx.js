@@ -60,7 +60,7 @@ describe("PirexCvx", () => {
     await cvx.mint(admin.address, initialCvxBalanceForAdmin);
   });
 
-  const getDepositToken = async (address) =>
+  const getPirexCvxToken = async (address) =>
     await ethers.getContractAt("ERC20PresetMinterPauserUpgradeable", address);
 
   describe("constructor", () => {
@@ -97,8 +97,8 @@ describe("PirexCvx", () => {
 
   describe("deposit", () => {
     it("Should deposit CVX", async () => {
-      const userCvxBeforeDeposit = await cvx.balanceOf(admin.address);
-      const pirexLockedCvxBeforeDeposit = await cvxLocker.balanceOf(
+      const userCvxTokensBeforeDeposit = await cvx.balanceOf(admin.address);
+      const pirexLockedCvxTokensBeforeDeposit = await cvxLocker.balanceOf(
         pirexCvx.address
       );
       const depositAmount = toBN(1e18);
@@ -116,7 +116,7 @@ describe("PirexCvx", () => {
       // Convex does not reflect actual locked CVX until their next epoch (1 week)
       await increaseBlockTimestamp(rewardsDuration);
 
-      const userCvxAfterDeposit = await cvx.balanceOf(admin.address);
+      const userCvxTokensAfterDeposit = await cvx.balanceOf(admin.address);
       const pirexLockedCvxAfterDeposit = await cvxLocker.balanceOf(
         pirexCvx.address
       );
@@ -124,16 +124,16 @@ describe("PirexCvx", () => {
       // Store to test withdrawing tokens for this specific epoch later
       firstDepositEpoch = await pirexCvx.getCurrentEpoch();
 
-      const depositToken = await getDepositToken(depositEvent.args.token);
-      const userPirexCvx = await depositToken.balanceOf(admin.address);
+      const pirexCvxToken = await getPirexCvxToken(depositEvent.args.token);
+      const userPirexCvxTokens = await pirexCvxToken.balanceOf(admin.address);
       const epochDepositDuration = await pirexCvx.epochDepositDuration();
       const lockDuration = await pirexCvx.lockDuration();
 
-      expect(userCvxAfterDeposit).to.equal(
-        userCvxBeforeDeposit.sub(depositAmount)
+      expect(userCvxTokensAfterDeposit).to.equal(
+        userCvxTokensBeforeDeposit.sub(depositAmount)
       );
       expect(pirexLockedCvxAfterDeposit).to.equal(
-        pirexLockedCvxBeforeDeposit.add(depositAmount)
+        pirexLockedCvxTokensBeforeDeposit.add(depositAmount)
       );
       expect(depositEvent.eventSignature).to.equal(
         "Deposited(uint256,uint256,uint256,uint256,address)"
@@ -147,14 +147,14 @@ describe("PirexCvx", () => {
       expect(depositEvent.args.token).to.not.equal(
         "0x0000000000000000000000000000000000000000"
       );
-      expect(userPirexCvx).to.equal(depositAmount);
+      expect(userPirexCvxTokens).to.equal(depositAmount);
     });
 
     it("Should mint the correct amount of user tokens on subsequent deposits", async () => {
       const currentEpoch = await pirexCvx.getCurrentEpoch();
       const { token, lockExpiry } = await pirexCvx.deposits(currentEpoch);
-      const depositToken = await getDepositToken(token);
-      const userPirexCvxBeforeDeposit = await depositToken.balanceOf(
+      const pirexCvxToken = await getPirexCvxToken(token);
+      const userPirexCvxTokensBeforeDeposit = await pirexCvxToken.balanceOf(
         admin.address
       );
       const depositAmount = toBN(1e18);
@@ -165,14 +165,14 @@ describe("PirexCvx", () => {
         defaultSpendRatio,
       ]);
 
-      const userPirexCvxAfterDeposit = await depositToken.balanceOf(
+      const userPirexCvxTokensAfterDeposit = await pirexCvxToken.balanceOf(
         admin.address
       );
       const { token: tokenAfterDeposit, lockExpiry: lockExpiryAfterDeposit } =
         await pirexCvx.deposits(currentEpoch);
 
-      expect(userPirexCvxAfterDeposit).to.equal(
-        userPirexCvxBeforeDeposit.add(depositAmount)
+      expect(userPirexCvxTokensAfterDeposit).to.equal(
+        userPirexCvxTokensBeforeDeposit.add(depositAmount)
       );
       expect(token).to.equal(tokenAfterDeposit);
       expect(lockExpiry).to.equal(lockExpiryAfterDeposit);
@@ -191,11 +191,11 @@ describe("PirexCvx", () => {
       const { token: currentEpochToken } = await pirexCvx.deposits(
         currentEpoch
       );
-      const depositTokenForCurrentEpoch = await getDepositToken(
+      const pirexCvxTokenForCurrentEpoch = await getPirexCvxToken(
         currentEpochToken
       );
-      const depositTokenForCurrentEpochName =
-        await depositTokenForCurrentEpoch.name();
+      const pirexCvxTokenForCurrentEpochName =
+        await pirexCvxTokenForCurrentEpoch.name();
       const nextEpoch = currentEpoch.add(epochDepositDuration);
       const depositAmount = toBN(1e18);
 
@@ -208,23 +208,30 @@ describe("PirexCvx", () => {
       await pirexCvx.deposit(depositAmount, defaultSpendRatio);
 
       const { token: nextEpochToken } = await pirexCvx.deposits(nextEpoch);
-      const depositTokenForNextEpoch = await getDepositToken(nextEpochToken);
-      const depositTokenForNextEpochName =
-        await depositTokenForNextEpoch.name();
-      const userPirexCvxForNextEpoch = await depositTokenForNextEpoch.balanceOf(
-        admin.address
-      );
+      const pirexCvxTokenForNextEpoch = await getPirexCvxToken(nextEpochToken);
+      const pirexCvxTokenForNextEpochName =
+        await pirexCvxTokenForNextEpoch.name();
+      const userPirexCvxTokensForNextEpoch =
+        await pirexCvxTokenForNextEpoch.balanceOf(admin.address);
 
-      expect(depositTokenForCurrentEpochName).to.equal(`vlCVX-${currentEpoch}`);
-      expect(depositTokenForNextEpochName).to.equal(`vlCVX-${nextEpoch}`);
-      expect(depositTokenForCurrentEpoch.address).to.not.equal(
-        depositTokenForNextEpoch.address
+      expect(pirexCvxTokenForCurrentEpochName).to.equal(
+        `vlCVX-${currentEpoch}`
       );
-      expect(userPirexCvxForNextEpoch).to.equal(depositAmount);
+      expect(pirexCvxTokenForNextEpochName).to.equal(`vlCVX-${nextEpoch}`);
+      expect(pirexCvxTokenForCurrentEpoch.address).to.not.equal(
+        pirexCvxTokenForNextEpoch.address
+      );
+      expect(userPirexCvxTokensForNextEpoch).to.equal(depositAmount);
     });
   });
 
   describe("withdraw", () => {
+    it("Should revert if invalid epoch", async () => {
+      await expect(pirexCvx.withdraw(0, defaultSpendRatio)).to.be.revertedWith(
+        "Invalid epoch"
+      );
+    });
+
     it("Should revert if withdrawing CVX before lock expiry", async () => {
       const currentEpoch = await pirexCvx.getCurrentEpoch();
 
@@ -240,73 +247,127 @@ describe("PirexCvx", () => {
       const lockDuration = convertBigNumberToNumber(
         await pirexCvx.lockDuration()
       );
-      const { token, lockExpiry } = await pirexCvx.deposits(firstDepositEpoch);
-      const depositToken = await getDepositToken(token);
+      const { token } = await pirexCvx.deposits(firstDepositEpoch);
+      const pirexCvxToken = await getPirexCvxToken(token);
 
       // Fast forward to after lock expiry
       await increaseBlockTimestamp(epochDepositDuration + lockDuration);
 
-      const depositTokenBalanceBeforeWithdraw = await depositToken.balanceOf(
+      const userPirexCvxTokensBeforeWithdraw = await pirexCvxToken.balanceOf(
         admin.address
       );
-      const cvxBalanceBeforeWithdraw = await cvx.balanceOf(admin.address);
-      const timestampAfterIncrease = toBN(
-        (await ethers.provider.getBlock()).timestamp
+      const userCvxTokensBeforeWithdraw = await cvx.balanceOf(admin.address);
+      const { unlockable: pirexUnlockableCvxTokensBeforeWithdraw } =
+        await cvxLocker.lockedBalances(pirexCvx.address);
+      const pirexStakedCvxTokensBeforeWithdraw = await cvxRewardPool.balanceOf(
+        pirexCvx.address
       );
 
-      await depositToken.approve(
+      await pirexCvxToken.approve(
         pirexCvx.address,
-        depositTokenBalanceBeforeWithdraw
+        userPirexCvxTokensBeforeWithdraw
       );
 
       const withdrawEvent = await callAndReturnEvent(pirexCvx.withdraw, [
         firstDepositEpoch,
         defaultSpendRatio,
       ]);
-      const depositTokenBalanceAfterWithdraw = await depositToken.balanceOf(
+      const userPirexCvxTokensAfterWithdraw = await pirexCvxToken.balanceOf(
         admin.address
       );
-      const cvxBalanceAfterWithdraw = await cvx.balanceOf(admin.address);
+      const userCvxTokensAfterWithdraw = await cvx.balanceOf(admin.address);
+      const { unlockable: pirexUnlockableCvxTokensAfterWithdraw } =
+        await cvxLocker.lockedBalances(pirexCvx.address);
+      const pirexStakedCvxTokensAfterWithdraw = await cvxRewardPool.balanceOf(
+        pirexCvx.address
+      );
+      const pirexCvxTokensAfterWithdraw = await cvx.balanceOf(pirexCvx.address);
 
-      expect(timestampAfterIncrease.gte(lockExpiry)).to.equal(true);
-      expect(depositTokenBalanceAfterWithdraw).to.equal(0);
-      expect(cvxBalanceAfterWithdraw).to.equal(
-        cvxBalanceBeforeWithdraw.add(depositTokenBalanceBeforeWithdraw)
+      expect(userPirexCvxTokensAfterWithdraw).to.equal(0);
+      expect(pirexUnlockableCvxTokensAfterWithdraw).to.equal(0);
+      expect(pirexCvxTokensAfterWithdraw).to.equal(0);
+      expect(userCvxTokensAfterWithdraw).to.equal(
+        userCvxTokensBeforeWithdraw.add(userPirexCvxTokensBeforeWithdraw)
       );
       expect(withdrawEvent.eventSignature).to.equal(
-        "Withdrew(uint256,uint256,uint256,uint256,address)"
+        "Withdrew(uint256,uint256,uint256,uint256,address,uint256,uint256)"
       );
       expect(withdrawEvent.args.amount).to.equal(
-        depositTokenBalanceBeforeWithdraw
+        userPirexCvxTokensBeforeWithdraw
       );
       expect(withdrawEvent.args.spendRatio).to.equal(defaultSpendRatio);
       expect(withdrawEvent.args.epoch).to.equal(firstDepositEpoch);
-      expect(withdrawEvent.args.lockExpiry).to.not.equal(0);
-      expect(withdrawEvent.args.token).to.equal(depositToken.address);
+      expect(withdrawEvent.args.lockExpiry).to.equal(
+        firstDepositEpoch.add(epochDepositDuration).add(lockDuration)
+      );
+      expect(withdrawEvent.args.token).to.equal(pirexCvxToken.address);
+      expect(withdrawEvent.args.unlocked).to.equal(
+        pirexUnlockableCvxTokensBeforeWithdraw
+      );
+      expect(withdrawEvent.args.staked).to.equal(
+        pirexUnlockableCvxTokensBeforeWithdraw.sub(
+          userPirexCvxTokensBeforeWithdraw
+        )
+      );
+      expect(pirexStakedCvxTokensAfterWithdraw).to.equal(
+        pirexStakedCvxTokensBeforeWithdraw.add(
+          pirexUnlockableCvxTokensBeforeWithdraw.sub(
+            userPirexCvxTokensBeforeWithdraw
+          )
+        )
+      );
+    });
+
+    it("Should revert if msg.sender does not have tokens for epoch", async () => {
+      await expect(
+        pirexCvx
+          .connect(notAdmin)
+          .withdraw(firstDepositEpoch, defaultSpendRatio)
+      ).to.be.revertedWith("Msg.sender does not have vlCVX for epoch");
     });
 
     it("Should withdraw CVX if after lock expiry (second epoch deposit)", async () => {
       const { token } = await pirexCvx.deposits(secondDepositEpoch);
-      const depositToken = await getDepositToken(token);
-      const depositTokenBalanceBeforeWithdraw = await depositToken.balanceOf(
+      const pirexCvxToken = await getPirexCvxToken(token);
+      const userPirexCvxTokensBeforeWithdraw = await pirexCvxToken.balanceOf(
         admin.address
       );
-      const cvxBalanceBeforeWithdraw = await cvx.balanceOf(admin.address);
+      const userCvxTokensBeforeWithdraw = await cvx.balanceOf(admin.address);
 
-      await depositToken.approve(
+      // There should not be any unlockable tokens since we unlocked them all
+      const { unlockable: pirexUnlockableCvxTokensBeforeWithdraw } =
+        await cvxLocker.lockedBalances(pirexCvx.address);
+
+      // Staked tokens will need to be unstaked to complete deposit
+      const pirexStakedCvxTokensBeforeWithdraw = await cvxRewardPool.balanceOf(
+        pirexCvx.address
+      );
+
+      await pirexCvxToken.approve(
         pirexCvx.address,
-        depositTokenBalanceBeforeWithdraw
+        userPirexCvxTokensBeforeWithdraw
       );
       await pirexCvx.withdraw(secondDepositEpoch, defaultSpendRatio);
 
-      const depositTokenBalanceAfterWithdraw = await depositToken.balanceOf(
+      const userPirexCvxTokensAfterWithdraw = await pirexCvxToken.balanceOf(
         admin.address
       );
-      const cvxBalanceAfterWithdraw = await cvx.balanceOf(admin.address);
+      const userCvxTokensAfterWithdraw = await cvx.balanceOf(admin.address);
+      const pirexStakedCvxTokensAfterWithdraw = await cvxRewardPool.balanceOf(
+        pirexCvx.address
+      );
 
-      expect(depositTokenBalanceAfterWithdraw).to.equal(0);
-      expect(cvxBalanceAfterWithdraw).to.equal(
-        cvxBalanceBeforeWithdraw.add(depositTokenBalanceBeforeWithdraw)
+      expect(pirexUnlockableCvxTokensBeforeWithdraw).to.equal(0);
+      expect(userPirexCvxTokensAfterWithdraw).to.equal(0);
+      expect(userCvxTokensAfterWithdraw).to.equal(
+        userCvxTokensBeforeWithdraw.add(userPirexCvxTokensBeforeWithdraw)
+      );
+      expect(pirexStakedCvxTokensAfterWithdraw).to.equal(
+        pirexStakedCvxTokensBeforeWithdraw.add(
+          pirexUnlockableCvxTokensBeforeWithdraw.sub(
+            userPirexCvxTokensBeforeWithdraw
+          )
+        )
       );
     });
   });
