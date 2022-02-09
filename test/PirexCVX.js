@@ -7,7 +7,7 @@ const {
   toBN,
 } = require("./helpers");
 
-describe("PirexCVX", () => {
+describe("PirexCvx", () => {
   let cvx;
   let cvxLocker;
   let cvxRewardPool;
@@ -43,7 +43,7 @@ describe("PirexCVX", () => {
     );
     cvxLockerLockDuration = await cvxLocker.lockDuration();
     pirexCvx = await (
-      await ethers.getContractFactory("PirexCVX")
+      await ethers.getContractFactory("PirexCvx")
     ).deploy(
       cvxLocker.address,
       cvx.address,
@@ -321,9 +321,7 @@ describe("PirexCVX", () => {
         pirexCvx.address
       );
       const cvxBalanceBeforeStaking = await cvx.balanceOf(pirexCvx.address);
-      const stakeEvent = await callAndReturnEvent(pirexCvx.stakeCvx, [
-        cvxBalanceBeforeStaking,
-      ]);
+      const stakeEvent = await callAndReturnEvent(pirexCvx.stakeCvx, []);
       const stakedCvxBalanceAfter = await cvxRewardPool.balanceOf(
         pirexCvx.address
       );

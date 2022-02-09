@@ -45,7 +45,7 @@ interface IcvxRewardPool {
     function withdraw(uint256 _amount, bool claim) external;
 }
 
-contract PirexCVX is Ownable {
+contract PirexCvx is Ownable {
     using SafeERC20 for IERC20;
     using Strings for uint256;
 
