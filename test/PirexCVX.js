@@ -1,6 +1,11 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { callAndReturnEvent, increaseBlockTimestamp } = require("./helpers");
+const {
+  callAndReturnEvent,
+  increaseBlockTimestamp,
+  convertBigNumberToNumber,
+  toBN,
+} = require("./helpers");
 
 describe("PirexCVX", () => {
   let cvx;
@@ -15,7 +20,7 @@ describe("PirexCVX", () => {
   const crvDepositorAddr = "0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae";
   const cvxCrvRewardsAddr = "0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e";
   const cvxCrvTokenAddr = "0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7";
-  const initialCvxBalanceForAdmin = ethers.BigNumber.from(`${10e18}`);
+  const initialCvxBalanceForAdmin = toBN(10e18);
   const epochDepositDuration = 1209600; // 2 weeks in seconds
 
   before(async () => {
@@ -91,7 +96,7 @@ describe("PirexCVX", () => {
       const vlCvxBalanceBeforeDeposit = await cvxLocker.balanceOf(
         pirexCvx.address
       );
-      const depositAmount = ethers.BigNumber.from(`${1e18}`);
+      const depositAmount = toBN(1e18);
       const spendRatio = 0;
 
       await cvx.approve(pirexCvx.address, depositAmount);
@@ -100,8 +105,8 @@ describe("PirexCVX", () => {
         depositAmount,
         spendRatio,
       ]);
-      const rewardsDuration = Number(
-        (await cvxLocker.rewardsDuration()).toString()
+      const rewardsDuration = convertBigNumberToNumber(
+        await cvxLocker.rewardsDuration()
       );
 
       // Fast forward 1 rewards duration so that balance is reflected
@@ -151,7 +156,7 @@ describe("PirexCVX", () => {
       const pirexVlCVXBalanceBefore = await depositToken.balanceOf(
         admin.address
       );
-      const depositAmount = ethers.BigNumber.from(`${1e18}`);
+      const depositAmount = toBN(1e18);
       const spendRatio = 0;
 
       await cvx.approve(pirexCvx.address, depositAmount);
@@ -167,8 +172,8 @@ describe("PirexCVX", () => {
     });
 
     it("Should mint a new token for a new epoch", async () => {
-      const epochDepositDuration = Number(
-        (await pirexCvx.epochDepositDuration()).toString()
+      const epochDepositDuration = convertBigNumberToNumber(
+        await pirexCvx.epochDepositDuration()
       );
       const currentEpoch = await pirexCvx.getCurrentEpoch();
       const { token: currentEpochToken } = await pirexCvx.deposits(
@@ -179,7 +184,7 @@ describe("PirexCVX", () => {
         currentEpochToken
       );
       const nextEpoch = currentEpoch.add(epochDepositDuration);
-      const depositAmount = ethers.BigNumber.from(`${1e18}`);
+      const depositAmount = toBN(1e18);
       const spendRatio = 0;
 
       // Store to conveniently withdraw tokens for a specific epoch later
@@ -219,10 +224,12 @@ describe("PirexCVX", () => {
     });
 
     it("Should withdraw CVX if after lock expiry (first epoch deposit)", async () => {
-      const epochDepositDuration = Number(
-        (await pirexCvx.epochDepositDuration()).toString()
+      const epochDepositDuration = convertBigNumberToNumber(
+        await pirexCvx.epochDepositDuration()
       );
-      const lockDuration = Number((await pirexCvx.lockDuration()).toString());
+      const lockDuration = convertBigNumberToNumber(
+        await pirexCvx.lockDuration()
+      );
       const { token, lockExpiry } = await pirexCvx.deposits(firstDepositEpoch);
       const depositToken = await ethers.getContractAt(
         "ERC20PresetMinterPauserUpgradeable",
@@ -237,8 +244,8 @@ describe("PirexCVX", () => {
         admin.address
       );
       const cvxBalanceBeforeWithdraw = await cvx.balanceOf(admin.address);
-      const timestampAfterIncrease = ethers.BigNumber.from(
-        `${(await ethers.provider.getBlock()).timestamp}`
+      const timestampAfterIncrease = toBN(
+        (await ethers.provider.getBlock()).timestamp
       );
 
       await depositToken.approve(
@@ -304,12 +311,14 @@ describe("PirexCVX", () => {
 
   describe("stake", () => {
     it("Should stake unlocked CVX", async () => {
-      const depositAmount = ethers.BigNumber.from(`${1e18}`);
+      const depositAmount = toBN(1e18);
       const spendRatio = 0;
-      const epochDepositDuration = Number(
-        (await pirexCvx.epochDepositDuration()).toString()
+      const epochDepositDuration = convertBigNumberToNumber(
+        await pirexCvx.epochDepositDuration()
       );
-      const lockDuration = Number((await pirexCvx.lockDuration()).toString());
+      const lockDuration = convertBigNumberToNumber(
+        await pirexCvx.lockDuration()
+      );
 
       await cvx.approve(pirexCvx.address, depositAmount);
       await pirexCvx.deposit(depositAmount, spendRatio);
