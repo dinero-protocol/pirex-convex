@@ -45,6 +45,10 @@ interface IcvxRewardPool {
     function withdraw(uint256 _amount, bool claim) external;
 }
 
+interface IDelegateRegistry {
+    function setDelegate(bytes32 id, address delegate) external;
+}
+
 contract PirexCvx is Ownable {
     using SafeERC20 for IERC20;
     using Strings for uint256;
@@ -57,6 +61,7 @@ contract PirexCvx is Ownable {
     address public cvxLocker;
     address public cvx;
     address public cvxRewardPool;
+    address public cvxDelegateRegistry;
     uint256 public epochDepositDuration;
     uint256 public lockDuration;
     address public immutable erc20Implementation;
@@ -86,6 +91,7 @@ contract PirexCvx is Ownable {
         address _cvxLocker,
         address _cvx,
         address _cvxRewardPool,
+        address _cvxDelegateRegistry,
         uint256 _epochDepositDuration,
         uint256 _lockDuration
     ) {
@@ -97,6 +103,12 @@ contract PirexCvx is Ownable {
 
         require(_cvxRewardPool != address(0), "Invalid _cvxRewardPool");
         cvxRewardPool = _cvxRewardPool;
+
+        require(
+            _cvxDelegateRegistry != address(0),
+            "Invalid _cvxDelegateRegistry"
+        );
+        cvxDelegateRegistry = _cvxDelegateRegistry;
 
         require(_epochDepositDuration > 0, "Invalid _epochDepositDuration");
         epochDepositDuration = _epochDepositDuration;
