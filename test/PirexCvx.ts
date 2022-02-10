@@ -29,6 +29,9 @@ describe("PirexCvx", () => {
   const initialCvxBalanceForAdmin = toBN(10e18);
   const initialEpochDepositDuration = 1209600; // 2 weeks in seconds
   const defaultSpendRatio = 0;
+  const convexDelegateRegistryId =
+    "0x6376782e65746800000000000000000000000000000000000000000000000000";
+  const zeroAddress = "0x0000000000000000000000000000000000000000";
 
   before(async () => {
     [admin, notAdmin] = await ethers.getSigners();
@@ -85,9 +88,36 @@ describe("PirexCvx", () => {
       expect(_cvxDelegateRegistry).to.equal(cvxDelegateRegistry);
       expect(_epochDepositDuration).to.equal(initialEpochDepositDuration);
       expect(_lockDuration).to.equal(cvxLockerLockDuration);
-      expect(erc20Implementation).to.not.equal(
-        "0x0000000000000000000000000000000000000000"
+      expect(erc20Implementation).to.not.equal(zeroAddress);
+    });
+  });
+
+  describe("setVoteDelegate", () => {
+    it("Should set voteDelegate", async () => {
+      const voteDelegateBeforeSetting = await pirexCvx.voteDelegate();
+
+      const setVoteDelegateEvent = await callAndReturnEvent(
+        pirexCvx.setVoteDelegate,
+        [convexDelegateRegistryId, admin.address]
       );
+
+      const voteDelegateAfterSetting = await pirexCvx.voteDelegate();
+
+      expect(voteDelegateBeforeSetting).to.equal(zeroAddress);
+      expect(setVoteDelegateEvent.eventSignature).to.equal(
+        "VoteDelegateSet(bytes32,address)"
+      );
+      expect(setVoteDelegateEvent.args.id).to.equal(convexDelegateRegistryId);
+      expect(setVoteDelegateEvent.args.delegate).to.equal(admin.address);
+      expect(voteDelegateAfterSetting).to.equal(admin.address);
+    });
+
+    it("Should revert if not called by owner", async () => {
+      await expect(
+        pirexCvx
+          .connect(notAdmin)
+          .setVoteDelegate(convexDelegateRegistryId, admin.address)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
     });
   });
 
@@ -165,9 +195,7 @@ describe("PirexCvx", () => {
       expect(depositEvent.args.lockExpiry).to.equal(
         firstDepositEpoch.add(epochDepositDuration).add(lockDuration)
       );
-      expect(depositEvent.args.token).to.not.equal(
-        "0x0000000000000000000000000000000000000000"
-      );
+      expect(depositEvent.args.token).to.not.equal(zeroAddress);
       expect(userPirexCvxTokens).to.equal(depositAmount);
     });
 
