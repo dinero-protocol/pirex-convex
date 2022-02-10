@@ -106,3 +106,6 @@ dist
 # hardhat
 cache/
 artifacts/
+.DS_Store
+typechain-types
+data
