@@ -105,6 +105,7 @@ describe("PirexCvx", () => {
 
       await cvx.approve(pirexCvx.address, depositAmount);
 
+      firstDepositEpoch = await pirexCvx.getCurrentEpoch();
       const depositEvent = await callAndReturnEvent(pirexCvx.deposit, [
         depositAmount,
         defaultSpendRatio,
@@ -122,8 +123,6 @@ describe("PirexCvx", () => {
       );
 
       // Store to test withdrawing tokens for this specific epoch later
-      firstDepositEpoch = await pirexCvx.getCurrentEpoch();
-
       const pirexCvxToken = await getPirexCvxToken(depositEvent.args.token);
       const userPirexCvxTokens = await pirexCvxToken.balanceOf(admin.address);
       const epochDepositDuration = await pirexCvx.epochDepositDuration();
@@ -151,7 +150,7 @@ describe("PirexCvx", () => {
     });
 
     it("Should mint the correct amount of user tokens on subsequent deposits", async () => {
-      const currentEpoch = await pirexCvx.getCurrentEpoch();
+      const currentEpoch = firstDepositEpoch;
       const { token, lockExpiry } = await pirexCvx.deposits(currentEpoch);
       const pirexCvxToken = await getPirexCvxToken(token);
       const userPirexCvxTokensBeforeDeposit = await pirexCvxToken.balanceOf(
@@ -187,7 +186,7 @@ describe("PirexCvx", () => {
       const epochDepositDuration = convertBigNumberToNumber(
         await pirexCvx.epochDepositDuration()
       );
-      const currentEpoch = await pirexCvx.getCurrentEpoch();
+      const currentEpoch = firstDepositEpoch;
       const { token: currentEpochToken } = await pirexCvx.deposits(
         currentEpoch
       );
