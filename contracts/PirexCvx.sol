@@ -65,9 +65,11 @@ contract PirexCvx is Ownable {
     uint256 public epochDepositDuration;
     uint256 public lockDuration;
     address public immutable erc20Implementation;
+    address public voteDelegate;
 
     mapping(uint256 => Deposit) public deposits;
 
+    event VoteDelegateSet(bytes32 id, address delegate);
     event Deposited(
         uint256 amount,
         uint256 spendRatio,
@@ -117,6 +119,23 @@ contract PirexCvx is Ownable {
         lockDuration = _lockDuration;
 
         erc20Implementation = address(new ERC20PresetMinterPauserUpgradeable());
+    }
+
+    /**
+        @notice Set vote delegate
+        @param  id        bytes32  Id from Convex when setting delegate
+        @param  delegate  address  Account to delegate votes to
+     */
+    function setVoteDelegate(bytes32 id, address delegate)
+        external
+        onlyOwner
+    {
+        require(delegate != address(0), "Invalid delegate");
+        voteDelegate = delegate;
+
+        IDelegateRegistry(cvxDelegateRegistry).setDelegate(id, voteDelegate);
+
+        emit VoteDelegateSet(id, voteDelegate);
     }
 
     /**
