@@ -67,6 +67,7 @@ contract PirexCvx is Ownable {
     uint256 public lockDuration;
     address public immutable erc20Implementation;
     address public voteDelegate;
+    address public rewardManager;
 
     mapping(uint256 => Deposit) public deposits;
 
@@ -97,7 +98,8 @@ contract PirexCvx is Ownable {
         address _cvxDelegateRegistry,
         address _votiumMultiMerkleStash,
         uint256 _epochDepositDuration,
-        uint256 _lockDuration
+        uint256 _lockDuration,
+        address _voteDelegate
     ) {
         require(_cvxLocker != address(0), "Invalid _cvxLocker");
         cvxLocker = _cvxLocker;
@@ -116,14 +118,20 @@ contract PirexCvx is Ownable {
 
         require(_votiumMultiMerkleStash != address(0));
         votiumMultiMerkleStash = _votiumMultiMerkleStash;
-        
+
         require(_epochDepositDuration > 0, "Invalid _epochDepositDuration");
         epochDepositDuration = _epochDepositDuration;
 
         require(_lockDuration > 0, "Invalid _lockDuration");
         lockDuration = _lockDuration;
 
-        erc20Implementation = address(new ERC20PresetMinterPauserUpgradeable());
+        require(_voteDelegate != address(0), "Invalid _voteDelegate");
+        voteDelegate = _voteDelegate;
+
+        // Default account where rewards will be received
+        rewardManager = address(this);
+
+        erc20Implementation = address(new ERC20PresetMinterPauserUpgradeable());        
     }
 
     /**

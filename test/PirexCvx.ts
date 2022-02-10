@@ -61,7 +61,8 @@ describe("PirexCvx", () => {
       cvxDelegateRegistry,
       votiumMultiMerkleStash,
       initialEpochDepositDuration,
-      cvxLockerLockDuration
+      cvxLockerLockDuration,
+      admin.address
     );
 
     await cvxLocker.setStakingContract(
@@ -84,6 +85,8 @@ describe("PirexCvx", () => {
       const _epochDepositDuration = await pirexCvx.epochDepositDuration();
       const _lockDuration = await pirexCvx.lockDuration();
       const erc20Implementation = await pirexCvx.erc20Implementation();
+      const voteDelegate = await pirexCvx.voteDelegate();
+      const rewardManager = await pirexCvx.rewardManager();
 
       expect(owner).to.equal(admin.address);
       expect(_cvxLocker).to.equal(cvxLocker.address);
@@ -93,6 +96,8 @@ describe("PirexCvx", () => {
       expect(_epochDepositDuration).to.equal(initialEpochDepositDuration);
       expect(_lockDuration).to.equal(cvxLockerLockDuration);
       expect(erc20Implementation).to.not.equal(zeroAddress);
+      expect(voteDelegate).to.equal(admin.address);
+      expect(rewardManager).to.equal(pirexCvx.address);
     });
   });
 
@@ -102,18 +107,19 @@ describe("PirexCvx", () => {
 
       const setVoteDelegateEvent = await callAndReturnEvent(
         pirexCvx.setVoteDelegate,
-        [convexDelegateRegistryId, admin.address]
+        [convexDelegateRegistryId, notAdmin.address]
       );
 
       const voteDelegateAfterSetting = await pirexCvx.voteDelegate();
 
-      expect(voteDelegateBeforeSetting).to.equal(zeroAddress);
+      expect(voteDelegateBeforeSetting).to.equal(admin.address);
+      expect(voteDelegateBeforeSetting).to.not.equal(voteDelegateAfterSetting);
       expect(setVoteDelegateEvent.eventSignature).to.equal(
         "VoteDelegateSet(bytes32,address)"
       );
       expect(setVoteDelegateEvent.args.id).to.equal(convexDelegateRegistryId);
-      expect(setVoteDelegateEvent.args.delegate).to.equal(admin.address);
-      expect(voteDelegateAfterSetting).to.equal(admin.address);
+      expect(setVoteDelegateEvent.args.delegate).to.equal(notAdmin.address);
+      expect(voteDelegateAfterSetting).to.equal(notAdmin.address);
     });
 
     it("Should revert if not called by owner", async () => {
