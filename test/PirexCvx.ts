@@ -26,6 +26,7 @@ describe("PirexCvx", () => {
   const cvxCrvRewardsAddr = "0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e";
   const cvxCrvTokenAddr = "0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7";
   const cvxDelegateRegistry = "0x469788fE6E9E9681C6ebF3bF78e7Fd26Fc015446";
+  const votiumMultiMerkleStash = "0x378Ba9B73309bE80BF4C2c027aAD799766a7ED5A";
   const initialCvxBalanceForAdmin = toBN(10e18);
   const initialEpochDepositDuration = 1209600; // 2 weeks in seconds
   const defaultSpendRatio = 0;
@@ -58,6 +59,7 @@ describe("PirexCvx", () => {
       cvx.address,
       cvxRewardPool.address,
       cvxDelegateRegistry,
+      votiumMultiMerkleStash,
       initialEpochDepositDuration,
       cvxLockerLockDuration
     );
@@ -78,6 +80,7 @@ describe("PirexCvx", () => {
       const _cvxLocker = await pirexCvx.cvxLocker();
       const _cvx = await pirexCvx.cvx();
       const _cvxDelegateRegistry = await pirexCvx.cvxDelegateRegistry();
+      const _votiumMultiMerkleStash = await pirexCvx.votiumMultiMerkleStash();
       const _epochDepositDuration = await pirexCvx.epochDepositDuration();
       const _lockDuration = await pirexCvx.lockDuration();
       const erc20Implementation = await pirexCvx.erc20Implementation();
@@ -86,6 +89,7 @@ describe("PirexCvx", () => {
       expect(_cvxLocker).to.equal(cvxLocker.address);
       expect(_cvx).to.equal(cvx.address);
       expect(_cvxDelegateRegistry).to.equal(cvxDelegateRegistry);
+      expect(_votiumMultiMerkleStash).to.equal(votiumMultiMerkleStash);
       expect(_epochDepositDuration).to.equal(initialEpochDepositDuration);
       expect(_lockDuration).to.equal(cvxLockerLockDuration);
       expect(erc20Implementation).to.not.equal(zeroAddress);

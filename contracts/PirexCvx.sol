@@ -62,6 +62,7 @@ contract PirexCvx is Ownable {
     address public cvx;
     address public cvxRewardPool;
     address public cvxDelegateRegistry;
+    address public votiumMultiMerkleStash;
     uint256 public epochDepositDuration;
     uint256 public lockDuration;
     address public immutable erc20Implementation;
@@ -94,6 +95,7 @@ contract PirexCvx is Ownable {
         address _cvx,
         address _cvxRewardPool,
         address _cvxDelegateRegistry,
+        address _votiumMultiMerkleStash,
         uint256 _epochDepositDuration,
         uint256 _lockDuration
     ) {
@@ -112,6 +114,9 @@ contract PirexCvx is Ownable {
         );
         cvxDelegateRegistry = _cvxDelegateRegistry;
 
+        require(_votiumMultiMerkleStash != address(0));
+        votiumMultiMerkleStash = _votiumMultiMerkleStash;
+        
         require(_epochDepositDuration > 0, "Invalid _epochDepositDuration");
         epochDepositDuration = _epochDepositDuration;
 
@@ -126,10 +131,7 @@ contract PirexCvx is Ownable {
         @param  id        bytes32  Id from Convex when setting delegate
         @param  delegate  address  Account to delegate votes to
      */
-    function setVoteDelegate(bytes32 id, address delegate)
-        external
-        onlyOwner
-    {
+    function setVoteDelegate(bytes32 id, address delegate) external onlyOwner {
         require(delegate != address(0), "Invalid delegate");
         voteDelegate = delegate;
 
