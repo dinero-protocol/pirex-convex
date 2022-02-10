@@ -1068,7 +1068,7 @@ pragma solidity 0.6.12;
 * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 */
 
-contract cvxRewardPool {
+contract CvxRewardPool {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
