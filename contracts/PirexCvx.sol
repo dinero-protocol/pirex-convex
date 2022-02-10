@@ -49,6 +49,16 @@ interface IConvexDelegateRegistry {
     function setDelegate(bytes32 id, address delegate) external;
 }
 
+interface IVotiumMultiMerkleStash {
+    function claim(
+        address token,
+        uint256 index,
+        address account,
+        uint256 amount,
+        bytes32[] calldata merkleProof
+    ) external;
+}
+
 contract PirexCvx is Ownable {
     using SafeERC20 for IERC20;
     using Strings for uint256;
@@ -56,6 +66,11 @@ contract PirexCvx is Ownable {
     struct Deposit {
         uint256 lockExpiry;
         address token;
+    }
+
+    struct VoteEpochReward {
+        address token;
+        uint256 amount;
     }
 
     address public cvxLocker;
@@ -70,6 +85,7 @@ contract PirexCvx is Ownable {
     address public votiumRewardManager;
 
     mapping(uint256 => Deposit) public deposits;
+    mapping(uint256 => VoteEpochReward[]) public voteEpochRewards;
 
     event VoteDelegateSet(bytes32 id, address delegate);
     event VotiumRewardManagerSet(address manager);
@@ -91,6 +107,14 @@ contract PirexCvx is Ownable {
     );
     event Staked(uint256 amount);
     event Unstaked(uint256 amount);
+    event VotiumRewardClaimed(
+        address token,
+        uint256 index,
+        uint256 amount,
+        bytes32[] merkleProof,
+        uint256 voteEpoch,
+        address manager
+    );
 
     constructor(
         address _cvxLocker,
@@ -133,6 +157,18 @@ contract PirexCvx is Ownable {
         votiumRewardManager = address(this);
 
         erc20Implementation = address(new ERC20PresetMinterPauserUpgradeable());
+    }
+
+    /**
+        @notice Restricts calls to owner or votiumRewardManager
+     */
+    modifier onlyVotiumRewardManager() {
+        require(
+            msg.sender == owner() || msg.sender == votiumRewardManager,
+            "Must be owner or votiumRewardManager"
+        );
+
+        _;
     }
 
     /**
@@ -331,5 +367,51 @@ contract PirexCvx is Ownable {
         IcvxRewardPool(cvxRewardPool).withdraw(amount, false);
 
         emit Unstaked(amount);
+    }
+
+    /**
+        @notice Claim Votium reward
+        @param  token        address   Reward token address
+        @param  index        uint256   Merkle tree node index
+        @param  amount       uint256   Reward token amount
+        @param  merkleProof  bytes2[]  Merkle proof
+        @param  voteEpoch    uint256   Vote epoch associated with rewards
+     */
+    function claimVotiumReward(
+        address token,
+        uint256 index,
+        uint256 amount,
+        bytes32[] calldata merkleProof,
+        uint256 voteEpoch
+    ) external onlyVotiumRewardManager {
+        require(voteEpoch > 0, "Invalid voteEpoch");
+        require(
+            voteEpoch < getCurrentEpoch(),
+            "voteEpoch must be previous epoch"
+        );
+
+        IVotiumMultiMerkleStash(votiumMultiMerkleStash).claim(
+            token,
+            index,
+            address(this),
+            amount,
+            merkleProof
+        );
+
+        // Default to storing vote epoch rewards as-is if default reward manager is set
+        if (address(this) == votiumRewardManager) {
+            voteEpochRewards[voteEpoch].push(VoteEpochReward(token, amount));
+        }
+
+        // TODO V1: External votiumRewardManager contract calls for managing rewards + updating storage
+
+        emit VotiumRewardClaimed(
+            token,
+            index,
+            amount,
+            merkleProof,
+            voteEpoch,
+            votiumRewardManager
+        );
     }
 }
