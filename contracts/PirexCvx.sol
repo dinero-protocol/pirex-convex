@@ -45,7 +45,7 @@ interface IcvxRewardPool {
     function withdraw(uint256 _amount, bool claim) external;
 }
 
-interface IDelegateRegistry {
+interface IConvexDelegateRegistry {
     function setDelegate(bytes32 id, address delegate) external;
 }
 
@@ -67,11 +67,12 @@ contract PirexCvx is Ownable {
     uint256 public lockDuration;
     address public immutable erc20Implementation;
     address public voteDelegate;
-    address public rewardManager;
+    address public votiumRewardManager;
 
     mapping(uint256 => Deposit) public deposits;
 
     event VoteDelegateSet(bytes32 id, address delegate);
+    event VotiumRewardManagerSet(address manager);
     event Deposited(
         uint256 amount,
         uint256 spendRatio,
@@ -128,10 +129,10 @@ contract PirexCvx is Ownable {
         require(_voteDelegate != address(0), "Invalid _voteDelegate");
         voteDelegate = _voteDelegate;
 
-        // Default account where rewards will be received
-        rewardManager = address(this);
+        // Default reward manager
+        votiumRewardManager = address(this);
 
-        erc20Implementation = address(new ERC20PresetMinterPauserUpgradeable());        
+        erc20Implementation = address(new ERC20PresetMinterPauserUpgradeable());
     }
 
     /**
@@ -143,9 +144,23 @@ contract PirexCvx is Ownable {
         require(delegate != address(0), "Invalid delegate");
         voteDelegate = delegate;
 
-        IDelegateRegistry(cvxDelegateRegistry).setDelegate(id, voteDelegate);
+        IConvexDelegateRegistry(cvxDelegateRegistry).setDelegate(
+            id,
+            voteDelegate
+        );
 
         emit VoteDelegateSet(id, voteDelegate);
+    }
+
+    /**
+        @notice Set Votium reward manager
+        @param  manager  address  Reward manager
+     */
+    function setVotiumRewardManager(address manager) external onlyOwner {
+        require(manager != address(0), "Invalid manager");
+        votiumRewardManager = manager;
+
+        emit VotiumRewardManagerSet(votiumRewardManager);
     }
 
     /**

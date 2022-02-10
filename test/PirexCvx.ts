@@ -86,7 +86,7 @@ describe("PirexCvx", () => {
       const _lockDuration = await pirexCvx.lockDuration();
       const erc20Implementation = await pirexCvx.erc20Implementation();
       const voteDelegate = await pirexCvx.voteDelegate();
-      const rewardManager = await pirexCvx.rewardManager();
+      const votiumRewardManager = await pirexCvx.votiumRewardManager();
 
       expect(owner).to.equal(admin.address);
       expect(_cvxLocker).to.equal(cvxLocker.address);
@@ -97,7 +97,7 @@ describe("PirexCvx", () => {
       expect(_lockDuration).to.equal(cvxLockerLockDuration);
       expect(erc20Implementation).to.not.equal(zeroAddress);
       expect(voteDelegate).to.equal(admin.address);
-      expect(rewardManager).to.equal(pirexCvx.address);
+      expect(votiumRewardManager).to.equal(pirexCvx.address);
     });
   });
 
@@ -128,6 +128,51 @@ describe("PirexCvx", () => {
           .connect(notAdmin)
           .setVoteDelegate(convexDelegateRegistryId, admin.address)
       ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+
+    it("Should revert if delegate is zero address", async () => {
+      await expect(
+        pirexCvx.setVoteDelegate(convexDelegateRegistryId, zeroAddress)
+      ).to.be.revertedWith("Invalid delegate");
+    });
+  });
+
+  describe("setVotiumRewardManager", () => {
+    it("Should set votiumRewardManager", async () => {
+      const votiumRewardManagerBeforeSetting =
+        await pirexCvx.votiumRewardManager();
+
+      const setVotiumRewardManagerEvent = await callAndReturnEvent(
+        pirexCvx.setVotiumRewardManager,
+        [notAdmin.address]
+      );
+
+      const votiumRewardManagerAfterSetting =
+        await pirexCvx.votiumRewardManager();
+
+      expect(votiumRewardManagerBeforeSetting).to.equal(pirexCvx.address);
+      expect(votiumRewardManagerBeforeSetting).to.not.equal(
+        votiumRewardManagerAfterSetting
+      );
+      expect(setVotiumRewardManagerEvent.eventSignature).to.equal(
+        "VotiumRewardManagerSet(address)"
+      );
+      expect(setVotiumRewardManagerEvent.args.manager).to.equal(
+        notAdmin.address
+      );
+      expect(votiumRewardManagerAfterSetting).to.equal(notAdmin.address);
+    });
+
+    it("Should revert if not called by owner", async () => {
+      await expect(
+        pirexCvx.connect(notAdmin).setVotiumRewardManager(admin.address)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+
+    it("Should revert if manager is zero address", async () => {
+      await expect(
+        pirexCvx.setVotiumRewardManager(zeroAddress)
+      ).to.be.revertedWith("Invalid manager");
     });
   });
 
