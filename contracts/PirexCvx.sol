@@ -166,6 +166,40 @@ contract PirexCvx is Ownable {
     }
 
     /**
+        @notice Reusable method for minting different types of CVX tokens
+        @param  token      address  Token address if it already exists
+        @param  tokenId    string   Token name/symbol
+        @param  recipient  address  Account receiving tokens
+        @param  amount     uint256  Amount of tokens to mint account
+     */
+    function mintCvx(
+        address token,
+        string memory tokenId,
+        address recipient,
+        uint256 amount
+    ) internal returns (address) {
+        require(bytes(tokenId).length > 0, "Invalid tokenId");
+        require(recipient != address(0), "Invalid recipient");
+        require(amount > 0, "Invalid amount");
+
+        // If token does not yet exist, create new
+        if (token == address(0)) {
+            ERC20PresetMinterPauserUpgradeable _erc20 = ERC20PresetMinterPauserUpgradeable(
+                    Clones.clone(erc20Implementation)
+                );
+
+            _erc20.initialize(tokenId, tokenId);
+            _erc20.mint(recipient, amount);
+
+            return address(_erc20);
+        }
+
+        ERC20PresetMinterPauserUpgradeable(token).mint(recipient, amount);
+
+        return token;
+    }
+
+    /**
         @notice Mints locked CVX
         @param  recipient  uint256  Account receiving lockedCVX
         @param  amount     uint256  Amount of lockedCVX
@@ -176,70 +210,50 @@ contract PirexCvx is Ownable {
         uint256 amount,
         uint256 epoch
     ) internal returns (address) {
-        string memory name = string(
+        string memory tokenId = string(
             abi.encodePacked("lockedCVX-", epoch.toString())
         );
         Deposit memory d = deposits[epoch];
 
-        if (d.token != address(0)) {
-            ERC20PresetMinterPauserUpgradeable(d.token).mint(recipient, amount);
-
-            return d.token;
-        }
-
-        // Create a new lockedCVX token for current epoch if it doesn't exist
-        ERC20PresetMinterPauserUpgradeable _erc20 = ERC20PresetMinterPauserUpgradeable(
-                Clones.clone(erc20Implementation)
-            );
-
-        _erc20.initialize(name, name);
-        _erc20.mint(recipient, amount);
-
-        return address(_erc20);
+        return mintCvx(d.token, tokenId, recipient, amount);
     }
 
     /**
         @notice Mints voteCVX
         @param  recipient  uint256  Account receiving voteCVX
         @param  amount     uint256  Amount of voteCVX
-        @param  epoch      uint256  Epoch to mint voteCVX for
+        @param  epoch      uint256  Epoch that user deposited CVX
      */
     function mintVoteCvx(
         address recipient,
         uint256 amount,
         uint256 epoch
     ) internal returns (uint256[8] memory _voteEpochs) {
+        // Users can only vote in subsequent epochs (after their deposit epoch)
         uint256 firstVoteEpoch = epoch + epochDepositDuration;
 
+        // Mint 1 voteCVX for each Convex gauge weight proposal that users can vote on
         for (uint8 i = 0; i < 8; i += 1) {
             uint256 voteEpoch = firstVoteEpoch + (epochDepositDuration * i);
 
             _voteEpochs[i] = voteEpoch;
 
-            string memory name = string(
+            string memory tokenId = string(
                 abi.encodePacked("voteCVX-", voteEpoch.toString())
             );
 
             address voteToken = voteEpochs[voteEpoch];
+            address mintedVoteToken = mintCvx(
+                voteToken,
+                tokenId,
+                recipient,
+                amount
+            );
 
-            if (voteToken != address(0)) {
-                ERC20PresetMinterPauserUpgradeable(voteToken).mint(
-                    recipient,
-                    amount
-                );
-
-                continue;
+            // Only modify storage if necessary
+            if (voteToken == address(0)) {
+                voteEpochs[voteEpoch] = mintedVoteToken;
             }
-
-            // Create a new voteCVX token for current epoch if it doesn't exist
-            ERC20PresetMinterPauserUpgradeable _erc20 = ERC20PresetMinterPauserUpgradeable(
-                    Clones.clone(erc20Implementation)
-                );
-
-            _erc20.initialize(name, name);
-            _erc20.mint(recipient, amount);
-
-            voteEpochs[voteEpoch] = address(_erc20);
         }
     }
 
