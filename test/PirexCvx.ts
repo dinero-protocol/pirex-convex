@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { Promise } from "bluebird";
 import {
   callAndReturnEvent,
   increaseBlockTimestamp,
@@ -152,6 +153,10 @@ describe("PirexCvx", () => {
             epochDepositDuration * (idx + 1)
         )
       );
+      const voteEpochTokenAddresses = await Promise.map(
+        expectedVoteEpochs,
+        async (voteEpoch: BigNumber) => await pirexCvx.voteEpochs(voteEpoch)
+      );
 
       expect(userCvxTokensAfterDeposit).to.equal(
         userCvxTokensBeforeDeposit.sub(depositAmount)
@@ -178,6 +183,9 @@ describe("PirexCvx", () => {
           expectedVoteEpochs[expectedVoteEpochs.length - 1]
         )
       ).to.equal(true);
+      expect(voteEpochTokenAddresses).to.not.include(
+        "0x0000000000000000000000000000000000000000"
+      );
     });
 
     it("Should mint the correct amount of user tokens on subsequent deposits", async () => {
