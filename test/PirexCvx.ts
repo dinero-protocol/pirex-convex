@@ -377,51 +377,6 @@ describe("PirexCvx", () => {
     });
   });
 
-  describe("claimVotiumReward", () => {
-    it("Should enable claim by admin", async () => {
-      // Set the test merkle root and mint reward token to the multiMerkleStash
-      const amount = toBN(1e18);
-      const claimIndex = 0;
-      const tree = new BalanceTree([
-        { account: pirexCvx.address, amount: amount },
-      ]);
-      await multiMerkleStash
-        .connect(votiumOwner)
-        .updateMerkleRoot(rewardToken.address, tree.getHexRoot());
-      await rewardToken.mint(multiMerkleStash.address, amount);
-      await pirexCvx.setVotiumRewardManager(pirexCvx.address);
-
-      const adminBalanceBeforeClaim = await rewardToken.balanceOf(
-        pirexCvx.address
-      );
-
-      const proof = tree.getProof(claimIndex, pirexCvx.address, amount);
-      const claimEvent = await callAndReturnEvent(pirexCvx.claimVotiumReward, [
-        rewardToken.address,
-        claimIndex,
-        amount,
-        proof,
-        firstDepositEpoch,
-      ]);
-
-      const adminBalanceAfterClaim = await rewardToken.balanceOf(
-        pirexCvx.address
-      );
-      const epochReward = await pirexCvx.voteEpochRewards(firstDepositEpoch, 0);
-
-      expect(adminBalanceAfterClaim).to.eq(adminBalanceBeforeClaim.add(amount));
-      expect(claimEvent.eventSignature).to.equal(
-        "VotiumRewardClaimed(address,uint256,uint256,bytes32[],uint256,address)"
-      );
-      expect(claimEvent.args.token).to.equal(rewardToken.address);
-      expect(claimEvent.args.amount).to.equal(amount);
-      expect(claimEvent.args.index).to.equal(claimIndex);
-      expect(claimEvent.args.voteEpoch).to.equal(firstDepositEpoch);
-      expect(epochReward.token).to.equal(rewardToken.address);
-      expect(epochReward.amount).to.equal(amount);
-    });
-  });
-
   describe("withdraw", () => {
     it("Should revert if invalid epoch", async () => {
       await expect(pirexCvx.withdraw(0, defaultSpendRatio)).to.be.revertedWith(
@@ -654,6 +609,51 @@ describe("PirexCvx", () => {
       );
       expect(unstakeEvent.eventSignature).to.equal("Unstaked(uint256)");
       expect(unstakeEvent.args.amount).to.equal(unstakeAmount);
+    });
+  });
+
+  describe("claimVotiumReward", () => {
+    it("Should enable claim by admin", async () => {
+      // Set the test merkle root and mint reward token to the multiMerkleStash
+      const amount = toBN(1e18);
+      const claimIndex = 0;
+      const tree = new BalanceTree([
+        { account: pirexCvx.address, amount: amount },
+      ]);
+      await multiMerkleStash
+        .connect(votiumOwner)
+        .updateMerkleRoot(rewardToken.address, tree.getHexRoot());
+      await rewardToken.mint(multiMerkleStash.address, amount);
+      await pirexCvx.setVotiumRewardManager(pirexCvx.address);
+
+      const pirexRewardTokensBeforeClaim = await rewardToken.balanceOf(
+        pirexCvx.address
+      );
+
+      const proof = tree.getProof(claimIndex, pirexCvx.address, amount);
+      const claimEvent = await callAndReturnEvent(pirexCvx.claimVotiumReward, [
+        rewardToken.address,
+        claimIndex,
+        amount,
+        proof,
+        firstDepositEpoch,
+      ]);
+
+      const pirexRewardTokensAfterClaim = await rewardToken.balanceOf(
+        pirexCvx.address
+      );
+      const epochReward = await pirexCvx.voteEpochRewards(firstDepositEpoch, 0);
+
+      expect(pirexRewardTokensAfterClaim).to.eq(pirexRewardTokensBeforeClaim.add(amount));
+      expect(claimEvent.eventSignature).to.equal(
+        "VotiumRewardClaimed(address,uint256,uint256,bytes32[],uint256,address)"
+      );
+      expect(claimEvent.args.token).to.equal(rewardToken.address);
+      expect(claimEvent.args.amount).to.equal(amount);
+      expect(claimEvent.args.index).to.equal(claimIndex);
+      expect(claimEvent.args.voteEpoch).to.equal(firstDepositEpoch);
+      expect(epochReward.token).to.equal(rewardToken.address);
+      expect(epochReward.amount).to.equal(amount);
     });
   });
 });
