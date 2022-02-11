@@ -473,9 +473,11 @@ contract PirexCvx is Ownable {
             merkleProof
         );
 
+        VoteEpochReward[] storage v = voteEpochRewards[voteEpoch];
+
         // Default to storing vote epoch rewards as-is if default reward manager is set
         if (address(this) == votiumRewardManager) {
-            voteEpochRewards[voteEpoch].push(VoteEpochReward(token, amount));
+            v.push(VoteEpochReward(token, amount));
         }
 
         // TODO V1: External votiumRewardManager contract calls for managing rewards + updating storage

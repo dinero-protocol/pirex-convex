@@ -644,7 +644,9 @@ describe("PirexCvx", () => {
       );
       const epochReward = await pirexCvx.voteEpochRewards(firstDepositEpoch, 0);
 
-      expect(pirexRewardTokensAfterClaim).to.eq(pirexRewardTokensBeforeClaim.add(amount));
+      expect(pirexRewardTokensAfterClaim).to.eq(
+        pirexRewardTokensBeforeClaim.add(amount)
+      );
       expect(claimEvent.eventSignature).to.equal(
         "VotiumRewardClaimed(address,uint256,uint256,bytes32[],uint256,address)"
       );
@@ -654,6 +656,67 @@ describe("PirexCvx", () => {
       expect(claimEvent.args.voteEpoch).to.equal(firstDepositEpoch);
       expect(epochReward.token).to.equal(rewardToken.address);
       expect(epochReward.amount).to.equal(amount);
+    });
+
+    it("Should revert if the parameters are invalid", async () => {
+      // Set the test merkle root and mint reward token to the multiMerkleStash
+      const amount = toBN(1e18);
+      const claimIndex = 0;
+      const tree = new BalanceTree([
+        { account: pirexCvx.address, amount: amount },
+      ]);
+      await multiMerkleStash
+        .connect(votiumOwner)
+        .updateMerkleRoot(rewardToken.address, tree.getHexRoot());
+      await rewardToken.mint(multiMerkleStash.address, amount);
+      await pirexCvx.setVotiumRewardManager(pirexCvx.address);
+
+      const proof = tree.getProof(claimIndex, pirexCvx.address, amount);
+      const invalidEpoch = 0;
+      const futureEpoch = (await pirexCvx.getCurrentEpoch()).add(
+        await pirexCvx.epochDepositDuration()
+      );
+      const validEpoch = firstDepositEpoch;
+      const invalidToken = zeroAddress;
+      const invalidIndex = claimIndex + 1;
+      const invalidAmount = amount.mul(2);
+
+      await expect(
+        pirexCvx.claimVotiumReward(
+          rewardToken.address,
+          claimIndex,
+          amount,
+          proof,
+          0
+        )
+      ).to.be.revertedWith("Invalid voteEpoch");
+      await expect(
+        pirexCvx.claimVotiumReward(
+          rewardToken.address,
+          claimIndex,
+          amount,
+          proof,
+          futureEpoch
+        )
+      ).to.be.revertedWith("voteEpoch must be previous epoch");
+      await expect(
+        pirexCvx.claimVotiumReward(
+          rewardToken.address,
+          invalidIndex,
+          amount,
+          proof,
+          validEpoch
+        )
+      ).to.be.revertedWith("Invalid proof.");
+      await expect(
+        pirexCvx.claimVotiumReward(
+          rewardToken.address,
+          claimIndex,
+          invalidAmount,
+          proof,
+          validEpoch
+        )
+      ).to.be.revertedWith("Invalid proof.");
     });
   });
 });
