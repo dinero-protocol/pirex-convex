@@ -652,6 +652,10 @@ describe("PirexCvx", () => {
         pirexCvx.address
       );
       const epochReward = await pirexCvx.voteEpochRewards(firstDepositEpoch, 0);
+      const voteEpochRewards = await pirexCvx.voteEpochRewards(
+        firstDepositEpoch,
+        claimEvent.args.voteEpochRewardsIndex
+      );
 
       expect(pirexRewardTokensAfterClaim).to.eq(
         pirexRewardTokensBeforeClaim.add(amount)
@@ -667,6 +671,8 @@ describe("PirexCvx", () => {
       expect(claimEvent.args.managerTokenAmount).to.equal(0);
       expect(epochReward.token).to.equal(rewardToken.address);
       expect(epochReward.amount).to.equal(amount);
+      expect(voteEpochRewards.token).to.equal(claimEvent.args.token);
+      expect(voteEpochRewards.amount).to.equal(claimEvent.args.amount);
     });
 
     it("Should revert if the parameters are invalid", async () => {
@@ -710,6 +716,15 @@ describe("PirexCvx", () => {
           futureEpoch
         )
       ).to.be.revertedWith("voteEpoch must be previous epoch");
+      await expect(
+        pirexCvx.claimVotiumReward(
+          invalidToken,
+          claimIndex,
+          amount,
+          proof,
+          validEpoch
+        )
+      ).to.be.revertedWith("frozen");
       await expect(
         pirexCvx.claimVotiumReward(
           rewardToken.address,
