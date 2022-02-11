@@ -59,6 +59,12 @@ interface IVotiumMultiMerkleStash {
     ) external;
 }
 
+interface IVotiumRewardManager {
+    function manage(address token, uint256 amount)
+        external
+        returns (address newToken, uint256 newTokenAmount);
+}
+
 contract PirexCvx is Ownable {
     using SafeERC20 for IERC20;
     using Strings for uint256;
@@ -89,6 +95,7 @@ contract PirexCvx is Ownable {
 
     event VoteDelegateSet(bytes32 id, address delegate);
     event VotiumRewardManagerSet(address manager);
+
     // Epoch mapped to vote token addresses
     mapping(uint256 => address) public voteEpochs;
 
@@ -117,7 +124,10 @@ contract PirexCvx is Ownable {
         uint256 amount,
         bytes32[] merkleProof,
         uint256 voteEpoch,
-        address manager
+        uint256 voteEpochRewardsIndex,
+        address manager,
+        address managerToken,
+        uint256 managerTokenAmount
     );
 
     constructor(
@@ -475,12 +485,22 @@ contract PirexCvx is Ownable {
 
         VoteEpochReward[] storage v = voteEpochRewards[voteEpoch];
 
+        address managerToken;
+        uint256 managerTokenAmount;
+
         // Default to storing vote epoch rewards as-is if default reward manager is set
         if (address(this) == votiumRewardManager) {
             v.push(VoteEpochReward(token, amount));
-        }
+        } else {
+            IERC20(token).safeIncreaseAllowance(votiumRewardManager, amount);
 
-        // TODO V1: External votiumRewardManager contract calls for managing rewards + updating storage
+            // Doesn't actually do anything for MVP besides demonstrate call flow
+            (managerToken, managerTokenAmount) = IVotiumRewardManager(
+                votiumRewardManager
+            ).manage(token, amount);
+
+            v.push(VoteEpochReward(managerToken, managerTokenAmount));
+        }
 
         emit VotiumRewardClaimed(
             token,
@@ -488,7 +508,10 @@ contract PirexCvx is Ownable {
             amount,
             merkleProof,
             voteEpoch,
-            votiumRewardManager
+            v.length - 1,
+            votiumRewardManager,
+            managerToken,
+            managerTokenAmount
         );
     }
 }
