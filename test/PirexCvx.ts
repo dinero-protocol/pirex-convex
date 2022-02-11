@@ -18,7 +18,7 @@ import {
   MultiMerkleStash,
   MultiMerkleStash__factory,
 } from "../typechain-types";
-import { BalanceTree } from '../lib/merkle';
+import { BalanceTree } from "../lib/merkle";
 
 describe("PirexCvx", () => {
   let admin: SignerWithAddress;
@@ -33,7 +33,6 @@ describe("PirexCvx", () => {
   let cvxLockerLockDuration: BigNumber;
   let firstDepositEpoch: BigNumber;
   let secondDepositEpoch: BigNumber;
-
 
   const crvAddr = "0xd533a949740bb3306d119cc777fa900ba034cd52";
   const crvDepositorAddr = "0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae";
@@ -81,9 +80,15 @@ describe("PirexCvx", () => {
     );
 
     // Setup Votium's multiMerkleStash by impersonating the Votium multisig
-    multiMerkleStash = await MultiMerkleStash__factory.connect(votiumMultiMerkleStash, ethers.provider);
+    multiMerkleStash = await MultiMerkleStash__factory.connect(
+      votiumMultiMerkleStash,
+      ethers.provider
+    );
     const votiumMultisig = await multiMerkleStash.owner();
-    votiumOwner = await impersonateAddressAndReturnSigner(admin, votiumMultisig);
+    votiumOwner = await impersonateAddressAndReturnSigner(
+      admin,
+      votiumMultisig
+    );
     // Mock reward token
     rewardToken = await CVX.deploy();
 
@@ -380,11 +385,15 @@ describe("PirexCvx", () => {
       const tree = new BalanceTree([
         { account: pirexCvx.address, amount: amount },
       ]);
-      await multiMerkleStash.connect(votiumOwner).updateMerkleRoot(rewardToken.address, tree.getHexRoot());
+      await multiMerkleStash
+        .connect(votiumOwner)
+        .updateMerkleRoot(rewardToken.address, tree.getHexRoot());
       await rewardToken.mint(multiMerkleStash.address, amount);
       await pirexCvx.setVotiumRewardManager(pirexCvx.address);
 
-      const adminBalanceBeforeClaim = await rewardToken.balanceOf(pirexCvx.address);
+      const adminBalanceBeforeClaim = await rewardToken.balanceOf(
+        pirexCvx.address
+      );
 
       const proof = tree.getProof(claimIndex, pirexCvx.address, amount);
       const claimEvent = await callAndReturnEvent(pirexCvx.claimVotiumReward, [
@@ -395,16 +404,16 @@ describe("PirexCvx", () => {
         firstDepositEpoch,
       ]);
 
-      const adminBalanceAfterClaim = await rewardToken.balanceOf(pirexCvx.address);
+      const adminBalanceAfterClaim = await rewardToken.balanceOf(
+        pirexCvx.address
+      );
       const epochReward = await pirexCvx.voteEpochRewards(firstDepositEpoch, 0);
 
       expect(adminBalanceAfterClaim).to.eq(adminBalanceBeforeClaim.add(amount));
       expect(claimEvent.eventSignature).to.equal(
         "VotiumRewardClaimed(address,uint256,uint256,bytes32[],uint256,address)"
       );
-      expect(claimEvent.args.token).to.equal(
-        rewardToken.address
-      );
+      expect(claimEvent.args.token).to.equal(rewardToken.address);
       expect(claimEvent.args.amount).to.equal(amount);
       expect(claimEvent.args.index).to.equal(claimIndex);
       expect(claimEvent.args.voteEpoch).to.equal(firstDepositEpoch);
