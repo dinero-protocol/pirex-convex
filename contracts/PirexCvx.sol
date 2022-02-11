@@ -474,6 +474,7 @@ contract PirexCvx is Ownable {
             voteEpoch < getCurrentEpoch(),
             "voteEpoch must be previous epoch"
         );
+        require(voteEpochs[voteEpoch] != address(0), "Invalid voteEpoch");
 
         IVotiumMultiMerkleStash(votiumMultiMerkleStash).claim(
             token,
