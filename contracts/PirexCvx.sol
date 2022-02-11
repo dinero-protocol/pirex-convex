@@ -129,6 +129,11 @@ contract PirexCvx is Ownable {
         address managerToken,
         uint256 managerTokenAmount
     );
+    event VoteEpochRewardsClaimed(
+        address[] tokens,
+        uint256[] amounts,
+        uint256[] remaining
+    );
 
     constructor(
         address _cvxLocker,
@@ -513,6 +518,58 @@ contract PirexCvx is Ownable {
             votiumRewardManager,
             managerToken,
             managerTokenAmount
+        );
+    }
+
+    /**
+        @notice Claim Votium rewards for user
+        @param  voteEpoch    uint256   Vote epoch associated with rewards
+     */
+    function claimVoteEpochRewards(uint256 voteEpoch) external {
+        VoteEpochReward[] storage v = voteEpochRewards[voteEpoch];
+        require(v.length > 0, "No rewards to claim");
+
+        // If there are claimable rewards, there has to be a vote epoch token set
+        address voteEpochToken = voteEpochs[voteEpoch];
+        assert(voteEpochToken != address(0));
+
+        ERC20PresetMinterPauserUpgradeable voteCvx = ERC20PresetMinterPauserUpgradeable(
+                voteEpochToken
+            );
+        uint256 voteCvxBalance = voteCvx.balanceOf(msg.sender);
+        require(
+            voteCvxBalance > 0,
+            "Msg.sender does not have voteCVX for epoch"
+        );
+
+        uint256 voteCvxSupply = voteCvx.totalSupply();
+        address[] memory rewardTokens = new address[](v.length);
+        uint256[] memory rewardTokenAmounts = new uint256[](v.length);
+        uint256[] memory rewardTokenAmountsRemaining = new uint256[](v.length);
+
+        voteCvx.burnFrom(msg.sender, voteCvxBalance);
+
+        for (uint256 i = 0; i < v.length; i += 1) {
+            // The reward amount is calculated using the user's % voteCVX ownership for the vote epoch
+            // E.g. Owning 10% of voteCVX tokens means they'll get 10% of the rewards
+            uint256 rewardAmount = (v[i].amount * voteCvxBalance) /
+                voteCvxSupply;
+
+            rewardTokens[i] = v[i].token;
+            rewardTokenAmounts[i] = rewardAmount;
+            rewardTokenAmountsRemaining[i] = v[i].amount - rewardAmount;
+            v[i].amount = rewardTokenAmountsRemaining[i];
+
+            IERC20(rewardTokens[i]).safeTransfer(
+                msg.sender,
+                rewardTokenAmounts[i]
+            );
+        }
+
+        emit VoteEpochRewardsClaimed(
+            rewardTokens,
+            rewardTokenAmounts,
+            rewardTokenAmountsRemaining
         );
     }
 }
