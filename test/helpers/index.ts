@@ -1,3 +1,4 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber } from "ethers";
 import { ethers } from "hardhat";
 
@@ -20,4 +21,18 @@ export function convertBigNumberToNumber(bigNumber: BigNumber): number {
 
 export function toBN(num: number): BigNumber {
   return ethers.BigNumber.from(`${num}`);
+}
+
+export const impersonateAddressAndReturnSigner = async (
+  networkAdmin: SignerWithAddress,
+  address: string,
+) => {
+  await ethers.provider.send("hardhat_impersonateAccount", [address]);
+  const account = await ethers.getSigner(address);
+  await networkAdmin.sendTransaction({
+    to: address,
+    value: ethers.utils.parseEther("100"),
+  });
+
+  return account;
 }
