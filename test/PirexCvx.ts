@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { Promise } from "bluebird";
 import {
   callAndReturnEvent,
   increaseBlockTimestamp,
@@ -33,6 +34,7 @@ describe("PirexCvx", () => {
   const convexDelegateRegistryId =
     "0x6376782e65746800000000000000000000000000000000000000000000000000";
   const zeroAddress = "0x0000000000000000000000000000000000000000";
+  const lockedCvxPrefix = "lockedCVX";
 
   before(async () => {
     [admin, notAdmin] = await ethers.getSigners();
@@ -234,6 +236,16 @@ describe("PirexCvx", () => {
       const pirexCvxToken = await getPirexCvxToken(depositEvent.args.token);
       const userPirexCvxTokens = await pirexCvxToken.balanceOf(admin.address);
       const lockDuration = await pirexCvx.lockDuration();
+      const expectedVoteEpochs = [...Array(8).keys()].map((_, idx) =>
+        toBN(
+          convertBigNumberToNumber(firstDepositEpoch) +
+            epochDepositDuration * (idx + 1)
+        )
+      );
+      const voteEpochTokenAddresses = await Promise.map(
+        expectedVoteEpochs,
+        async (voteEpoch: BigNumber) => await pirexCvx.voteEpochs(voteEpoch)
+      );
 
       expect(userCvxTokensAfterDeposit).to.equal(
         userCvxTokensBeforeDeposit.sub(depositAmount)
@@ -242,7 +254,7 @@ describe("PirexCvx", () => {
         pirexLockedCvxTokensBeforeDeposit.add(depositAmount)
       );
       expect(depositEvent.eventSignature).to.equal(
-        "Deposited(uint256,uint256,uint256,uint256,address)"
+        "Deposited(uint256,uint256,uint256,uint256,address,uint256[8])"
       );
       expect(depositEvent.args.amount).to.equal(depositAmount);
       expect(depositEvent.args.spendRatio).to.equal(defaultSpendRatio);
@@ -252,6 +264,15 @@ describe("PirexCvx", () => {
       );
       expect(depositEvent.args.token).to.not.equal(zeroAddress);
       expect(userPirexCvxTokens).to.equal(depositAmount);
+      expect(depositEvent.args.voteEpochs).to.deep.equal(expectedVoteEpochs);
+      expect(
+        depositEvent.args.lockExpiry.gte(
+          expectedVoteEpochs[expectedVoteEpochs.length - 1]
+        )
+      ).to.equal(true);
+      expect(voteEpochTokenAddresses).to.not.include(
+        "0x0000000000000000000000000000000000000000"
+      );
     });
 
     it("Should mint the correct amount of user tokens on subsequent deposits", async () => {
@@ -319,9 +340,11 @@ describe("PirexCvx", () => {
         await pirexCvxTokenForNextEpoch.balanceOf(admin.address);
 
       expect(pirexCvxTokenForCurrentEpochName).to.equal(
-        `vlCVX-${currentEpoch}`
+        `${lockedCvxPrefix}-${currentEpoch}`
       );
-      expect(pirexCvxTokenForNextEpochName).to.equal(`vlCVX-${nextEpoch}`);
+      expect(pirexCvxTokenForNextEpochName).to.equal(
+        `${lockedCvxPrefix}-${nextEpoch}`
+      );
       expect(pirexCvxTokenForCurrentEpoch.address).to.not.equal(
         pirexCvxTokenForNextEpoch.address
       );
@@ -427,7 +450,7 @@ describe("PirexCvx", () => {
         pirexCvx
           .connect(notAdmin)
           .withdraw(firstDepositEpoch, defaultSpendRatio)
-      ).to.be.revertedWith("Msg.sender does not have vlCVX for epoch");
+      ).to.be.revertedWith("Msg.sender does not have lockedCVX for epoch");
     });
 
     it("Should withdraw CVX if after lock expiry (second epoch deposit)", async () => {
