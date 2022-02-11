@@ -12,7 +12,9 @@ export default class MerkleTree {
     // Deduplicate elements
     this.elements = MerkleTree.bufDedup(this.elements);
 
-    this.bufferElementPositionIndex = this.elements.reduce<{ [hexElement: string]: number }>((memo, el, index) => {
+    this.bufferElementPositionIndex = this.elements.reduce<{
+      [hexElement: string]: number;
+    }>((memo, el, index) => {
       memo[bufferToHex(el)] = index;
       return memo;
     }, {});
@@ -110,11 +112,11 @@ export default class MerkleTree {
   }
 
   private static bufArrToHexArr(arr: Buffer[]): string[] {
-    if (arr.some(el => !Buffer.isBuffer(el))) {
+    if (arr.some((el) => !Buffer.isBuffer(el))) {
       throw new Error("Array is not an array of buffers");
     }
 
-    return arr.map(el => "0x" + el.toString("hex"));
+    return arr.map((el) => "0x" + el.toString("hex"));
   }
 
   private static sortAndConcat(...args: Buffer[]): Buffer {

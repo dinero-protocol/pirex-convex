@@ -7,7 +7,7 @@ export default class BalanceTree {
     this.tree = new MerkleTree(
       balances.map(({ account, amount }, index) => {
         return BalanceTree.toNode(index, account, amount);
-      }),
+      })
     );
   }
 
@@ -16,7 +16,7 @@ export default class BalanceTree {
     account: string,
     amount: BigNumber,
     proof: Buffer[],
-    root: Buffer,
+    root: Buffer
   ): boolean {
     let pair = BalanceTree.toNode(index, account, amount);
     for (const item of proof) {
@@ -27,10 +27,19 @@ export default class BalanceTree {
   }
 
   // keccak256(abi.encode(index, account, amount))
-  public static toNode(index: number | BigNumber, account: string, amount: BigNumber): Buffer {
+  public static toNode(
+    index: number | BigNumber,
+    account: string,
+    amount: BigNumber
+  ): Buffer {
     return Buffer.from(
-      utils.solidityKeccak256(["uint256", "address", "uint256"], [index, account, amount]).substr(2),
-      "hex",
+      utils
+        .solidityKeccak256(
+          ["uint256", "address", "uint256"],
+          [index, account, amount]
+        )
+        .substr(2),
+      "hex"
     );
   }
 
@@ -39,7 +48,11 @@ export default class BalanceTree {
   }
 
   // returns the hex bytes32 values of the proof
-  public getProof(index: number | BigNumber, account: string, amount: BigNumber): string[] {
+  public getProof(
+    index: number | BigNumber,
+    account: string,
+    amount: BigNumber
+  ): string[] {
     return this.tree.getHexProof(BalanceTree.toNode(index, account, amount));
   }
 }
