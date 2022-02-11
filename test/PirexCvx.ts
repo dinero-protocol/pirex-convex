@@ -1,14 +1,15 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { Promise } from "bluebird";
 import {
   callAndReturnEvent,
   increaseBlockTimestamp,
   convertBigNumberToNumber,
   toBN,
 } from "./helpers";
-import { BigNumber } from 'ethers';
-import { Cvx, CvxLocker, CvxRewardPool, PirexCvx } from '../typechain-types';
+import { BigNumber } from "ethers";
+import { Cvx, CvxLocker, CvxRewardPool, PirexCvx } from "../typechain-types";
 
 describe("PirexCvx", () => {
   let admin: SignerWithAddress;
@@ -28,14 +29,15 @@ describe("PirexCvx", () => {
   const initialCvxBalanceForAdmin = toBN(10e18);
   const initialEpochDepositDuration = 1209600; // 2 weeks in seconds
   const defaultSpendRatio = 0;
+  const lockedCvxPrefix = "lockedCVX";
 
   before(async () => {
     [admin, notAdmin] = await ethers.getSigners();
 
-    const CVX = await ethers.getContractFactory('Cvx');
-    const CVXLocker = await ethers.getContractFactory('CvxLocker');
-    const CVXRewardPool = await ethers.getContractFactory('CvxRewardPool');
-    const PirexCVX = await ethers.getContractFactory('PirexCvx');
+    const CVX = await ethers.getContractFactory("Cvx");
+    const CVXLocker = await ethers.getContractFactory("CvxLocker");
+    const CVXRewardPool = await ethers.getContractFactory("CvxRewardPool");
+    const PirexCVX = await ethers.getContractFactory("PirexCvx");
 
     cvx = await CVX.deploy();
     cvxLocker = await CVXLocker.deploy(cvx.address);
@@ -89,8 +91,10 @@ describe("PirexCvx", () => {
 
   describe("getCurrentEpoch", () => {
     it("Should get the current epoch", async () => {
-      const { timestamp } = await ethers.provider.getBlock('latest');
-      const epochDepositDuration: number = convertBigNumberToNumber(await pirexCvx.epochDepositDuration());
+      const { timestamp } = await ethers.provider.getBlock("latest");
+      const epochDepositDuration: number = convertBigNumberToNumber(
+        await pirexCvx.epochDepositDuration()
+      );
       const currentEpoch = await pirexCvx.getCurrentEpoch();
 
       expect(currentEpoch).to.equal(
@@ -102,10 +106,15 @@ describe("PirexCvx", () => {
   describe("deposit", () => {
     it("Should deposit CVX", async () => {
       // Move the timestamp to the beginning of next epoch to ensure consistent tests run
-      const { timestamp } = await ethers.provider.getBlock('latest');
-      const currentEpoch = convertBigNumberToNumber(await pirexCvx.getCurrentEpoch());
-      const epochDepositDuration = convertBigNumberToNumber(await pirexCvx.epochDepositDuration());
-      const timeUntilNextEpoch = currentEpoch + epochDepositDuration - timestamp;
+      const { timestamp } = await ethers.provider.getBlock("latest");
+      const currentEpoch = convertBigNumberToNumber(
+        await pirexCvx.getCurrentEpoch()
+      );
+      const epochDepositDuration = convertBigNumberToNumber(
+        await pirexCvx.epochDepositDuration()
+      );
+      const timeUntilNextEpoch =
+        currentEpoch + epochDepositDuration - timestamp;
       await increaseBlockTimestamp(timeUntilNextEpoch + 60); // Shift by 1 minute for safety
 
       const userCvxTokensBeforeDeposit = await cvx.balanceOf(admin.address);
@@ -138,6 +147,16 @@ describe("PirexCvx", () => {
       const pirexCvxToken = await getPirexCvxToken(depositEvent.args.token);
       const userPirexCvxTokens = await pirexCvxToken.balanceOf(admin.address);
       const lockDuration = await pirexCvx.lockDuration();
+      const expectedVoteEpochs = [...Array(8).keys()].map((_, idx) =>
+        toBN(
+          convertBigNumberToNumber(firstDepositEpoch) +
+            epochDepositDuration * (idx + 1)
+        )
+      );
+      const voteEpochTokenAddresses = await Promise.map(
+        expectedVoteEpochs,
+        async (voteEpoch: BigNumber) => await pirexCvx.voteEpochs(voteEpoch)
+      );
 
       expect(userCvxTokensAfterDeposit).to.equal(
         userCvxTokensBeforeDeposit.sub(depositAmount)
@@ -146,7 +165,7 @@ describe("PirexCvx", () => {
         pirexLockedCvxTokensBeforeDeposit.add(depositAmount)
       );
       expect(depositEvent.eventSignature).to.equal(
-        "Deposited(uint256,uint256,uint256,uint256,address)"
+        "Deposited(uint256,uint256,uint256,uint256,address,uint256[8])"
       );
       expect(depositEvent.args.amount).to.equal(depositAmount);
       expect(depositEvent.args.spendRatio).to.equal(defaultSpendRatio);
@@ -158,6 +177,15 @@ describe("PirexCvx", () => {
         "0x0000000000000000000000000000000000000000"
       );
       expect(userPirexCvxTokens).to.equal(depositAmount);
+      expect(depositEvent.args.voteEpochs).to.deep.equal(expectedVoteEpochs);
+      expect(
+        depositEvent.args.lockExpiry.gte(
+          expectedVoteEpochs[expectedVoteEpochs.length - 1]
+        )
+      ).to.equal(true);
+      expect(voteEpochTokenAddresses).to.not.include(
+        "0x0000000000000000000000000000000000000000"
+      );
     });
 
     it("Should mint the correct amount of user tokens on subsequent deposits", async () => {
@@ -225,9 +253,11 @@ describe("PirexCvx", () => {
         await pirexCvxTokenForNextEpoch.balanceOf(admin.address);
 
       expect(pirexCvxTokenForCurrentEpochName).to.equal(
-        `vlCVX-${currentEpoch}`
+        `${lockedCvxPrefix}-${currentEpoch}`
       );
-      expect(pirexCvxTokenForNextEpochName).to.equal(`vlCVX-${nextEpoch}`);
+      expect(pirexCvxTokenForNextEpochName).to.equal(
+        `${lockedCvxPrefix}-${nextEpoch}`
+      );
       expect(pirexCvxTokenForCurrentEpoch.address).to.not.equal(
         pirexCvxTokenForNextEpoch.address
       );
@@ -333,7 +363,7 @@ describe("PirexCvx", () => {
         pirexCvx
           .connect(notAdmin)
           .withdraw(firstDepositEpoch, defaultSpendRatio)
-      ).to.be.revertedWith("Msg.sender does not have vlCVX for epoch");
+      ).to.be.revertedWith("Msg.sender does not have lockedCVX for epoch");
     });
 
     it("Should withdraw CVX if after lock expiry (second epoch deposit)", async () => {
@@ -416,7 +446,9 @@ describe("PirexCvx", () => {
         pirexCvx.address
       );
       const pirexCvxTokensBeforeStaking = await cvx.balanceOf(pirexCvx.address);
-      const stakeEvent = await callAndReturnEvent(pirexCvx.stakeCvx, [depositAmount]);
+      const stakeEvent = await callAndReturnEvent(pirexCvx.stakeCvx, [
+        depositAmount,
+      ]);
       const pirexStakedCvxTokensAfter = await cvxRewardPool.balanceOf(
         pirexCvx.address
       );
