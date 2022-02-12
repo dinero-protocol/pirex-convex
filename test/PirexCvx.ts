@@ -7,28 +7,48 @@ import {
   increaseBlockTimestamp,
   convertBigNumberToNumber,
   toBN,
+  impersonateAddressAndReturnSigner,
 } from "./helpers";
 import { BigNumber } from "ethers";
-import { Cvx, CvxLocker, CvxRewardPool, PirexCvx } from "../typechain-types";
+import {
+  Cvx,
+  CvxLocker,
+  CvxRewardPool,
+  PirexCvx,
+  MultiMerkleStash,
+  MultiMerkleStash__factory,
+  VotiumRewardManager,
+} from "../typechain-types";
+import { BalanceTree } from "../lib/merkle";
 
 describe("PirexCvx", () => {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
+  let votiumOwner: SignerWithAddress;
   let cvx: Cvx;
   let cvxLocker: CvxLocker;
   let cvxRewardPool: CvxRewardPool;
   let pirexCvx: PirexCvx;
+  let votiumRewardManager: VotiumRewardManager;
+  let multiMerkleStash: MultiMerkleStash;
+  let rewardToken: Cvx;
   let cvxLockerLockDuration: BigNumber;
   let firstDepositEpoch: BigNumber;
+  let firstVoteEpoch: BigNumber;
   let secondDepositEpoch: BigNumber;
 
   const crvAddr = "0xd533a949740bb3306d119cc777fa900ba034cd52";
   const crvDepositorAddr = "0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae";
   const cvxCrvRewardsAddr = "0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e";
   const cvxCrvTokenAddr = "0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7";
+  const cvxDelegateRegistry = "0x469788fE6E9E9681C6ebF3bF78e7Fd26Fc015446";
+  const votiumMultiMerkleStash = "0x378Ba9B73309bE80BF4C2c027aAD799766a7ED5A";
   const initialCvxBalanceForAdmin = toBN(10e18);
   const initialEpochDepositDuration = 1209600; // 2 weeks in seconds
   const defaultSpendRatio = 0;
+  const convexDelegateRegistryId =
+    "0x6376782e65746800000000000000000000000000000000000000000000000000";
+  const zeroAddress = "0x0000000000000000000000000000000000000000";
   const lockedCvxPrefix = "lockedCVX";
 
   before(async () => {
@@ -38,6 +58,9 @@ describe("PirexCvx", () => {
     const CVXLocker = await ethers.getContractFactory("CvxLocker");
     const CVXRewardPool = await ethers.getContractFactory("CvxRewardPool");
     const PirexCVX = await ethers.getContractFactory("PirexCvx");
+    const VotiumRewardManager = await ethers.getContractFactory(
+      "VotiumRewardManager"
+    );
 
     cvx = await CVX.deploy();
     cvxLocker = await CVXLocker.deploy(cvx.address);
@@ -55,9 +78,29 @@ describe("PirexCvx", () => {
       cvxLocker.address,
       cvx.address,
       cvxRewardPool.address,
+      cvxDelegateRegistry,
+      votiumMultiMerkleStash,
       initialEpochDepositDuration,
-      cvxLockerLockDuration
+      cvxLockerLockDuration,
+      admin.address
     );
+    votiumRewardManager = await VotiumRewardManager.deploy(
+      pirexCvx.address,
+      cvx.address
+    );
+
+    // Setup Votium's multiMerkleStash by impersonating the Votium multisig
+    multiMerkleStash = await MultiMerkleStash__factory.connect(
+      votiumMultiMerkleStash,
+      ethers.provider
+    );
+    const votiumMultisig = await multiMerkleStash.owner();
+    votiumOwner = await impersonateAddressAndReturnSigner(
+      admin,
+      votiumMultisig
+    );
+    // Mock reward token
+    rewardToken = await CVX.deploy();
 
     await cvxLocker.setStakingContract(
       "0xe096ccec4a1d36f191189fe61e803d8b2044dfc3"
@@ -74,18 +117,99 @@ describe("PirexCvx", () => {
       const owner = await pirexCvx.owner();
       const _cvxLocker = await pirexCvx.cvxLocker();
       const _cvx = await pirexCvx.cvx();
+      const _cvxDelegateRegistry = await pirexCvx.cvxDelegateRegistry();
+      const _votiumMultiMerkleStash = await pirexCvx.votiumMultiMerkleStash();
       const _epochDepositDuration = await pirexCvx.epochDepositDuration();
       const _lockDuration = await pirexCvx.lockDuration();
       const erc20Implementation = await pirexCvx.erc20Implementation();
+      const voteDelegate = await pirexCvx.voteDelegate();
+      const _votiumRewardManager = await pirexCvx.votiumRewardManager();
 
       expect(owner).to.equal(admin.address);
       expect(_cvxLocker).to.equal(cvxLocker.address);
       expect(_cvx).to.equal(cvx.address);
+      expect(_cvxDelegateRegistry).to.equal(cvxDelegateRegistry);
+      expect(_votiumMultiMerkleStash).to.equal(votiumMultiMerkleStash);
       expect(_epochDepositDuration).to.equal(initialEpochDepositDuration);
       expect(_lockDuration).to.equal(cvxLockerLockDuration);
-      expect(erc20Implementation).to.not.equal(
-        "0x0000000000000000000000000000000000000000"
+      expect(erc20Implementation).to.not.equal(zeroAddress);
+      expect(voteDelegate).to.equal(admin.address);
+      expect(_votiumRewardManager).to.equal(pirexCvx.address);
+    });
+  });
+
+  describe("setVoteDelegate", () => {
+    it("Should set voteDelegate", async () => {
+      const voteDelegateBeforeSetting = await pirexCvx.voteDelegate();
+
+      const setVoteDelegateEvent = await callAndReturnEvent(
+        pirexCvx.setVoteDelegate,
+        [convexDelegateRegistryId, notAdmin.address]
       );
+
+      const voteDelegateAfterSetting = await pirexCvx.voteDelegate();
+
+      expect(voteDelegateBeforeSetting).to.equal(admin.address);
+      expect(voteDelegateBeforeSetting).to.not.equal(voteDelegateAfterSetting);
+      expect(setVoteDelegateEvent.eventSignature).to.equal(
+        "VoteDelegateSet(bytes32,address)"
+      );
+      expect(setVoteDelegateEvent.args.id).to.equal(convexDelegateRegistryId);
+      expect(setVoteDelegateEvent.args.delegate).to.equal(notAdmin.address);
+      expect(voteDelegateAfterSetting).to.equal(notAdmin.address);
+    });
+
+    it("Should revert if not called by owner", async () => {
+      await expect(
+        pirexCvx
+          .connect(notAdmin)
+          .setVoteDelegate(convexDelegateRegistryId, admin.address)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+
+    it("Should revert if delegate is zero address", async () => {
+      await expect(
+        pirexCvx.setVoteDelegate(convexDelegateRegistryId, zeroAddress)
+      ).to.be.revertedWith("Invalid delegate");
+    });
+  });
+
+  describe("setVotiumRewardManager", () => {
+    it("Should set votiumRewardManager", async () => {
+      const votiumRewardManagerBeforeSetting =
+        await pirexCvx.votiumRewardManager();
+
+      const setVotiumRewardManagerEvent = await callAndReturnEvent(
+        pirexCvx.setVotiumRewardManager,
+        [notAdmin.address]
+      );
+
+      const votiumRewardManagerAfterSetting =
+        await pirexCvx.votiumRewardManager();
+
+      expect(votiumRewardManagerBeforeSetting).to.equal(pirexCvx.address);
+      expect(votiumRewardManagerBeforeSetting).to.not.equal(
+        votiumRewardManagerAfterSetting
+      );
+      expect(setVotiumRewardManagerEvent.eventSignature).to.equal(
+        "VotiumRewardManagerSet(address)"
+      );
+      expect(setVotiumRewardManagerEvent.args.manager).to.equal(
+        notAdmin.address
+      );
+      expect(votiumRewardManagerAfterSetting).to.equal(notAdmin.address);
+    });
+
+    it("Should revert if not called by owner", async () => {
+      await expect(
+        pirexCvx.connect(notAdmin).setVotiumRewardManager(admin.address)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+
+    it("Should revert if manager is zero address", async () => {
+      await expect(
+        pirexCvx.setVotiumRewardManager(zeroAddress)
+      ).to.be.revertedWith("Invalid manager");
     });
   });
 
@@ -158,6 +282,8 @@ describe("PirexCvx", () => {
         async (voteEpoch: BigNumber) => await pirexCvx.voteEpochs(voteEpoch)
       );
 
+      firstVoteEpoch = expectedVoteEpochs[0];
+
       expect(userCvxTokensAfterDeposit).to.equal(
         userCvxTokensBeforeDeposit.sub(depositAmount)
       );
@@ -173,9 +299,7 @@ describe("PirexCvx", () => {
       expect(depositEvent.args.lockExpiry).to.equal(
         firstDepositEpoch.add(epochDepositDuration).add(lockDuration)
       );
-      expect(depositEvent.args.token).to.not.equal(
-        "0x0000000000000000000000000000000000000000"
-      );
+      expect(depositEvent.args.token).to.not.equal(zeroAddress);
       expect(userPirexCvxTokens).to.equal(depositAmount);
       expect(depositEvent.args.voteEpochs).to.deep.equal(expectedVoteEpochs);
       expect(
@@ -497,6 +621,349 @@ describe("PirexCvx", () => {
       );
       expect(unstakeEvent.eventSignature).to.equal("Unstaked(uint256)");
       expect(unstakeEvent.args.amount).to.equal(unstakeAmount);
+    });
+  });
+
+  describe("claimVotiumReward", () => {
+    it("Should enable claim by admin", async () => {
+      // Set the test merkle root and mint reward token to the multiMerkleStash
+      const amount = toBN(1e18);
+      const claimIndex = 0;
+      const tree = new BalanceTree([
+        { account: pirexCvx.address, amount: amount },
+      ]);
+      await multiMerkleStash
+        .connect(votiumOwner)
+        .updateMerkleRoot(rewardToken.address, tree.getHexRoot());
+      await rewardToken.mint(multiMerkleStash.address, amount);
+      await pirexCvx.setVotiumRewardManager(pirexCvx.address);
+
+      const pirexRewardTokensBeforeClaim = await rewardToken.balanceOf(
+        pirexCvx.address
+      );
+
+      const proof = tree.getProof(claimIndex, pirexCvx.address, amount);
+      const claimEvent = await callAndReturnEvent(pirexCvx.claimVotiumReward, [
+        rewardToken.address,
+        claimIndex,
+        amount,
+        proof,
+        firstVoteEpoch,
+      ]);
+
+      const pirexRewardTokensAfterClaim = await rewardToken.balanceOf(
+        pirexCvx.address
+      );
+      const epochReward = await pirexCvx.voteEpochRewards(firstVoteEpoch, 0);
+      const voteEpochRewards = await pirexCvx.voteEpochRewards(
+        firstVoteEpoch,
+        claimEvent.args.voteEpochRewardsIndex
+      );
+
+      expect(pirexRewardTokensAfterClaim).to.eq(
+        pirexRewardTokensBeforeClaim.add(amount)
+      );
+      expect(claimEvent.eventSignature).to.equal(
+        "VotiumRewardClaimed(address,uint256,uint256,bytes32[],uint256,uint256,address,address,uint256)"
+      );
+      expect(claimEvent.args.token).to.equal(rewardToken.address);
+      expect(claimEvent.args.amount).to.equal(amount);
+      expect(claimEvent.args.index).to.equal(claimIndex);
+      expect(claimEvent.args.voteEpoch).to.equal(firstVoteEpoch);
+      expect(claimEvent.args.managerToken).to.equal(zeroAddress);
+      expect(claimEvent.args.managerTokenAmount).to.equal(0);
+      expect(epochReward.token).to.equal(rewardToken.address);
+      expect(epochReward.amount).to.equal(amount);
+      expect(voteEpochRewards.token).to.equal(claimEvent.args.token);
+      expect(voteEpochRewards.amount).to.equal(claimEvent.args.amount);
+    });
+
+    it("Should revert if the parameters are invalid", async () => {
+      // Set the test merkle root and mint reward token to the multiMerkleStash
+      const amount = toBN(1e18);
+      const claimIndex = 0;
+      const tree = new BalanceTree([
+        { account: pirexCvx.address, amount: amount },
+      ]);
+      await multiMerkleStash
+        .connect(votiumOwner)
+        .updateMerkleRoot(rewardToken.address, tree.getHexRoot());
+      await rewardToken.mint(multiMerkleStash.address, amount);
+      await pirexCvx.setVotiumRewardManager(pirexCvx.address);
+
+      const proof = tree.getProof(claimIndex, pirexCvx.address, amount);
+      const invalidEpoch = 0;
+      const futureEpoch = (await pirexCvx.getCurrentEpoch()).add(
+        await pirexCvx.epochDepositDuration()
+      );
+      const validEpoch = firstVoteEpoch;
+      const invalidToken = zeroAddress;
+      const invalidIndex = claimIndex + 1;
+      const invalidAmount = amount.mul(2);
+
+      await expect(
+        pirexCvx.claimVotiumReward(
+          rewardToken.address,
+          claimIndex,
+          amount,
+          proof,
+          invalidEpoch
+        )
+      ).to.be.revertedWith("Invalid voteEpoch");
+      await expect(
+        pirexCvx.claimVotiumReward(
+          rewardToken.address,
+          claimIndex,
+          amount,
+          proof,
+          futureEpoch
+        )
+      ).to.be.revertedWith("voteEpoch must be previous epoch");
+      await expect(
+        pirexCvx.claimVotiumReward(
+          invalidToken,
+          claimIndex,
+          amount,
+          proof,
+          validEpoch
+        )
+      ).to.be.revertedWith("frozen");
+      await expect(
+        pirexCvx.claimVotiumReward(
+          rewardToken.address,
+          invalidIndex,
+          amount,
+          proof,
+          validEpoch
+        )
+      ).to.be.revertedWith("Invalid proof.");
+      await expect(
+        pirexCvx.claimVotiumReward(
+          rewardToken.address,
+          claimIndex,
+          invalidAmount,
+          proof,
+          validEpoch
+        )
+      ).to.be.revertedWith("Invalid proof.");
+    });
+
+    it("Should allow a VotiumRewardManager contract to swap its reward tokens for CVX", async () => {
+      // Set the test merkle root and mint reward token to the multiMerkleStash
+      const amount = toBN(1e18);
+      const claimIndex = 0;
+      const tree = new BalanceTree([
+        { account: pirexCvx.address, amount: amount },
+      ]);
+
+      await multiMerkleStash
+        .connect(votiumOwner)
+        .updateMerkleRoot(rewardToken.address, tree.getHexRoot());
+      await rewardToken.mint(multiMerkleStash.address, amount);
+      await pirexCvx.setVotiumRewardManager(votiumRewardManager.address);
+      await cvx.mint(votiumRewardManager.address, amount);
+
+      const proof = tree.getProof(claimIndex, pirexCvx.address, amount);
+      const pirexCvxTokensBeforeClaim = await cvx.balanceOf(pirexCvx.address);
+      const claimEvent = await callAndReturnEvent(pirexCvx.claimVotiumReward, [
+        rewardToken.address,
+        claimIndex,
+        amount,
+        proof,
+        firstVoteEpoch,
+      ]);
+      const pirexCvxTokensAfterClaim = await cvx.balanceOf(pirexCvx.address);
+      const voteEpochRewards = await pirexCvx.voteEpochRewards(
+        firstVoteEpoch,
+        claimEvent.args.voteEpochRewardsIndex
+      );
+
+      expect(pirexCvxTokensAfterClaim).to.equal(
+        pirexCvxTokensBeforeClaim.add(claimEvent.args.managerTokenAmount)
+      );
+      expect(claimEvent.args.token).to.not.equal(claimEvent.args.managerToken);
+      expect(claimEvent.args.manager).to.equal(votiumRewardManager.address);
+      expect(claimEvent.args.managerToken).to.equal(cvx.address);
+      expect(claimEvent.args.managerToken).to.equal(voteEpochRewards.token);
+      expect(claimEvent.args.managerTokenAmount).to.equal(amount);
+    });
+  });
+
+  describe("claimVoteEpochRewards", () => {
+    it("Should claim the correct vote epoch rewards for notAdmin", async () => {
+      const voteCvx = await getPirexCvxToken(
+        await pirexCvx.voteEpochs(firstVoteEpoch)
+      );
+      const adminVoteCvxTokensBeforeTransfer = await voteCvx.balanceOf(
+        admin.address
+      );
+      const voteEpochRewardsLengthArray = Array.from(Array(2).keys());
+
+      // Send voteCvx tokens to notAdmin to test partial claim
+      await voteCvx.transfer(
+        notAdmin.address,
+        adminVoteCvxTokensBeforeTransfer.div(10)
+      );
+
+      const adminVoteCvxTokensAfterTransfer = await voteCvx.balanceOf(
+        admin.address
+      );
+      const notAdminVoteCvxTokensAfterTransfer = await voteCvx.balanceOf(
+        notAdmin.address
+      );
+      const voteCvxSupplyBeforeClaim = await voteCvx.totalSupply();
+      const voteEpochRewardsBeforeClaim = await Promise.map(
+        voteEpochRewardsLengthArray,
+        async (_, idx) => await pirexCvx.voteEpochRewards(firstVoteEpoch, idx)
+      );
+      const notAdminRewardTokenBalancesBeforeClaim = await Promise.map(
+        voteEpochRewardsBeforeClaim,
+        async ({ token }: { token: string }) => {
+          const tokenContract = await ethers.getContractAt(
+            "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+            token
+          );
+
+          return tokenContract.balanceOf(notAdmin.address);
+        }
+      );
+
+      await voteCvx
+        .connect(notAdmin)
+        .increaseAllowance(
+          pirexCvx.address,
+          notAdminVoteCvxTokensAfterTransfer
+        );
+
+      const claimVoteEpochRewardsEvent = await callAndReturnEvent(
+        pirexCvx.connect(notAdmin).claimVoteEpochRewards,
+        [firstVoteEpoch]
+      );
+      // const voteCvxSupplyBeforeClaim = await voteCvx.totalSupply();
+      const expectedRewardTokens = voteEpochRewardsBeforeClaim.map(
+        ({ token }) => token
+      );
+      const expectedRewardAmounts = voteEpochRewardsBeforeClaim.map(
+        ({ amount }) =>
+          amount
+            .mul(notAdminVoteCvxTokensAfterTransfer)
+            .div(voteCvxSupplyBeforeClaim)
+      );
+      const expectedRewardAmountsAfterClaim = expectedRewardAmounts.map(
+        (claimedAmount, idx) =>
+          voteEpochRewardsBeforeClaim[idx].amount.sub(claimedAmount)
+      );
+      const voteCvxSupplyAfterClaim = await voteCvx.totalSupply();
+      const notAdminRewardTokenBalanceIncreasesAfterClaim = await Promise.map(
+        claimVoteEpochRewardsEvent.args.tokens,
+        async (token: string, idx) => {
+          const tokenContract = await ethers.getContractAt(
+            "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+            token
+          );
+
+          return (await tokenContract.balanceOf(notAdmin.address)).sub(
+            notAdminRewardTokenBalancesBeforeClaim[idx]
+          );
+        }
+      );
+
+      expect(notAdminVoteCvxTokensAfterTransfer).to.equal(
+        adminVoteCvxTokensBeforeTransfer.sub(adminVoteCvxTokensAfterTransfer)
+      );
+      expect(voteCvxSupplyAfterClaim).to.equal(
+        voteCvxSupplyBeforeClaim.sub(notAdminVoteCvxTokensAfterTransfer)
+      );
+      expect(claimVoteEpochRewardsEvent.eventSignature).to.equal(
+        "VoteEpochRewardsClaimed(address[],uint256[],uint256[])"
+      );
+      expect(claimVoteEpochRewardsEvent.args.tokens).to.deep.equal(
+        expectedRewardTokens
+      );
+      expect(claimVoteEpochRewardsEvent.args.amounts).to.deep.equal(
+        expectedRewardAmounts
+      );
+      expect(claimVoteEpochRewardsEvent.args.remaining).to.deep.equal(
+        expectedRewardAmountsAfterClaim
+      );
+      expect(notAdminRewardTokenBalanceIncreasesAfterClaim).to.deep.equal(
+        claimVoteEpochRewardsEvent.args.amounts
+      );
+    });
+
+    it("Should claim the correct vote epoch rewards for admin", async () => {
+      const voteCvx = await getPirexCvxToken(
+        await pirexCvx.voteEpochs(firstVoteEpoch)
+      );
+      const adminVoteCvxTokens = await voteCvx.balanceOf(admin.address);
+      const voteCvxSupplyBeforeClaim = await voteCvx.totalSupply();
+      const voteEpochRewardsLengthArray = Array.from(Array(2).keys());
+      const voteEpochRewardsBeforeClaim = await Promise.map(
+        voteEpochRewardsLengthArray,
+        async (_, idx) => await pirexCvx.voteEpochRewards(firstVoteEpoch, idx)
+      );
+      const adminRewardTokenBalancesBeforeClaim = await Promise.map(
+        voteEpochRewardsBeforeClaim,
+        async ({ token }: { token: string }) => {
+          const tokenContract = await ethers.getContractAt(
+            "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+            token
+          );
+
+          return tokenContract.balanceOf(admin.address);
+        }
+      );
+
+      await voteCvx.increaseAllowance(pirexCvx.address, adminVoteCvxTokens);
+
+      const claimVoteEpochRewardsEvent = await callAndReturnEvent(
+        pirexCvx.claimVoteEpochRewards,
+        [firstVoteEpoch]
+      );
+      const expectedRewardTokens = voteEpochRewardsBeforeClaim.map(
+        ({ token }) => token
+      );
+      const expectedRewardAmounts = voteEpochRewardsBeforeClaim.map(
+        ({ amount }) =>
+          amount.mul(adminVoteCvxTokens).div(voteCvxSupplyBeforeClaim)
+      );
+      const expectedRewardAmountsAfterClaim = expectedRewardAmounts.map(
+        (claimedAmount, idx) =>
+          voteEpochRewardsBeforeClaim[idx].amount.sub(claimedAmount)
+      );
+      const voteCvxSupplyAfterClaim = await voteCvx.totalSupply();
+      const adminRewardTokenBalanceIncreasesAfterClaim = await Promise.map(
+        voteEpochRewardsBeforeClaim,
+        async ({ token }: { token: string }, idx) => {
+          const tokenContract = await ethers.getContractAt(
+            "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+            token
+          );
+
+          return (await tokenContract.balanceOf(admin.address)).sub(
+            adminRewardTokenBalancesBeforeClaim[idx]
+          );
+        }
+      );
+
+      expect(voteCvxSupplyAfterClaim).to.equal(
+        voteCvxSupplyBeforeClaim.sub(adminVoteCvxTokens)
+      );
+      expect(claimVoteEpochRewardsEvent.eventSignature).to.equal(
+        "VoteEpochRewardsClaimed(address[],uint256[],uint256[])"
+      );
+      expect(claimVoteEpochRewardsEvent.args.tokens).to.deep.equal(
+        expectedRewardTokens
+      );
+      expect(claimVoteEpochRewardsEvent.args.amounts).to.deep.equal(
+        expectedRewardAmounts
+      );
+      expect(claimVoteEpochRewardsEvent.args.remaining).to.deep.equal(
+        expectedRewardAmountsAfterClaim
+      );
+      expect(adminRewardTokenBalanceIncreasesAfterClaim).to.deep.equal(
+        claimVoteEpochRewardsEvent.args.amounts
+      );
     });
   });
 });
