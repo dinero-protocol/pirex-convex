@@ -74,7 +74,7 @@ contract PirexCvx is Ownable {
         address token;
     }
 
-    struct VoteEpochReward {
+    struct Reward {
         address token;
         uint256 amount;
     }
@@ -91,13 +91,21 @@ contract PirexCvx is Ownable {
     address public votiumRewardManager;
 
     mapping(uint256 => Deposit) public deposits;
-    mapping(uint256 => VoteEpochReward[]) public voteEpochRewards;
+
+    // Voter bribes
+    mapping(uint256 => Reward[]) public voteEpochRewards;
+
+    // Convex emissions and extra rewards
+    mapping(uint256 => Reward[]) public epochRewards;
 
     event VoteDelegateSet(bytes32 id, address delegate);
     event VotiumRewardManagerSet(address manager);
 
     // Epoch mapped to vote token addresses
     mapping(uint256 => address) public voteEpochs;
+
+    // Epoch mapped to reward token addresses
+    mapping(uint256 => address) public rewardEpochs;
 
     event Deposited(
         uint256 amount,
@@ -364,6 +372,8 @@ contract PirexCvx is Ownable {
         }
     }
 
+
+
     /**
         @notice Withdraw deposit
         @param  epoch       uint256  Epoch to withdraw locked CVX for
@@ -489,14 +499,14 @@ contract PirexCvx is Ownable {
             merkleProof
         );
 
-        VoteEpochReward[] storage v = voteEpochRewards[voteEpoch];
+        Reward[] storage v = voteEpochRewards[voteEpoch];
 
         address managerToken;
         uint256 managerTokenAmount;
 
         // Default to storing vote epoch rewards as-is if default reward manager is set
         if (address(this) == votiumRewardManager) {
-            v.push(VoteEpochReward(token, amount));
+            v.push(Reward(token, amount));
         } else {
             IERC20(token).safeIncreaseAllowance(votiumRewardManager, amount);
 
@@ -505,7 +515,7 @@ contract PirexCvx is Ownable {
                 votiumRewardManager
             ).manage(token, amount);
 
-            v.push(VoteEpochReward(managerToken, managerTokenAmount));
+            v.push(Reward(managerToken, managerTokenAmount));
         }
 
         emit VotiumRewardClaimed(
@@ -526,7 +536,7 @@ contract PirexCvx is Ownable {
         @param  voteEpoch    uint256   Vote epoch associated with rewards
      */
     function claimVoteEpochRewards(uint256 voteEpoch) external {
-        VoteEpochReward[] storage v = voteEpochRewards[voteEpoch];
+        Reward[] storage v = voteEpochRewards[voteEpoch];
         require(v.length > 0, "No rewards to claim");
 
         // If there are claimable rewards, there has to be a vote epoch token set
