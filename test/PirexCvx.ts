@@ -34,7 +34,7 @@ describe("PirexCvx", () => {
   let rewardToken: Cvx;
   let cvxLockerLockDuration: BigNumber;
   let firstDepositEpoch: BigNumber;
-  let firstVoteEpoch: BigNumber;
+  let firstVoteAndRewardEpoch: BigNumber;
   let secondDepositEpoch: BigNumber;
 
   const crvAddr = "0xd533a949740bb3306d119cc777fa900ba034cd52";
@@ -271,18 +271,22 @@ describe("PirexCvx", () => {
       const pirexCvxToken = await getPirexCvxToken(depositEvent.args.token);
       const userPirexCvxTokens = await pirexCvxToken.balanceOf(admin.address);
       const lockDuration = await pirexCvx.lockDuration();
-      const expectedVoteEpochs = [...Array(8).keys()].map((_, idx) =>
+      const expectedEpochs = [...Array(8).keys()].map((_, idx) =>
         toBN(
           convertBigNumberToNumber(firstDepositEpoch) +
             epochDepositDuration * (idx + 1)
         )
       );
       const voteEpochTokenAddresses = await Promise.map(
-        expectedVoteEpochs,
-        async (voteEpoch: BigNumber) => await pirexCvx.voteEpochs(voteEpoch)
+        expectedEpochs,
+        async (epoch: BigNumber) => await pirexCvx.voteEpochs(epoch)
+      );
+      const rewardEpochTokenAddresses = await Promise.map(
+        expectedEpochs,
+        async (epoch: BigNumber) => await pirexCvx.rewardEpochs(epoch)
       );
 
-      firstVoteEpoch = expectedVoteEpochs[0];
+      firstVoteAndRewardEpoch = expectedEpochs[0];
 
       expect(userCvxTokensAfterDeposit).to.equal(
         userCvxTokensBeforeDeposit.sub(depositAmount)
@@ -301,13 +305,16 @@ describe("PirexCvx", () => {
       );
       expect(depositEvent.args.token).to.not.equal(zeroAddress);
       expect(userPirexCvxTokens).to.equal(depositAmount);
-      expect(depositEvent.args.voteEpochs).to.deep.equal(expectedVoteEpochs);
+      expect(depositEvent.args.epochs).to.deep.equal(expectedEpochs);
       expect(
         depositEvent.args.lockExpiry.gte(
-          expectedVoteEpochs[expectedVoteEpochs.length - 1]
+          expectedEpochs[expectedEpochs.length - 1]
         )
       ).to.equal(true);
       expect(voteEpochTokenAddresses).to.not.include(
+        "0x0000000000000000000000000000000000000000"
+      );
+      expect(rewardEpochTokenAddresses).to.not.include(
         "0x0000000000000000000000000000000000000000"
       );
     });
@@ -648,15 +655,18 @@ describe("PirexCvx", () => {
         claimIndex,
         amount,
         proof,
-        firstVoteEpoch,
+        firstVoteAndRewardEpoch,
       ]);
 
       const pirexRewardTokensAfterClaim = await rewardToken.balanceOf(
         pirexCvx.address
       );
-      const epochReward = await pirexCvx.voteEpochRewards(firstVoteEpoch, 0);
+      const epochReward = await pirexCvx.voteEpochRewards(
+        firstVoteAndRewardEpoch,
+        0
+      );
       const voteEpochRewards = await pirexCvx.voteEpochRewards(
-        firstVoteEpoch,
+        firstVoteAndRewardEpoch,
         claimEvent.args.voteEpochRewardsIndex
       );
 
@@ -669,7 +679,7 @@ describe("PirexCvx", () => {
       expect(claimEvent.args.token).to.equal(rewardToken.address);
       expect(claimEvent.args.amount).to.equal(amount);
       expect(claimEvent.args.index).to.equal(claimIndex);
-      expect(claimEvent.args.voteEpoch).to.equal(firstVoteEpoch);
+      expect(claimEvent.args.voteEpoch).to.equal(firstVoteAndRewardEpoch);
       expect(claimEvent.args.managerToken).to.equal(zeroAddress);
       expect(claimEvent.args.managerTokenAmount).to.equal(0);
       expect(epochReward.token).to.equal(rewardToken.address);
@@ -696,7 +706,7 @@ describe("PirexCvx", () => {
       const futureEpoch = (await pirexCvx.getCurrentEpoch()).add(
         await pirexCvx.epochDepositDuration()
       );
-      const validEpoch = firstVoteEpoch;
+      const validEpoch = firstVoteAndRewardEpoch;
       const invalidToken = zeroAddress;
       const invalidIndex = claimIndex + 1;
       const invalidAmount = amount.mul(2);
@@ -770,11 +780,11 @@ describe("PirexCvx", () => {
         claimIndex,
         amount,
         proof,
-        firstVoteEpoch,
+        firstVoteAndRewardEpoch,
       ]);
       const pirexCvxTokensAfterClaim = await cvx.balanceOf(pirexCvx.address);
       const voteEpochRewards = await pirexCvx.voteEpochRewards(
-        firstVoteEpoch,
+        firstVoteAndRewardEpoch,
         claimEvent.args.voteEpochRewardsIndex
       );
 
@@ -792,7 +802,7 @@ describe("PirexCvx", () => {
   describe("claimVoteEpochRewards", () => {
     it("Should claim the correct vote epoch rewards for notAdmin", async () => {
       const voteCvx = await getPirexCvxToken(
-        await pirexCvx.voteEpochs(firstVoteEpoch)
+        await pirexCvx.voteEpochs(firstVoteAndRewardEpoch)
       );
       const adminVoteCvxTokensBeforeTransfer = await voteCvx.balanceOf(
         admin.address
@@ -814,7 +824,8 @@ describe("PirexCvx", () => {
       const voteCvxSupplyBeforeClaim = await voteCvx.totalSupply();
       const voteEpochRewardsBeforeClaim = await Promise.map(
         voteEpochRewardsLengthArray,
-        async (_, idx) => await pirexCvx.voteEpochRewards(firstVoteEpoch, idx)
+        async (_, idx) =>
+          await pirexCvx.voteEpochRewards(firstVoteAndRewardEpoch, idx)
       );
       const notAdminRewardTokenBalancesBeforeClaim = await Promise.map(
         voteEpochRewardsBeforeClaim,
@@ -837,7 +848,7 @@ describe("PirexCvx", () => {
 
       const claimVoteEpochRewardsEvent = await callAndReturnEvent(
         pirexCvx.connect(notAdmin).claimVoteEpochRewards,
-        [firstVoteEpoch]
+        [firstVoteAndRewardEpoch]
       );
       // const voteCvxSupplyBeforeClaim = await voteCvx.totalSupply();
       const expectedRewardTokens = voteEpochRewardsBeforeClaim.map(
@@ -893,14 +904,15 @@ describe("PirexCvx", () => {
 
     it("Should claim the correct vote epoch rewards for admin", async () => {
       const voteCvx = await getPirexCvxToken(
-        await pirexCvx.voteEpochs(firstVoteEpoch)
+        await pirexCvx.voteEpochs(firstVoteAndRewardEpoch)
       );
       const adminVoteCvxTokens = await voteCvx.balanceOf(admin.address);
       const voteCvxSupplyBeforeClaim = await voteCvx.totalSupply();
       const voteEpochRewardsLengthArray = Array.from(Array(2).keys());
       const voteEpochRewardsBeforeClaim = await Promise.map(
         voteEpochRewardsLengthArray,
-        async (_, idx) => await pirexCvx.voteEpochRewards(firstVoteEpoch, idx)
+        async (_, idx) =>
+          await pirexCvx.voteEpochRewards(firstVoteAndRewardEpoch, idx)
       );
       const adminRewardTokenBalancesBeforeClaim = await Promise.map(
         voteEpochRewardsBeforeClaim,
@@ -918,7 +930,7 @@ describe("PirexCvx", () => {
 
       const claimVoteEpochRewardsEvent = await callAndReturnEvent(
         pirexCvx.claimVoteEpochRewards,
-        [firstVoteEpoch]
+        [firstVoteAndRewardEpoch]
       );
       const expectedRewardTokens = voteEpochRewardsBeforeClaim.map(
         ({ token }) => token

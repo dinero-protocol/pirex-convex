@@ -113,7 +113,7 @@ contract PirexCvx is Ownable {
         uint256 epoch,
         uint256 lockExpiry,
         address token,
-        uint256[8] voteEpochs
+        uint256[8] epochs
     );
     event Withdrew(
         uint256 amount,
@@ -256,7 +256,7 @@ contract PirexCvx is Ownable {
         // CVX can be withdrawn 17 weeks *after the end of the epoch*
         uint256 lockExpiry = currentEpoch + epochDepositDuration + lockDuration;
         address token = mintLockedCvx(msg.sender, amount, currentEpoch);
-        uint256[8] memory _voteEpochs = mintVoteCvx(
+        uint256[8] memory epochs = mintVoteAndRewardCvx(
             msg.sender,
             amount,
             currentEpoch
@@ -276,7 +276,7 @@ contract PirexCvx is Ownable {
             currentEpoch,
             lockExpiry,
             token,
-            _voteEpochs
+            epochs
         );
     }
 
@@ -334,45 +334,56 @@ contract PirexCvx is Ownable {
     }
 
     /**
-        @notice Mints voteCVX
-        @param  recipient  uint256  Account receiving voteCVX
-        @param  amount     uint256  Amount of voteCVX
-        @param  epoch      uint256  Epoch that user deposited CVX
+        @notice Mints voteCVX and rewardCVX
+        @param  recipient     uint256     Account receiving voteCVX and rewardCVX
+        @param  amount        uint256     Amount of voteCVX and rewardCVX
+        @param  depositEpoch  uint256     Epoch that user deposited CVX
+        @return epochs        uint256[8]  Epochs for both tokens
      */
-    function mintVoteCvx(
+    function mintVoteAndRewardCvx(
         address recipient,
         uint256 amount,
-        uint256 epoch
-    ) internal returns (uint256[8] memory _voteEpochs) {
-        // Users can only vote in subsequent epochs (after their deposit epoch)
-        uint256 firstVoteEpoch = epoch + epochDepositDuration;
+        uint256 depositEpoch
+    ) internal returns (uint256[8] memory epochs) {
+        // Users can only vote/claim rewards in subsequent epochs (after deposit epoch)
+        uint256 startingEpoch = depositEpoch + epochDepositDuration;
 
         // Mint 1 voteCVX for each Convex gauge weight proposal that users can vote on
+        // Mint 1 rewardCVX for each reward-claiming period (every 2 weeks)
         for (uint8 i = 0; i < 8; i += 1) {
-            uint256 voteEpoch = firstVoteEpoch + (epochDepositDuration * i);
+            uint256 epoch = startingEpoch + (epochDepositDuration * i);
 
-            _voteEpochs[i] = voteEpoch;
+            epochs[i] = epoch;
 
-            string memory tokenId = string(
-                abi.encodePacked("voteCVX-", voteEpoch.toString())
+            string memory voteCvxId = string(
+                abi.encodePacked("voteCVX-", epoch.toString())
             );
-
-            address voteToken = voteEpochs[voteEpoch];
-            address mintedVoteToken = mintCvx(
-                voteToken,
-                tokenId,
+            string memory rewardCvxId = string(
+                abi.encodePacked("rewardCVX-", epoch.toString())
+            );
+            address voteCvx = voteEpochs[epoch];
+            address rewardCvx = rewardEpochs[epoch];
+            address mintedVoteCvx = mintCvx(
+                voteCvx,
+                voteCvxId,
+                recipient,
+                amount
+            );
+            address mintedRewardCvx = mintCvx(
+                rewardCvx,
+                rewardCvxId,
                 recipient,
                 amount
             );
 
             // Only modify storage if necessary
-            if (voteToken == address(0)) {
-                voteEpochs[voteEpoch] = mintedVoteToken;
+            // If voteCvx is zero address, so is rewardCvx, since they're minted at the same time
+            if (voteCvx == address(0) && rewardCvx == address(0)) {
+                voteEpochs[epoch] = mintedVoteCvx;
+                rewardEpochs[epoch] = mintedRewardCvx;
             }
         }
     }
-
-
 
     /**
         @notice Withdraw deposit
