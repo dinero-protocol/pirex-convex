@@ -16,6 +16,11 @@ interface ICvxLocker {
         uint32 unlockTime;
     }
 
+    struct EarnedData {
+        address token;
+        uint256 amount;
+    }
+
     function lock(
         address _account,
         uint256 _amount,
@@ -37,6 +42,13 @@ interface ICvxLocker {
             uint256 locked,
             LockedBalance[] memory lockData
         );
+
+    function getReward(address _account, bool _stake) external;
+
+    function claimableRewards(address _account)
+        external
+        view
+        returns (EarnedData[] memory userRewards);
 }
 
 interface IcvxRewardPool {
@@ -592,5 +604,18 @@ contract PirexCvx is Ownable {
             rewardTokenAmounts,
             rewardTokenAmountsRemaining
         );
+    }
+
+    /**
+        @notice Claim and stake cvxCRV reward
+     */
+    function claimAndStakeCvxCrvReward()
+        external
+        returns (ICvxLocker.EarnedData[] memory claimed)
+    {
+        ICvxLocker c = ICvxLocker(cvxLocker);
+        claimed = c.claimableRewards(address(this));
+
+        ICvxLocker(cvxLocker).getReward(address(this), true);
     }
 }
