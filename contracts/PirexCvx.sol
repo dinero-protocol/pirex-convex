@@ -154,6 +154,7 @@ contract PirexCvx is Ownable {
         uint256[] amounts,
         uint256[] remaining
     );
+    event ClaimAndStakeCvxCrvReward(ICvxLocker.EarnedData[] claimed);
 
     constructor(
         address _cvxLocker,
@@ -609,13 +610,12 @@ contract PirexCvx is Ownable {
     /**
         @notice Claim and stake cvxCRV reward
      */
-    function claimAndStakeCvxCrvReward()
-        external
-        returns (ICvxLocker.EarnedData[] memory claimed)
-    {
+    function claimAndStakeCvxCrvReward() external {
         ICvxLocker c = ICvxLocker(cvxLocker);
-        claimed = c.claimableRewards(address(this));
+        ICvxLocker.EarnedData[] memory claimed = c.claimableRewards(address(this));
 
         ICvxLocker(cvxLocker).getReward(address(this), true);
+
+        emit ClaimAndStakeCvxCrvReward(claimed);
     }
 }

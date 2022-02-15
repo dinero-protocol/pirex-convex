@@ -1028,4 +1028,40 @@ describe("PirexCvx", () => {
       );
     });
   });
+
+  describe("claimAndStakeCvxCrvReward", () => {
+    it("Should claim and stake cvxCRV reward", async () => {
+      const epochDepositDuration = await pirexCvx.epochDepositDuration();
+      const depositAmount = toBN(1e18);
+      const rewardAmount = "10000000000000000000000";
+
+      // Deposit CVX so that is PirexCvx is eligible for rewards
+      await cvx.approve(pirexCvx.address, depositAmount);
+      await pirexCvx.deposit(depositAmount, defaultSpendRatio);
+
+      // Mint reward tokens for CvxLocker
+      await cvxCrvToken.mint(admin.address, rewardAmount);
+      await cvxCrvToken.approve(cvxLocker.address, rewardAmount);
+      await cvxLocker.notifyRewardAmount(cvxCrvToken.address, rewardAmount);
+
+      // Fast forward past reward distribution period finish
+      await increaseBlockTimestamp(
+        convertBigNumberToNumber(epochDepositDuration)
+      );
+
+      const [expectedClaim] = await cvxLocker.claimableRewards(pirexCvx.address);
+      const claimEvent = await callAndReturnEvent(
+        pirexCvx.claimAndStakeCvxCrvReward,
+        []
+      );
+      const [claim] = claimEvent.args.claimed;
+      const stakedAmount = await baseRewardPool.balanceOf(pirexCvx.address);
+
+      expect(claimEvent.eventSignature).to.equal('ClaimAndStakeCvxCrvReward((address,uint256)[])');
+      expect(claim.token).to.equal(cvxCrvToken.address);
+      expect(claim.token).to.equal(expectedClaim.token);
+      expect(claim.amount).to.equal(expectedClaim.amount);
+      expect(claim.amount).to.equal(stakedAmount);
+    });
+  });
 });
