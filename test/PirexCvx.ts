@@ -23,6 +23,7 @@ import {
   VotiumRewardManager,
   BaseRewardPool,
   CurveVoterProxy,
+  CvxStakingProxy,
 } from "../typechain-types";
 import { BalanceTree } from "../lib/merkle";
 
@@ -49,6 +50,7 @@ describe("PirexCvx", () => {
   let baseRewardPool: any;
   let cvxLocker: CvxLocker;
   let cvxRewardPool: CvxRewardPool;
+  let cvxStakingProxy: CvxStakingProxy;
 
   const crvAddr = "0xd533a949740bb3306d119cc777fa900ba034cd52";
   const crvDepositorAddr = "0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae";
@@ -84,6 +86,7 @@ describe("PirexCvx", () => {
     );
     const CvxLocker = await ethers.getContractFactory("CvxLocker");
     const CvxRewardPool = await ethers.getContractFactory("CvxRewardPool");
+    const CvxStakingProxy = await ethers.getContractFactory("CvxStakingProxy");
 
     // Mocked Convex contracts
     cvx = await Cvx.deploy();
@@ -114,7 +117,13 @@ describe("PirexCvx", () => {
       admin.address
     );
     cvxLockerLockDuration = await cvxLocker.lockDuration();
-
+    cvxStakingProxy = await CvxStakingProxy.deploy(
+      cvxLocker.address,
+      cvxRewardPool.address,
+      crv.address,
+      cvx.address,
+      cvxCrvToken.address
+    );
     pirexCvx = await PirexCvx.deploy(
       cvxLocker.address,
       cvx.address,
@@ -143,10 +152,10 @@ describe("PirexCvx", () => {
     // Mock reward token
     rewardToken = await Cvx.deploy();
 
-    await cvxLocker.setStakingContract(
-      "0xe096ccec4a1d36f191189fe61e803d8b2044dfc3"
-    );
+    await cvxLocker.setStakingContract(cvxStakingProxy.address);
     await cvxLocker.setApprovals();
+    await cvxLocker.addReward(cvxCrvToken.address, admin.address, true);
+    await cvxStakingProxy.setApprovals();
     await cvx.mint(admin.address, initialCvxBalanceForAdmin);
   });
 
