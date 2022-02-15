@@ -36,16 +36,20 @@ contract CvxStakingProxy {
     using SafeMath for uint256;
 
     //tokens
-    address public constant crv =
-        address(0xD533a949740bb3306d119CC777fa900bA034cd52);
-    address public constant cvx =
-        address(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
-    address public constant cvxCrv =
-        address(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7);
+    address public crv;
+    address public cvx;
+    address public cvxCrv;
+    // address public constant crv =
+    //     address(0xD533a949740bb3306d119CC777fa900bA034cd52);
+    // address public constant cvx =
+    //     address(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
+    // address public constant cvxCrv =
+    //     address(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7);
 
     //convex addresses
-    address public constant cvxStaking =
-        address(0xCF50b810E57Ac33B91dCF525C6ddd9881B139332);
+    address public cvxStaking;
+    // address public constant cvxStaking =
+    //     address(0xCF50b810E57Ac33B91dCF525C6ddd9881B139332);
     address public constant cvxCrvStaking =
         address(0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e);
     address public constant crvDeposit =
@@ -60,9 +64,24 @@ contract CvxStakingProxy {
 
     event RewardsDistributed(address indexed token, uint256 amount);
 
-    constructor(address _rewards) public {
+    constructor(
+        address _rewards,
+        address _cvxStaking,
+        address _crv,
+        address _cvx,
+        address _cvxCrv
+    ) public {
         rewards = _rewards;
         owner = msg.sender;
+
+        require(_cvxStaking != address(0), "Invalid _cvxStaking");
+        cvxStaking = _cvxStaking;
+        require(_crv != address(0), "Invalid _crv");
+        crv = _crv;
+        require(_cvx != address(0), "Invalid _cvx");
+        cvx = _cvx;
+        require(_cvxCrv != address(0), "Invalid _cvxCrv");
+        cvxCrv = _cvxCrv;
     }
 
     function setPendingOwner(address _po) external {
