@@ -12,12 +12,17 @@ import {
 import { BigNumber } from "ethers";
 import {
   Cvx,
+  Crv,
+  Booster,
+  RewardFactory,
   CvxLocker,
   CvxRewardPool,
   PirexCvx,
   MultiMerkleStash,
   MultiMerkleStash__factory,
   VotiumRewardManager,
+  BaseRewardPool,
+  CurveVoterProxy,
 } from "../typechain-types";
 import { BalanceTree } from "../lib/merkle";
 
@@ -25,9 +30,6 @@ describe("PirexCvx", () => {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let votiumOwner: SignerWithAddress;
-  let cvx: Cvx;
-  let cvxLocker: CvxLocker;
-  let cvxRewardPool: CvxRewardPool;
   let pirexCvx: PirexCvx;
   let votiumRewardManager: VotiumRewardManager;
   let multiMerkleStash: MultiMerkleStash;
@@ -36,6 +38,17 @@ describe("PirexCvx", () => {
   let firstDepositEpoch: BigNumber;
   let firstVoteAndRewardEpoch: BigNumber;
   let secondDepositEpoch: BigNumber;
+
+  // Mocked Convex contracts
+  let cvx: Cvx;
+  let crv: Crv;
+  let cvxCrvToken: any;
+  let curveVoterProxy: CurveVoterProxy;
+  let booster: Booster;
+  let rewardFactory: RewardFactory;
+  let baseRewardPool: any;
+  let cvxLocker: CvxLocker;
+  let cvxRewardPool: CvxRewardPool;
 
   const crvAddr = "0xd533a949740bb3306d119cc777fa900ba034cd52";
   const crvDepositorAddr = "0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae";
@@ -54,27 +67,55 @@ describe("PirexCvx", () => {
   before(async () => {
     [admin, notAdmin] = await ethers.getSigners();
 
-    const CVX = await ethers.getContractFactory("Cvx");
-    const CVXLocker = await ethers.getContractFactory("CvxLocker");
-    const CVXRewardPool = await ethers.getContractFactory("CvxRewardPool");
-    const PirexCVX = await ethers.getContractFactory("PirexCvx");
+    const PirexCvx = await ethers.getContractFactory("PirexCvx");
     const VotiumRewardManager = await ethers.getContractFactory(
       "VotiumRewardManager"
     );
 
-    cvx = await CVX.deploy();
-    cvxLocker = await CVXLocker.deploy(cvx.address);
-    cvxRewardPool = await CVXRewardPool.deploy(
+    // Mocked Convex contracts
+    const Cvx = await ethers.getContractFactory("Cvx");
+    const Crv = await ethers.getContractFactory("Crv");
+    const CvxCrvToken = await ethers.getContractFactory("cvxCrvToken");
+    const CurveVoterProxy = await ethers.getContractFactory("CurveVoterProxy");
+    const Booster = await ethers.getContractFactory("Booster");
+    const RewardFactory = await ethers.getContractFactory("RewardFactory");
+    const BaseRewardPool = await ethers.getContractFactory(
+      "contracts/mocks/BaseRewardPool.sol:BaseRewardPool"
+    );
+    const CvxLocker = await ethers.getContractFactory("CvxLocker");
+    const CvxRewardPool = await ethers.getContractFactory("CvxRewardPool");
+
+    // Mocked Convex contracts
+    cvx = await Cvx.deploy();
+    crv = await Crv.deploy();
+    cvxCrvToken = await CvxCrvToken.deploy();
+    curveVoterProxy = await CurveVoterProxy.deploy();
+    booster = await Booster.deploy(curveVoterProxy.address, cvx.address);
+    rewardFactory = await RewardFactory.deploy(booster.address);
+    baseRewardPool = await BaseRewardPool.deploy(
+      0,
+      cvxCrvToken.address,
+      crv.address,
+      booster.address,
+      rewardFactory.address
+    );
+    cvxLocker = await CvxLocker.deploy(
+      cvx.address,
+      cvxCrvToken.address,
+      baseRewardPool.address
+    );
+    cvxRewardPool = await CvxRewardPool.deploy(
       cvx.address,
       crvAddr,
       crvDepositorAddr,
       cvxCrvRewardsAddr,
       cvxCrvTokenAddr,
-      admin.address,
+      booster.address,
       admin.address
     );
     cvxLockerLockDuration = await cvxLocker.lockDuration();
-    pirexCvx = await PirexCVX.deploy(
+
+    pirexCvx = await PirexCvx.deploy(
       cvxLocker.address,
       cvx.address,
       cvxRewardPool.address,
@@ -100,7 +141,7 @@ describe("PirexCvx", () => {
       votiumMultisig
     );
     // Mock reward token
-    rewardToken = await CVX.deploy();
+    rewardToken = await Cvx.deploy();
 
     await cvxLocker.setStakingContract(
       "0xe096ccec4a1d36f191189fe61e803d8b2044dfc3"

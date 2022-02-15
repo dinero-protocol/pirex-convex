@@ -1172,8 +1172,10 @@ contract CvxLocker is ReentrancyGuard, Ownable {
 
     //token constants
     IERC20 public stakingToken; //cvx
-    address public constant cvxCrv =
-        address(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7);
+
+    address public cvxCrv;
+    // address public constant cvxCrv =
+    //     address(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7);
 
     //rewards
     address[] public rewardTokens;
@@ -1215,8 +1217,10 @@ contract CvxLocker is ReentrancyGuard, Ownable {
     uint256 public minimumStake = 10000;
     uint256 public maximumStake = 10000;
     address public stakingProxy;
-    address public constant cvxcrvStaking =
-        address(0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e);
+
+    address public cvxcrvStaking;
+    // address public constant cvxcrvStaking =
+    //     address(0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e);
     uint256 public constant stakeOffsetOnLock = 500; //allow broader range for staking when depositing
 
     //management
@@ -1233,7 +1237,11 @@ contract CvxLocker is ReentrancyGuard, Ownable {
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(address _stakingToken) public Ownable() {
+    constructor(
+        address _stakingToken,
+        address _cvxCrv,
+        address _cvxcrvStaking
+    ) public Ownable() {
         _name = "Vote Locked Convex Token";
         _symbol = "vlCVX";
         _decimals = 18;
@@ -1245,6 +1253,12 @@ contract CvxLocker is ReentrancyGuard, Ownable {
 
         require(_stakingToken != address(0), "Invalid _stakingToken");
         stakingToken = IERC20(_stakingToken);
+
+        require(_cvxCrv != address(0), "Invalid _cvxCrv");
+        cvxCrv = _cvxCrv;
+
+        require(_cvxcrvStaking != address(0), "Invalid _cvxcrvStaking");
+        cvxcrvStaking = _cvxcrvStaking;
     }
 
     function decimals() public view returns (uint8) {
