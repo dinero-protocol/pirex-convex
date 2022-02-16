@@ -124,10 +124,6 @@ describe.only("PirexCvx", () => {
             epochDepositDuration * (idx + 1)
         )
       );
-      const voteEpochTokenAddresses = await Promise.map(
-        expectedVoteEpochs,
-        async (voteEpoch: BigNumber) => await pirexCvx.voteEpochs(voteEpoch)
-      );
 
       firstVoteEpoch = expectedVoteEpochs[0];
 
