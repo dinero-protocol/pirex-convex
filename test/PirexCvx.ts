@@ -134,7 +134,8 @@ describe('PirexCvx', () => {
       votiumMultiMerkleStash,
       initialEpochDepositDuration,
       cvxLockerLockDuration,
-      admin.address
+      admin.address,
+      baseRewardPool.address
     );
     votiumRewardManager = await VotiumRewardManager.deploy(
       pirexCvx.address,
@@ -1190,6 +1191,61 @@ describe('PirexCvx', () => {
 
       // Verify amount set correctly for next epoch
       expect(claim.amount).to.equal(nextEpochRewards);
+    });
+  });
+
+  describe('claimEpochRewards', () => {
+    it('Should claim the correct epoch rewards for notAdmin', async () => {
+      const currentEpoch = await pirexCvx.getCurrentEpoch();
+      const rewardCvx = await getPirexCvxToken(
+        await pirexCvx.rewardEpochs(currentEpoch)
+      );
+      const adminRewardCvxTokens = await rewardCvx.balanceOf(admin.address);
+
+      // Transfer 10% of tokens to notAdmin - notAdmin now owns 10% of the supply
+      await rewardCvx.transfer(notAdmin.address, adminRewardCvxTokens.div(10));
+
+      const notAdminRewardCvxTokensBeforeClaim = await rewardCvx.balanceOf(
+        notAdmin.address
+      );
+
+      await rewardCvx
+        .connect(notAdmin)
+        .increaseAllowance(
+          pirexCvx.address,
+          notAdminRewardCvxTokensBeforeClaim
+        );
+
+      const epochReward = await pirexCvx.getEpochReward(
+        currentEpoch,
+        cvxCrvToken.address
+      );
+
+      // notAdmin has 10% of the rewardCvx for this epoch and should get 10% rewards
+      const expectedClaimAmount = epochReward.div(10);
+
+      const expectedRemaining = epochReward.sub(expectedClaimAmount);
+      const claimRewardEpochRewardsEvent = await callAndReturnEvent(
+        pirexCvx.connect(notAdmin).claimEpochRewards,
+        [currentEpoch]
+      );
+      const notAdminRewardCvxTokensAfterClaim = await rewardCvx.balanceOf(
+        notAdmin.address
+      );
+
+      expect(notAdminRewardCvxTokensAfterClaim).to.equal(0);
+      expect(claimRewardEpochRewardsEvent.eventSignature).to.equal(
+        'EpochRewardsClaimed(address[],uint256[],uint256[])'
+      );
+      expect(claimRewardEpochRewardsEvent.args.amounts[0]).to.equal(
+        expectedClaimAmount
+      );
+      expect(claimRewardEpochRewardsEvent.args.tokens[0]).to.equal(
+        cvxCrvToken.address
+      );
+      expect(claimRewardEpochRewardsEvent.args.remaining[0]).to.equal(
+        expectedRemaining
+      );
     });
   });
 });

@@ -77,6 +77,12 @@ interface IVotiumRewardManager {
         returns (address newToken, uint256 newTokenAmount);
 }
 
+interface IBaseRewardPool {
+    function balanceOf(address account) external view returns (uint256);
+
+    function withdraw(uint256 amount, bool claim) external returns (bool);
+}
+
 contract PirexCvx is Ownable {
     using SafeERC20 for IERC20;
     using Strings for uint256;
@@ -101,6 +107,7 @@ contract PirexCvx is Ownable {
     address public immutable erc20Implementation;
     address public voteDelegate;
     address public votiumRewardManager;
+    address public baseRewardPool;
 
     mapping(uint256 => Deposit) public deposits;
 
@@ -109,7 +116,7 @@ contract PirexCvx is Ownable {
 
     // Convex emissions and extra rewards
     mapping(uint256 => mapping(address => uint256)) public epochRewards;
-    mapping(uint256 => address[]) public epochRewardTokens; // Extra reward tokens (if any)
+    mapping(uint256 => address[]) public epochRewardTokens;
 
     event VoteDelegateSet(bytes32 id, address delegate);
     event VotiumRewardManagerSet(address manager);
@@ -155,6 +162,11 @@ contract PirexCvx is Ownable {
         uint256[] amounts,
         uint256[] remaining
     );
+    event EpochRewardsClaimed(
+        address[] tokens,
+        uint256[] amounts,
+        uint256[] remaining
+    );
     event ClaimAndStakeCvxCrvReward(ICvxLocker.EarnedData[] claimed);
 
     constructor(
@@ -165,7 +177,8 @@ contract PirexCvx is Ownable {
         address _votiumMultiMerkleStash,
         uint256 _epochDepositDuration,
         uint256 _lockDuration,
-        address _voteDelegate
+        address _voteDelegate,
+        address _baseRewardPool
     ) {
         require(_cvxLocker != address(0), "Invalid _cvxLocker");
         cvxLocker = _cvxLocker;
@@ -193,6 +206,9 @@ contract PirexCvx is Ownable {
 
         require(_voteDelegate != address(0), "Invalid _voteDelegate");
         voteDelegate = _voteDelegate;
+
+        require(_baseRewardPool != address(0), "Invalid _baseRewardPool");
+        baseRewardPool = _baseRewardPool;
 
         // Default reward manager
         votiumRewardManager = address(this);
@@ -644,5 +660,61 @@ contract PirexCvx is Ownable {
         }
 
         emit ClaimAndStakeCvxCrvReward(claimable);
+    }
+
+    /**
+        @notice Claim epoch rewards
+        @param  rewardEpoch  uint256  Epoch associated with rewards
+     */
+    function claimEpochRewards(uint256 rewardEpoch) external {
+        require(
+            rewardEpoch <= getCurrentEpoch(),
+            "Cannot claim rewards for a future epoch"
+        );
+
+        address[] memory r = epochRewardTokens[rewardEpoch];
+        require(r.length > 0, "No rewards to claim");
+
+        ERC20PresetMinterPauserUpgradeable rewardCvx = ERC20PresetMinterPauserUpgradeable(
+                rewardEpochs[rewardEpoch]
+            );
+        uint256 rewardCvxBalance = rewardCvx.balanceOf(msg.sender);
+        require(
+            rewardCvxBalance > 0,
+            "Msg.sender does not have rewardCVX for epoch"
+        );
+
+        uint256 rewardCvxSupply = rewardCvx.totalSupply();
+        address[] memory rewardTokens = new address[](r.length);
+        uint256[] memory rewardTokenAmounts = new uint256[](r.length);
+        uint256[] memory rewardTokenAmountsRemaining = new uint256[](r.length);
+
+        rewardCvx.burnFrom(msg.sender, rewardCvxBalance);
+
+        for (uint256 i = 0; i < r.length; i += 1) {
+            // The reward amount is calculated using the user's % rewardCVX ownership for the reward epoch
+            // E.g. Owning 10% of rewardCVX tokens means they'll get 10% of the rewards
+            uint256 epochReward = epochRewards[rewardEpoch][r[i]];
+            uint256 rewardAmount = (epochReward * rewardCvxBalance) /
+                rewardCvxSupply;
+
+            require(
+                IBaseRewardPool(baseRewardPool).withdraw(rewardAmount, true),
+                "Failed to withdraw reward"
+            );
+
+            rewardTokens[i] = r[i];
+            rewardTokenAmounts[i] = rewardAmount;
+            rewardTokenAmountsRemaining[i] = epochReward - rewardAmount;
+            epochRewards[rewardEpoch][r[i]] = epochReward - rewardAmount;
+
+            IERC20(r[i]).safeTransfer(msg.sender, rewardAmount);
+        }
+
+        emit EpochRewardsClaimed(
+            rewardTokens,
+            rewardTokenAmounts,
+            rewardTokenAmountsRemaining
+        );
     }
 }
