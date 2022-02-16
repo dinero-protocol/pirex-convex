@@ -108,7 +108,8 @@ contract PirexCvx is Ownable {
     mapping(uint256 => Reward[]) public voteEpochRewards;
 
     // Convex emissions and extra rewards
-    mapping(uint256 => Reward[]) public epochRewards;
+    mapping(uint256 => mapping(address => uint256)) public epochRewards;
+    mapping(uint256 => address[]) public epochRewardTokens; // Extra reward tokens (if any)
 
     event VoteDelegateSet(bytes32 id, address delegate);
     event VotiumRewardManagerSet(address manager);
@@ -608,14 +609,40 @@ contract PirexCvx is Ownable {
     }
 
     /**
+        @notice Get epoch reward
+     */
+    function getEpochReward(uint256 epoch, address token)
+        external
+        view
+        returns (uint256)
+    {
+        return epochRewards[epoch][token];
+    }
+
+    /**
         @notice Claim and stake cvxCRV reward
      */
     function claimAndStakeCvxCrvReward() external {
         ICvxLocker c = ICvxLocker(cvxLocker);
-        ICvxLocker.EarnedData[] memory claimed = c.claimableRewards(address(this));
+        ICvxLocker.EarnedData[] memory claimable = c.claimableRewards(
+            address(this)
+        );
 
-        ICvxLocker(cvxLocker).getReward(address(this), true);
+        c.getReward(address(this), true);
 
-        emit ClaimAndStakeCvxCrvReward(claimed);
+        // Users will be able to redeem these rewards next epoch
+        uint256 rewardEpoch = getCurrentEpoch() + epochDepositDuration;
+
+        for (uint256 i = 0; i < claimable.length; ++i) {
+            // Push to epochRewardTokens list if new token
+            if (epochRewards[rewardEpoch][claimable[i].token] == 0) {
+                epochRewardTokens[rewardEpoch].push(claimable[i].token);
+            }
+
+            epochRewards[rewardEpoch][claimable[i].token] += claimable[i]
+                .amount;
+        }
+
+        emit ClaimAndStakeCvxCrvReward(claimable);
     }
 }

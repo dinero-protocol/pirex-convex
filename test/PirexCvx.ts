@@ -1049,19 +1049,48 @@ describe("PirexCvx", () => {
         convertBigNumberToNumber(epochDepositDuration)
       );
 
-      const [expectedClaim] = await cvxLocker.claimableRewards(pirexCvx.address);
+      const [expectedClaim] = await cvxLocker.claimableRewards(
+        pirexCvx.address
+      );
       const claimEvent = await callAndReturnEvent(
         pirexCvx.claimAndStakeCvxCrvReward,
         []
       );
       const [claim] = claimEvent.args.claimed;
       const stakedAmount = await baseRewardPool.balanceOf(pirexCvx.address);
+      const rewardEpoch = (await pirexCvx.getCurrentEpoch()).add(
+        epochDepositDuration
+      );
+      const getEpochRewardTokens: any = async (
+        idx: number = 0,
+        tokens: string[] = []
+      ) => {
+        try {
+          return getEpochRewardTokens(
+            idx + 1,
+            tokens.concat([await pirexCvx.epochRewardTokens(rewardEpoch, idx)])
+          );
+        } catch (err) {
+          return tokens;
+        }
+      };
+      const epochRewardTokens = await getEpochRewardTokens();
+      const epochRewards = await Promise.map(
+        epochRewardTokens,
+        async (epochRewardToken: string) =>
+          await pirexCvx.getEpochReward(rewardEpoch, epochRewardToken)
+      );
 
-      expect(claimEvent.eventSignature).to.equal('ClaimAndStakeCvxCrvReward((address,uint256)[])');
+      expect(claimEvent.eventSignature).to.equal(
+        "ClaimAndStakeCvxCrvReward((address,uint256)[])"
+      );
       expect(claim.token).to.equal(cvxCrvToken.address);
       expect(claim.token).to.equal(expectedClaim.token);
       expect(claim.amount).to.equal(expectedClaim.amount);
       expect(claim.amount).to.equal(stakedAmount);
+      expect(epochRewardTokens.length).to.equal(epochRewards.length);
+      expect(epochRewardTokens[0]).to.equal(claim.token);
+      expect(epochRewards[0]).to.equal(claim.amount);
     });
   });
 });
