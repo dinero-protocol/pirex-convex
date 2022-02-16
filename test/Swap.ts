@@ -1,8 +1,6 @@
 import { expect } from "chai";
-import { keccak256 } from "@ethersproject/solidity";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { Promise } from "bluebird";
 import {
   callAndReturnEvent,
   increaseBlockTimestamp,
@@ -27,7 +25,6 @@ describe("PirexCvx", () => {
   let cvxRewardPool: CvxRewardPool;
   let pirexCvx: PirexCvx;
   let cvxLockerLockDuration: BigNumber;
-  let firstDepositEpoch: BigNumber;
   let swapFactory: UniswapV2Factory;
   let swapRouter: UniswapV2Router02;
   let firstPairAddress: string;
@@ -43,7 +40,6 @@ describe("PirexCvx", () => {
   const initialEpochDepositDuration = 1209600; // 2 weeks in seconds
   const defaultSpendRatio = 0;
   const zeroAddress = "0x0000000000000000000000000000000000000000";
-  const lockedCvxPrefix = "lockedCVX";
   const wethAddress = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 
   before(async () => {
@@ -98,8 +94,6 @@ describe("PirexCvx", () => {
 
       await cvx.approve(pirexCvx.address, depositAmount);
 
-      firstDepositEpoch = await pirexCvx.getCurrentEpoch();
-
       const depositEvent = await callAndReturnEvent(pirexCvx.deposit, [
         depositAmount,
         defaultSpendRatio,
@@ -111,22 +105,23 @@ describe("PirexCvx", () => {
       // Convex does not reflect actual locked CVX until their next epoch (1 week)
       await increaseBlockTimestamp(rewardsDuration);
 
-      const pirexCvxToken = await getPirexCvxToken(depositEvent.args.token);
-      firstLockedCvxAddress = pirexCvxToken.address;
+      firstLockedCvxAddress = depositEvent.args.token;
 
       // Attempt to create the WETH/lockedCVX pair
       const createPairEvent = await callAndReturnEvent(swapFactory.createPair, [
         wethAddress,
-        pirexCvxToken.address,
+        firstLockedCvxAddress,
       ]);
       firstPairAddress = createPairEvent.args.pair;
-      const token0 = (wethAddress < pirexCvxToken.address
-        ? wethAddress
-        : pirexCvxToken.address
+      const token0 = (
+        wethAddress < firstLockedCvxAddress
+          ? wethAddress
+          : firstLockedCvxAddress
       ).toLowerCase();
-      const token1 = (wethAddress < pirexCvxToken.address
-        ? pirexCvxToken.address
-        : wethAddress
+      const token1 = (
+        wethAddress < firstLockedCvxAddress
+          ? firstLockedCvxAddress
+          : wethAddress
       ).toLowerCase();
 
       expect(createPairEvent.eventSignature).to.equal(
@@ -198,11 +193,18 @@ describe("PirexCvx", () => {
       await lockedCvxToken.transfer(notAdmin.address, amountIn);
       const { timestamp } = await ethers.provider.getBlock("latest");
       const expiry = timestamp + 60;
-      const quotes = await swapRouter.getAmountsOut(amountIn, [firstLockedCvxAddress, wethAddress]);
+      const quotes = await swapRouter.getAmountsOut(amountIn, [
+        firstLockedCvxAddress,
+        wethAddress,
+      ]);
       const slippage = 1; // 1%
-      const amountOutMin = quotes[quotes.length - 1].sub(quotes[quotes.length - 1].mul(slippage).div(100));
+      const amountOutMin = quotes[quotes.length - 1].sub(
+        quotes[quotes.length - 1].mul(slippage).div(100)
+      );
 
-      await lockedCvxToken.connect(notAdmin).approve(swapRouter.address, amountIn);
+      await lockedCvxToken
+        .connect(notAdmin)
+        .approve(swapRouter.address, amountIn);
 
       const ethBalanceBefore = await ethers.provider.getBalance(admin.address);
 
@@ -217,10 +219,87 @@ describe("PirexCvx", () => {
         );
 
       const ethBalanceAfter = await ethers.provider.getBalance(admin.address);
-      const lockedBalanceAfter = await lockedCvxToken.balanceOf(notAdmin.address);
+      const lockedBalanceAfter = await lockedCvxToken.balanceOf(
+        notAdmin.address
+      );
 
       expect(lockedBalanceAfter).to.be.eq(0);
       expect(ethBalanceAfter.sub(ethBalanceBefore)).to.be.gte(amountOutMin);
+    });
+  });
+
+  describe("swapExactETHForTokens", () => {
+    it("Should swap exact amount of ETH for tokens", async () => {
+      const amountIn = toBN(1e16);
+      const lockedCvxToken = await getPirexCvxToken(firstLockedCvxAddress);
+      const { timestamp } = await ethers.provider.getBlock("latest");
+      const expiry = timestamp + 60;
+      const quotes = await swapRouter.getAmountsOut(amountIn, [
+        wethAddress,
+        firstLockedCvxAddress,
+      ]);
+      const slippage = 1; // 1%
+      const amountOutMin = quotes[quotes.length - 1].sub(
+        quotes[quotes.length - 1].mul(slippage).div(100)
+      );
+
+      const ethBalanceBefore = await ethers.provider.getBalance(admin.address);
+      const lockedBalanceBefore = await lockedCvxToken.balanceOf(admin.address);
+
+      await swapRouter.swapExactETHForTokens(
+        amountOutMin,
+        [wethAddress, firstLockedCvxAddress],
+        admin.address,
+        expiry,
+        {
+          value: amountIn,
+        }
+      );
+
+      const ethBalanceAfter = await ethers.provider.getBalance(admin.address);
+      const lockedBalanceAfter = await lockedCvxToken.balanceOf(admin.address);
+
+      expect(lockedBalanceAfter.sub(lockedBalanceBefore)).to.be.gte(
+        amountOutMin
+      );
+      expect(ethBalanceBefore.sub(ethBalanceAfter)).to.be.gte(amountIn);
+    });
+  });
+
+  describe("removeLiquidity", () => {
+    it("Should remove liquidity for valid pair with sufficient LP balance", async () => {
+      const { timestamp } = await ethers.provider.getBlock("latest");
+      const expiry = timestamp + 60;
+      const lockedCvxToken = await getPirexCvxToken(firstLockedCvxAddress);
+      const lpToken = await ethers.getContractAt(
+        "UniswapV2Pair",
+        firstPairAddress
+      );
+      const lpBalanceBefore = await lpToken.balanceOf(admin.address);
+      const ethBalanceBefore = await ethers.provider.getBalance(admin.address);
+      const lockedBalanceBefore = await lockedCvxToken.balanceOf(admin.address);
+      const lpBalanceToRemove = await lpBalanceBefore.div(2);
+      const amount0 = 0;
+      const amount1 = 0;
+
+      await lpToken.approve(swapRouter.address, lpBalanceToRemove);
+
+      await swapRouter.removeLiquidityETH(
+        firstLockedCvxAddress,
+        lpBalanceToRemove,
+        amount0,
+        amount1,
+        admin.address,
+        expiry,
+      );
+
+      const lpBalanceAfter = await lpToken.balanceOf(admin.address);
+      const ethBalanceAfter = await ethers.provider.getBalance(admin.address);
+      const lockedBalanceAfter = await lockedCvxToken.balanceOf(admin.address);
+
+      expect(lpBalanceBefore).to.be.gt(lpBalanceAfter);
+      expect(ethBalanceAfter).to.be.gt(ethBalanceBefore);
+      expect(lockedBalanceAfter).to.be.gt(lockedBalanceBefore);
     });
   });
 });
