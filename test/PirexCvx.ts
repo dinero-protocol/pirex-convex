@@ -1,15 +1,15 @@
-import { expect } from "chai";
-import { ethers } from "hardhat";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { Promise } from "bluebird";
+import { expect } from 'chai';
+import { ethers } from 'hardhat';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { Promise } from 'bluebird';
 import {
   callAndReturnEvent,
   increaseBlockTimestamp,
   convertBigNumberToNumber,
   toBN,
   impersonateAddressAndReturnSigner,
-} from "./helpers";
-import { BigNumber } from "ethers";
+} from './helpers';
+import { BigNumber } from 'ethers';
 import {
   Cvx,
   Crv,
@@ -23,10 +23,10 @@ import {
   VotiumRewardManager,
   CurveVoterProxy,
   CvxStakingProxy,
-} from "../typechain-types";
-import { BalanceTree } from "../lib/merkle";
+} from '../typechain-types';
+import { BalanceTree } from '../lib/merkle';
 
-describe("PirexCvx", () => {
+describe('PirexCvx', () => {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let votiumOwner: SignerWithAddress;
@@ -54,41 +54,41 @@ describe("PirexCvx", () => {
   let cvxRewardPool: CvxRewardPool;
   let cvxStakingProxy: CvxStakingProxy;
 
-  const crvAddr = "0xd533a949740bb3306d119cc777fa900ba034cd52";
-  const crvDepositorAddr = "0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae";
-  const cvxCrvRewardsAddr = "0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e";
-  const cvxCrvTokenAddr = "0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7";
-  const cvxDelegateRegistry = "0x469788fE6E9E9681C6ebF3bF78e7Fd26Fc015446";
-  const votiumMultiMerkleStash = "0x378Ba9B73309bE80BF4C2c027aAD799766a7ED5A";
+  const crvAddr = '0xd533a949740bb3306d119cc777fa900ba034cd52';
+  const crvDepositorAddr = '0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae';
+  const cvxCrvRewardsAddr = '0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e';
+  const cvxCrvTokenAddr = '0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7';
+  const cvxDelegateRegistry = '0x469788fE6E9E9681C6ebF3bF78e7Fd26Fc015446';
+  const votiumMultiMerkleStash = '0x378Ba9B73309bE80BF4C2c027aAD799766a7ED5A';
   const initialCvxBalanceForAdmin = toBN(10e18);
   const initialEpochDepositDuration = 1209600; // 2 weeks in seconds
   const defaultSpendRatio = 0;
   const convexDelegateRegistryId =
-    "0x6376782e65746800000000000000000000000000000000000000000000000000";
-  const zeroAddress = "0x0000000000000000000000000000000000000000";
-  const lockedCvxPrefix = "lockedCVX";
+    '0x6376782e65746800000000000000000000000000000000000000000000000000';
+  const zeroAddress = '0x0000000000000000000000000000000000000000';
+  const lockedCvxPrefix = 'lockedCVX';
 
   before(async () => {
     [admin, notAdmin] = await ethers.getSigners();
 
-    const PirexCvx = await ethers.getContractFactory("PirexCvx");
+    const PirexCvx = await ethers.getContractFactory('PirexCvx');
     const VotiumRewardManager = await ethers.getContractFactory(
-      "VotiumRewardManager"
+      'VotiumRewardManager'
     );
 
     // Mocked Convex contracts
-    const Cvx = await ethers.getContractFactory("Cvx");
-    const Crv = await ethers.getContractFactory("Crv");
-    const CvxCrvToken = await ethers.getContractFactory("cvxCrvToken");
-    const CurveVoterProxy = await ethers.getContractFactory("CurveVoterProxy");
-    const Booster = await ethers.getContractFactory("Booster");
-    const RewardFactory = await ethers.getContractFactory("RewardFactory");
+    const Cvx = await ethers.getContractFactory('Cvx');
+    const Crv = await ethers.getContractFactory('Crv');
+    const CvxCrvToken = await ethers.getContractFactory('cvxCrvToken');
+    const CurveVoterProxy = await ethers.getContractFactory('CurveVoterProxy');
+    const Booster = await ethers.getContractFactory('Booster');
+    const RewardFactory = await ethers.getContractFactory('RewardFactory');
     const BaseRewardPool = await ethers.getContractFactory(
-      "contracts/mocks/BaseRewardPool.sol:BaseRewardPool"
+      'contracts/mocks/BaseRewardPool.sol:BaseRewardPool'
     );
-    const CvxLocker = await ethers.getContractFactory("CvxLocker");
-    const CvxRewardPool = await ethers.getContractFactory("CvxRewardPool");
-    const CvxStakingProxy = await ethers.getContractFactory("CvxStakingProxy");
+    const CvxLocker = await ethers.getContractFactory('CvxLocker');
+    const CvxRewardPool = await ethers.getContractFactory('CvxRewardPool');
+    const CvxStakingProxy = await ethers.getContractFactory('CvxStakingProxy');
 
     // Mocked Convex contracts
     cvx = await Cvx.deploy();
@@ -162,10 +162,10 @@ describe("PirexCvx", () => {
   });
 
   const getPirexCvxToken = async (address: string) =>
-    await ethers.getContractAt("ERC20PresetMinterPauserUpgradeable", address);
+    await ethers.getContractAt('ERC20PresetMinterPauserUpgradeable', address);
 
-  describe("constructor", () => {
-    it("Should set up contract state", async () => {
+  describe('constructor', () => {
+    it('Should set up contract state', async () => {
       const owner = await pirexCvx.owner();
       const _cvxLocker = await pirexCvx.cvxLocker();
       const _cvx = await pirexCvx.cvx();
@@ -190,8 +190,8 @@ describe("PirexCvx", () => {
     });
   });
 
-  describe("setVoteDelegate", () => {
-    it("Should set voteDelegate", async () => {
+  describe('setVoteDelegate', () => {
+    it('Should set voteDelegate', async () => {
       const voteDelegateBeforeSetting = await pirexCvx.voteDelegate();
 
       const setVoteDelegateEvent = await callAndReturnEvent(
@@ -204,30 +204,30 @@ describe("PirexCvx", () => {
       expect(voteDelegateBeforeSetting).to.equal(admin.address);
       expect(voteDelegateBeforeSetting).to.not.equal(voteDelegateAfterSetting);
       expect(setVoteDelegateEvent.eventSignature).to.equal(
-        "VoteDelegateSet(bytes32,address)"
+        'VoteDelegateSet(bytes32,address)'
       );
       expect(setVoteDelegateEvent.args.id).to.equal(convexDelegateRegistryId);
       expect(setVoteDelegateEvent.args.delegate).to.equal(notAdmin.address);
       expect(voteDelegateAfterSetting).to.equal(notAdmin.address);
     });
 
-    it("Should revert if not called by owner", async () => {
+    it('Should revert if not called by owner', async () => {
       await expect(
         pirexCvx
           .connect(notAdmin)
           .setVoteDelegate(convexDelegateRegistryId, admin.address)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+      ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
-    it("Should revert if delegate is zero address", async () => {
+    it('Should revert if delegate is zero address', async () => {
       await expect(
         pirexCvx.setVoteDelegate(convexDelegateRegistryId, zeroAddress)
-      ).to.be.revertedWith("Invalid delegate");
+      ).to.be.revertedWith('Invalid delegate');
     });
   });
 
-  describe("setVotiumRewardManager", () => {
-    it("Should set votiumRewardManager", async () => {
+  describe('setVotiumRewardManager', () => {
+    it('Should set votiumRewardManager', async () => {
       const votiumRewardManagerBeforeSetting =
         await pirexCvx.votiumRewardManager();
 
@@ -244,7 +244,7 @@ describe("PirexCvx", () => {
         votiumRewardManagerAfterSetting
       );
       expect(setVotiumRewardManagerEvent.eventSignature).to.equal(
-        "VotiumRewardManagerSet(address)"
+        'VotiumRewardManagerSet(address)'
       );
       expect(setVotiumRewardManagerEvent.args.manager).to.equal(
         notAdmin.address
@@ -252,22 +252,22 @@ describe("PirexCvx", () => {
       expect(votiumRewardManagerAfterSetting).to.equal(notAdmin.address);
     });
 
-    it("Should revert if not called by owner", async () => {
+    it('Should revert if not called by owner', async () => {
       await expect(
         pirexCvx.connect(notAdmin).setVotiumRewardManager(admin.address)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+      ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
-    it("Should revert if manager is zero address", async () => {
+    it('Should revert if manager is zero address', async () => {
       await expect(
         pirexCvx.setVotiumRewardManager(zeroAddress)
-      ).to.be.revertedWith("Invalid manager");
+      ).to.be.revertedWith('Invalid manager');
     });
   });
 
-  describe("getCurrentEpoch", () => {
-    it("Should get the current epoch", async () => {
-      const { timestamp } = await ethers.provider.getBlock("latest");
+  describe('getCurrentEpoch', () => {
+    it('Should get the current epoch', async () => {
+      const { timestamp } = await ethers.provider.getBlock('latest');
       const epochDepositDuration: number = convertBigNumberToNumber(
         await pirexCvx.epochDepositDuration()
       );
@@ -279,10 +279,10 @@ describe("PirexCvx", () => {
     });
   });
 
-  describe("deposit", () => {
-    it("Should deposit CVX", async () => {
+  describe('deposit', () => {
+    it('Should deposit CVX', async () => {
       // Move the timestamp to the beginning of next epoch to ensure consistent tests run
-      const { timestamp } = await ethers.provider.getBlock("latest");
+      const { timestamp } = await ethers.provider.getBlock('latest');
       const currentEpoch = convertBigNumberToNumber(
         await pirexCvx.getCurrentEpoch()
       );
@@ -347,7 +347,7 @@ describe("PirexCvx", () => {
         pirexLockedCvxTokensBeforeDeposit.add(depositAmount)
       );
       expect(depositEvent.eventSignature).to.equal(
-        "Deposited(uint256,uint256,uint256,uint256,address,uint256[8])"
+        'Deposited(uint256,uint256,uint256,uint256,address,uint256[8])'
       );
       expect(depositEvent.args.amount).to.equal(depositAmount);
       expect(depositEvent.args.spendRatio).to.equal(defaultSpendRatio);
@@ -364,14 +364,14 @@ describe("PirexCvx", () => {
         )
       ).to.equal(true);
       expect(voteEpochTokenAddresses).to.not.include(
-        "0x0000000000000000000000000000000000000000"
+        '0x0000000000000000000000000000000000000000'
       );
       expect(rewardEpochTokenAddresses).to.not.include(
-        "0x0000000000000000000000000000000000000000"
+        '0x0000000000000000000000000000000000000000'
       );
     });
 
-    it("Should mint the correct amount of user tokens on subsequent deposits", async () => {
+    it('Should mint the correct amount of user tokens on subsequent deposits', async () => {
       const currentEpoch = firstDepositEpoch;
       const { token, lockExpiry } = await pirexCvx.deposits(currentEpoch);
       const pirexCvxToken = await getPirexCvxToken(token);
@@ -404,7 +404,7 @@ describe("PirexCvx", () => {
       expect(depositEvent.args.token).to.equal(token);
     });
 
-    it("Should mint a new token for a new epoch", async () => {
+    it('Should mint a new token for a new epoch', async () => {
       const epochDepositDuration = convertBigNumberToNumber(
         await pirexCvx.epochDepositDuration()
       );
@@ -448,22 +448,22 @@ describe("PirexCvx", () => {
     });
   });
 
-  describe("withdraw", () => {
-    it("Should revert if invalid epoch", async () => {
+  describe('withdraw', () => {
+    it('Should revert if invalid epoch', async () => {
       await expect(pirexCvx.withdraw(0, defaultSpendRatio)).to.be.revertedWith(
-        "Invalid epoch"
+        'Invalid epoch'
       );
     });
 
-    it("Should revert if withdrawing CVX before lock expiry", async () => {
+    it('Should revert if withdrawing CVX before lock expiry', async () => {
       const currentEpoch = await pirexCvx.getCurrentEpoch();
 
       await expect(
         pirexCvx.withdraw(currentEpoch, defaultSpendRatio)
-      ).to.be.revertedWith("Cannot withdraw before lock expiry");
+      ).to.be.revertedWith('Cannot withdraw before lock expiry');
     });
 
-    it("Should withdraw CVX if after lock expiry (first epoch deposit)", async () => {
+    it('Should withdraw CVX if after lock expiry (first epoch deposit)', async () => {
       const epochDepositDuration = convertBigNumberToNumber(
         await pirexCvx.epochDepositDuration()
       );
@@ -513,7 +513,7 @@ describe("PirexCvx", () => {
         userCvxTokensBeforeWithdraw.add(userPirexCvxTokensBeforeWithdraw)
       );
       expect(withdrawEvent.eventSignature).to.equal(
-        "Withdrew(uint256,uint256,uint256,uint256,address,uint256,uint256)"
+        'Withdrew(uint256,uint256,uint256,uint256,address,uint256,uint256)'
       );
       expect(withdrawEvent.args.amount).to.equal(
         userPirexCvxTokensBeforeWithdraw
@@ -541,15 +541,15 @@ describe("PirexCvx", () => {
       );
     });
 
-    it("Should revert if msg.sender does not have tokens for epoch", async () => {
+    it('Should revert if msg.sender does not have tokens for epoch', async () => {
       await expect(
         pirexCvx
           .connect(notAdmin)
           .withdraw(firstDepositEpoch, defaultSpendRatio)
-      ).to.be.revertedWith("Msg.sender does not have lockedCVX for epoch");
+      ).to.be.revertedWith('Msg.sender does not have lockedCVX for epoch');
     });
 
-    it("Should withdraw CVX if after lock expiry (second epoch deposit)", async () => {
+    it('Should withdraw CVX if after lock expiry (second epoch deposit)', async () => {
       const { token } = await pirexCvx.deposits(secondDepositEpoch);
       const pirexCvxToken = await getPirexCvxToken(token);
       const userPirexCvxTokensBeforeWithdraw = await pirexCvxToken.balanceOf(
@@ -595,18 +595,18 @@ describe("PirexCvx", () => {
     });
   });
 
-  describe("stake", () => {
-    it("Should revert if amount is 0", async () => {
-      await expect(pirexCvx.stakeCvx(0)).to.be.revertedWith("Invalid amount");
+  describe('stake', () => {
+    it('Should revert if amount is 0', async () => {
+      await expect(pirexCvx.stakeCvx(0)).to.be.revertedWith('Invalid amount');
     });
 
-    it("Should revert if amount is greater than balance", async () => {
+    it('Should revert if amount is greater than balance', async () => {
       await expect(pirexCvx.stakeCvx(`${1e18}`)).to.be.revertedWith(
-        "ERC20: transfer amount exceeds balance"
+        'ERC20: transfer amount exceeds balance'
       );
     });
 
-    it("Should stake unlocked CVX", async () => {
+    it('Should stake unlocked CVX', async () => {
       const depositAmount = toBN(1e18);
       const epochDepositDuration = convertBigNumberToNumber(
         await pirexCvx.epochDepositDuration()
@@ -639,17 +639,17 @@ describe("PirexCvx", () => {
       expect(pirexStakedCvxTokensAfter).to.equal(
         pirexStakedCvxTokensBefore.add(unlockable)
       );
-      expect(stakeEvent.eventSignature).to.equal("Staked(uint256)");
+      expect(stakeEvent.eventSignature).to.equal('Staked(uint256)');
       expect(stakeEvent.args.amount).to.equal(pirexCvxTokensBeforeStaking);
     });
   });
 
-  describe("unstake", () => {
-    it("Should revert if amount to unstake is 0", async () => {
-      await expect(pirexCvx.unstakeCvx(0)).to.be.revertedWith("Invalid amount");
+  describe('unstake', () => {
+    it('Should revert if amount to unstake is 0', async () => {
+      await expect(pirexCvx.unstakeCvx(0)).to.be.revertedWith('Invalid amount');
     });
 
-    it("Should unstake a specified amount of staked CVX", async () => {
+    it('Should unstake a specified amount of staked CVX', async () => {
       const pirexStakedCvxTokensBeforeUnstaking = await cvxRewardPool.balanceOf(
         pirexCvx.address
       );
@@ -678,13 +678,13 @@ describe("PirexCvx", () => {
       expect(pirexCvxTokensAfterUnstaking).to.equal(
         pirexCvxTokensBeforeUnstaking.add(unstakeAmount)
       );
-      expect(unstakeEvent.eventSignature).to.equal("Unstaked(uint256)");
+      expect(unstakeEvent.eventSignature).to.equal('Unstaked(uint256)');
       expect(unstakeEvent.args.amount).to.equal(unstakeAmount);
     });
   });
 
-  describe("claimVotiumReward", () => {
-    it("Should enable claim by admin", async () => {
+  describe('claimVotiumReward', () => {
+    it('Should enable claim by admin', async () => {
       // Set the test merkle root and mint reward token to the multiMerkleStash
       const amount = toBN(1e18);
       const claimIndex = 0;
@@ -726,7 +726,7 @@ describe("PirexCvx", () => {
         pirexRewardTokensBeforeClaim.add(amount)
       );
       expect(claimEvent.eventSignature).to.equal(
-        "VotiumRewardClaimed(address,uint256,uint256,bytes32[],uint256,uint256,address,address,uint256)"
+        'VotiumRewardClaimed(address,uint256,uint256,bytes32[],uint256,uint256,address,address,uint256)'
       );
       expect(claimEvent.args.token).to.equal(rewardToken.address);
       expect(claimEvent.args.amount).to.equal(amount);
@@ -740,7 +740,7 @@ describe("PirexCvx", () => {
       expect(voteEpochRewards.amount).to.equal(claimEvent.args.amount);
     });
 
-    it("Should revert if the parameters are invalid", async () => {
+    it('Should revert if the parameters are invalid', async () => {
       // Set the test merkle root and mint reward token to the multiMerkleStash
       const amount = toBN(1e18);
       const claimIndex = 0;
@@ -771,7 +771,7 @@ describe("PirexCvx", () => {
           proof,
           invalidEpoch
         )
-      ).to.be.revertedWith("Invalid voteEpoch");
+      ).to.be.revertedWith('Invalid voteEpoch');
       await expect(
         pirexCvx.claimVotiumReward(
           rewardToken.address,
@@ -780,7 +780,7 @@ describe("PirexCvx", () => {
           proof,
           futureEpoch
         )
-      ).to.be.revertedWith("voteEpoch must be previous epoch");
+      ).to.be.revertedWith('voteEpoch must be previous epoch');
       await expect(
         pirexCvx.claimVotiumReward(
           invalidToken,
@@ -789,7 +789,7 @@ describe("PirexCvx", () => {
           proof,
           validEpoch
         )
-      ).to.be.revertedWith("frozen");
+      ).to.be.revertedWith('frozen');
       await expect(
         pirexCvx.claimVotiumReward(
           rewardToken.address,
@@ -798,7 +798,7 @@ describe("PirexCvx", () => {
           proof,
           validEpoch
         )
-      ).to.be.revertedWith("Invalid proof.");
+      ).to.be.revertedWith('Invalid proof.');
       await expect(
         pirexCvx.claimVotiumReward(
           rewardToken.address,
@@ -807,10 +807,10 @@ describe("PirexCvx", () => {
           proof,
           validEpoch
         )
-      ).to.be.revertedWith("Invalid proof.");
+      ).to.be.revertedWith('Invalid proof.');
     });
 
-    it("Should allow a VotiumRewardManager contract to swap its reward tokens for CVX", async () => {
+    it('Should allow a VotiumRewardManager contract to swap its reward tokens for CVX', async () => {
       // Set the test merkle root and mint reward token to the multiMerkleStash
       const amount = toBN(1e18);
       const claimIndex = 0;
@@ -851,8 +851,8 @@ describe("PirexCvx", () => {
     });
   });
 
-  describe("claimVoteEpochRewards", () => {
-    it("Should claim the correct vote epoch rewards for notAdmin", async () => {
+  describe('claimVoteEpochRewards', () => {
+    it('Should claim the correct vote epoch rewards for notAdmin', async () => {
       const voteCvx = await getPirexCvxToken(
         await pirexCvx.voteEpochs(firstVoteAndRewardEpoch)
       );
@@ -883,7 +883,7 @@ describe("PirexCvx", () => {
         voteEpochRewardsBeforeClaim,
         async ({ token }: { token: string }) => {
           const tokenContract = await ethers.getContractAt(
-            "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+            '@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20',
             token
           );
 
@@ -921,7 +921,7 @@ describe("PirexCvx", () => {
         claimVoteEpochRewardsEvent.args.tokens,
         async (token: string, idx) => {
           const tokenContract = await ethers.getContractAt(
-            "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+            '@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20',
             token
           );
 
@@ -938,7 +938,7 @@ describe("PirexCvx", () => {
         voteCvxSupplyBeforeClaim.sub(notAdminVoteCvxTokensAfterTransfer)
       );
       expect(claimVoteEpochRewardsEvent.eventSignature).to.equal(
-        "VoteEpochRewardsClaimed(address[],uint256[],uint256[])"
+        'VoteEpochRewardsClaimed(address[],uint256[],uint256[])'
       );
       expect(claimVoteEpochRewardsEvent.args.tokens).to.deep.equal(
         expectedRewardTokens
@@ -954,7 +954,7 @@ describe("PirexCvx", () => {
       );
     });
 
-    it("Should claim the correct vote epoch rewards for admin", async () => {
+    it('Should claim the correct vote epoch rewards for admin', async () => {
       const voteCvx = await getPirexCvxToken(
         await pirexCvx.voteEpochs(firstVoteAndRewardEpoch)
       );
@@ -970,7 +970,7 @@ describe("PirexCvx", () => {
         voteEpochRewardsBeforeClaim,
         async ({ token }: { token: string }) => {
           const tokenContract = await ethers.getContractAt(
-            "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+            '@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20',
             token
           );
 
@@ -1000,7 +1000,7 @@ describe("PirexCvx", () => {
         voteEpochRewardsBeforeClaim,
         async ({ token }: { token: string }, idx) => {
           const tokenContract = await ethers.getContractAt(
-            "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+            '@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20',
             token
           );
 
@@ -1014,7 +1014,7 @@ describe("PirexCvx", () => {
         voteCvxSupplyBeforeClaim.sub(adminVoteCvxTokens)
       );
       expect(claimVoteEpochRewardsEvent.eventSignature).to.equal(
-        "VoteEpochRewardsClaimed(address[],uint256[],uint256[])"
+        'VoteEpochRewardsClaimed(address[],uint256[],uint256[])'
       );
       expect(claimVoteEpochRewardsEvent.args.tokens).to.deep.equal(
         expectedRewardTokens
@@ -1031,11 +1031,11 @@ describe("PirexCvx", () => {
     });
   });
 
-  describe("claimAndStakeCvxCrvReward", () => {
-    it("Should claim and stake cvxCRV reward", async () => {
+  describe('claimAndStakeCvxCrvReward', () => {
+    it('Should claim and stake cvxCRV reward', async () => {
       const epochDepositDuration = await pirexCvx.epochDepositDuration();
       const depositAmount = toBN(1e18);
-      const rewardAmount = "10000000000000000000000";
+      const rewardAmount = '10000000000000000000000';
 
       // Deposit CVX so that PirexCvx is eligible for rewards
       await cvx.approve(pirexCvx.address, depositAmount);
@@ -1084,7 +1084,7 @@ describe("PirexCvx", () => {
       );
 
       expect(claimEvent.eventSignature).to.equal(
-        "ClaimAndStakeCvxCrvReward((address,uint256)[])"
+        'ClaimAndStakeCvxCrvReward((address,uint256)[])'
       );
       expect(claim.token).to.equal(cvxCrvToken.address);
       expect(claim.token).to.equal(expectedClaim.token);
@@ -1095,10 +1095,10 @@ describe("PirexCvx", () => {
       expect(epochRewards[0]).to.equal(claim.amount);
     });
 
-    it("Should increase the reward amount without a new token if same epoch", async () => {
+    it('Should increase the reward amount without a new token if same epoch', async () => {
       const epochDepositDuration = await pirexCvx.epochDepositDuration();
       const depositAmount = toBN(1e18);
-      const rewardAmount = "10000000000000000000000";
+      const rewardAmount = '10000000000000000000000';
 
       // Deposit and set up more rewards for PirexCvx
       await cvx.approve(pirexCvx.address, depositAmount);
@@ -1107,7 +1107,7 @@ describe("PirexCvx", () => {
       await cvxCrvToken.approve(cvxLocker.address, rewardAmount);
       await cvxLocker.notifyRewardAmount(cvxCrvToken.address, rewardAmount);
 
-      const { timestamp } = await ethers.provider.getBlock("latest");
+      const { timestamp } = await ethers.provider.getBlock('latest');
       const currentEpoch = await pirexCvx.getCurrentEpoch();
       const nextEpoch = currentEpoch.add(epochDepositDuration);
       const increaseBy = nextEpoch.sub(timestamp).div(2);
@@ -1140,6 +1140,56 @@ describe("PirexCvx", () => {
 
       // There should not be another token
       await expect(pirexCvx.epochRewardTokens(nextEpoch, 1)).to.be.reverted;
+    });
+
+    it('Should set reward data for the correct epoch', async () => {
+      const epochDepositDuration = await pirexCvx.epochDepositDuration();
+      const depositAmount = toBN(1e18);
+      const rewardAmount = '10000000000000000000000';
+
+      // Deposit and set up more rewards for PirexCvx
+      await cvx.approve(pirexCvx.address, depositAmount);
+      await pirexCvx.deposit(depositAmount, defaultSpendRatio);
+      await cvxCrvToken.mint(admin.address, rewardAmount);
+      await cvxCrvToken.approve(cvxLocker.address, rewardAmount);
+      await cvxLocker.notifyRewardAmount(cvxCrvToken.address, rewardAmount);
+
+      // Fast forward to the next epoch to test rewards data storage correctness
+      await increaseBlockTimestamp(
+        convertBigNumberToNumber(epochDepositDuration)
+      );
+
+      const currentEpoch = await pirexCvx.getCurrentEpoch();
+      const nextEpoch = currentEpoch.add(epochDepositDuration);
+      const currentEpochRewardToken = await pirexCvx.epochRewardTokens(
+        currentEpoch,
+        0
+      );
+      const currentEpochRewardsBeforeClaim = await pirexCvx.getEpochReward(
+        currentEpoch,
+        currentEpochRewardToken
+      );
+      const claimEvent = await callAndReturnEvent(
+        pirexCvx.claimAndStakeCvxCrvReward,
+        []
+      );
+      const [claim] = claimEvent.args.claimed;
+      const currentEpochRewardsAfterClaim = await pirexCvx.getEpochReward(
+        currentEpoch,
+        currentEpochRewardToken
+      );
+      const nextEpochRewards = await pirexCvx.getEpochReward(
+        nextEpoch,
+        await pirexCvx.epochRewardTokens(nextEpoch, 0)
+      );
+
+      // Current epoch rewards should not change
+      expect(currentEpochRewardsAfterClaim).to.equal(
+        currentEpochRewardsBeforeClaim
+      );
+
+      // Verify amount set correctly for next epoch
+      expect(claim.amount).to.equal(nextEpochRewards);
     });
   });
 });
