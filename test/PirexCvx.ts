@@ -21,7 +21,6 @@ import {
   MultiMerkleStash,
   MultiMerkleStash__factory,
   VotiumRewardManager,
-  BaseRewardPool,
   CurveVoterProxy,
   CvxStakingProxy,
 } from "../typechain-types";
@@ -43,11 +42,14 @@ describe("PirexCvx", () => {
   // Mocked Convex contracts
   let cvx: Cvx;
   let crv: Crv;
+
+  // Seemingly invalid errors thrown for typechain types but they are correct
   let cvxCrvToken: any;
+  let baseRewardPool: any;
+
   let curveVoterProxy: CurveVoterProxy;
   let booster: Booster;
   let rewardFactory: RewardFactory;
-  let baseRewardPool: any;
   let cvxLocker: CvxLocker;
   let cvxRewardPool: CvxRewardPool;
   let cvxStakingProxy: CvxStakingProxy;
@@ -1062,7 +1064,7 @@ describe("PirexCvx", () => {
         epochDepositDuration
       );
       const getEpochRewardTokens: any = async (
-        idx: number = 0,
+        idx = 0,
         tokens: string[] = []
       ) => {
         try {
