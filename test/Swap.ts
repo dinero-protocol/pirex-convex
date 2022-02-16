@@ -19,7 +19,7 @@ import {
   UniswapV2Router02,
 } from "../typechain-types";
 
-describe.only("PirexCvx", () => {
+describe("PirexCvx", () => {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let cvx: Cvx;
@@ -94,9 +94,6 @@ describe.only("PirexCvx", () => {
   describe("createPair", () => {
     it("Should create pair for new pair of distinct tokens", async () => {
       // Simulate Pirex deposit to trigger all the cvx token creations
-      const epochDepositDuration = convertBigNumberToNumber(
-        await pirexCvx.epochDepositDuration()
-      );
       const depositAmount = toBN(5e18);
 
       await cvx.approve(pirexCvx.address, depositAmount);
