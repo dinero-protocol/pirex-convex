@@ -28,7 +28,6 @@ describe.only("PirexCvx", () => {
   let pirexCvx: PirexCvx;
   let cvxLockerLockDuration: BigNumber;
   let firstDepositEpoch: BigNumber;
-  let firstVoteEpoch: BigNumber;
   let swapFactory: UniswapV2Factory;
   let swapRouter: UniswapV2Router02;
   let firstPairAddress: string;
@@ -115,17 +114,8 @@ describe.only("PirexCvx", () => {
       // Convex does not reflect actual locked CVX until their next epoch (1 week)
       await increaseBlockTimestamp(rewardsDuration);
 
-      // Store to test withdrawing tokens for this specific epoch later
       const pirexCvxToken = await getPirexCvxToken(depositEvent.args.token);
       firstLockedCvxAddress = pirexCvxToken.address;
-      const expectedVoteEpochs = [...Array(8).keys()].map((_, idx) =>
-        toBN(
-          convertBigNumberToNumber(firstDepositEpoch) +
-            epochDepositDuration * (idx + 1)
-        )
-      );
-
-      firstVoteEpoch = expectedVoteEpochs[0];
 
       // Attempt to create the WETH/lockedCVX pair
       const createPairEvent = await callAndReturnEvent(swapFactory.createPair, [
