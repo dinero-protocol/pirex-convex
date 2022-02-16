@@ -1035,7 +1035,7 @@ describe("PirexCvx", () => {
       const depositAmount = toBN(1e18);
       const rewardAmount = "10000000000000000000000";
 
-      // Deposit CVX so that is PirexCvx is eligible for rewards
+      // Deposit CVX so that PirexCvx is eligible for rewards
       await cvx.approve(pirexCvx.address, depositAmount);
       await pirexCvx.deposit(depositAmount, defaultSpendRatio);
 
@@ -1091,6 +1091,53 @@ describe("PirexCvx", () => {
       expect(epochRewardTokens.length).to.equal(epochRewards.length);
       expect(epochRewardTokens[0]).to.equal(claim.token);
       expect(epochRewards[0]).to.equal(claim.amount);
+    });
+
+    it("Should increase the reward amount without a new token if same epoch", async () => {
+      const epochDepositDuration = await pirexCvx.epochDepositDuration();
+      const depositAmount = toBN(1e18);
+      const rewardAmount = "10000000000000000000000";
+
+      // Deposit and set up more rewards for PirexCvx
+      await cvx.approve(pirexCvx.address, depositAmount);
+      await pirexCvx.deposit(depositAmount, defaultSpendRatio);
+      await cvxCrvToken.mint(admin.address, rewardAmount);
+      await cvxCrvToken.approve(cvxLocker.address, rewardAmount);
+      await cvxLocker.notifyRewardAmount(cvxCrvToken.address, rewardAmount);
+
+      const { timestamp } = await ethers.provider.getBlock("latest");
+      const currentEpoch = await pirexCvx.getCurrentEpoch();
+      const nextEpoch = currentEpoch.add(epochDepositDuration);
+      const increaseBy = nextEpoch.sub(timestamp).div(2);
+      const onlyEpochRewardToken = await pirexCvx.epochRewardTokens(
+        nextEpoch,
+        0
+      );
+      const epochRewardsBeforeClaim = await pirexCvx.getEpochReward(
+        nextEpoch,
+        onlyEpochRewardToken
+      );
+
+      // Fast forward but maintain the same epoch (we want to increase stored reward amount)
+      await increaseBlockTimestamp(convertBigNumberToNumber(increaseBy));
+
+      const claimEvent = await callAndReturnEvent(
+        pirexCvx.claimAndStakeCvxCrvReward,
+        []
+      );
+      const epochRewardsAfterClaim = await pirexCvx.getEpochReward(
+        nextEpoch,
+        onlyEpochRewardToken
+      );
+      const [claim] = claimEvent.args.claimed;
+
+      // Check that the amounts add up
+      expect(epochRewardsBeforeClaim.add(claim.amount)).to.equal(
+        epochRewardsAfterClaim
+      );
+
+      // There should not be another token
+      await expect(pirexCvx.epochRewardTokens(nextEpoch, 1)).to.be.reverted;
     });
   });
 });
