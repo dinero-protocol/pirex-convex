@@ -119,7 +119,10 @@ describe('Swap', () => {
           ? [lowerCaseTokenA, lowerCaseTokenB]
           : [lowerCaseTokenB, lowerCaseTokenA];
       };
-      const [token0, token1] = orderPairTokens(wethAddress, firstLockedCvxAddress);
+      const [token0, token1] = orderPairTokens(
+        wethAddress,
+        firstLockedCvxAddress
+      );
 
       expect(createPairEvent.eventSignature).to.equal(
         'PairCreated(address,address,address,uint256)'
@@ -193,32 +196,28 @@ describe('Swap', () => {
         quotes[quotes.length - 1].mul(slippage).div(100)
       );
 
-      await lockedCvxToken
-        .approve(swapRouter.address, amountIn);
+      await lockedCvxToken.approve(swapRouter.address, amountIn);
 
       const ethBalanceBefore = await ethers.provider.getBalance(admin.address);
-      const lockedBalanceBefore = await lockedCvxToken.balanceOf(
-        admin.address
-      );
+      const lockedBalanceBefore = await lockedCvxToken.balanceOf(admin.address);
 
-      const tx = await swapRouter
-        .swapExactTokensForETH(
-          amountIn,
-          amountOutMin,
-          [firstLockedCvxAddress, wethAddress],
-          admin.address,
-          expiry
-        );
+      const tx = await swapRouter.swapExactTokensForETH(
+        amountIn,
+        amountOutMin,
+        [firstLockedCvxAddress, wethAddress],
+        admin.address,
+        expiry
+      );
       const receipt = await tx.wait();
       const gasUsed = receipt.gasUsed.mul(receipt.effectiveGasPrice);
 
       const ethBalanceAfter = await ethers.provider.getBalance(admin.address);
-      const lockedBalanceAfter = await lockedCvxToken.balanceOf(
-        admin.address
-      );
+      const lockedBalanceAfter = await lockedCvxToken.balanceOf(admin.address);
 
       expect(lockedBalanceBefore.sub(lockedBalanceAfter)).to.be.eq(amountIn);
-      expect(ethBalanceAfter.sub(ethBalanceBefore).add(gasUsed)).to.be.gte(amountOutMin);
+      expect(ethBalanceAfter.sub(ethBalanceBefore).add(gasUsed)).to.be.gte(
+        amountOutMin
+      );
     });
   });
 
@@ -275,9 +274,19 @@ describe('Swap', () => {
       const lpBalanceToRemove = await lpBalanceBefore.div(2);
       const amount0 = 0;
       const amount1 = 0;
+      const reserves = await lpToken.getReserves();
+      const expectedETHRemoved = reserves._reserve0.div(2);
+      const expectedLockedRemoved = reserves._reserve1.div(2);
+      const expectedETHBalanceAfter = ethBalanceBefore
+        .add(expectedETHRemoved)
+        .mul(9900) // Account for minor discrepancies
+        .div(10000);
+      const expectedLockedBalanceAfter = lockedBalanceBefore
+        .add(expectedLockedRemoved)
+        .mul(9900)
+        .div(10000);
 
       await lpToken.approve(swapRouter.address, lpBalanceToRemove);
-
       await swapRouter.removeLiquidityETH(
         firstLockedCvxAddress,
         lpBalanceToRemove,
@@ -292,8 +301,8 @@ describe('Swap', () => {
       const lockedBalanceAfter = await lockedCvxToken.balanceOf(admin.address);
 
       expect(lpBalanceBefore).to.be.eq(lpBalanceAfter.add(lpBalanceToRemove));
-      expect(ethBalanceAfter).to.be.gt(ethBalanceBefore);
-      expect(lockedBalanceAfter).to.be.gt(lockedBalanceBefore);
+      expect(ethBalanceAfter).to.be.gt(expectedETHBalanceAfter);
+      expect(lockedBalanceAfter).to.be.gt(expectedLockedBalanceAfter);
     });
   });
 });
