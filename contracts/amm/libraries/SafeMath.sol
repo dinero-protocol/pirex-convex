@@ -1,5 +1,7 @@
 pragma solidity >=0.5.16;
 
+// https://github.com/Uniswap/v2-core/tree/master/contracts/libraries/SafeMath.sol
+
 // a library for performing overflow-safe math, courtesy of DappHub (https://github.com/dapphub/ds-math)
 
 library SafeMath {

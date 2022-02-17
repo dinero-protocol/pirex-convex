@@ -1,5 +1,7 @@
 pragma solidity =0.5.16;
 
+// https://github.com/Uniswap/v2-core/tree/master/contracts/UniswapV2Factory.sol
+
 import './interfaces/IUniswapV2Factory.sol';
 import './UniswapV2Pair.sol';
 
