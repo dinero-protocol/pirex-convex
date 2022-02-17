@@ -1,5 +1,7 @@
 pragma solidity =0.6.6;
 
+// https://github.com/Uniswap/v2-periphery/tree/master/contracts/libraries/UniswapV2Library.sol
+
 import '../interfaces/IUniswapV2Pair.sol';
 
 import "./SafeMath.sol";

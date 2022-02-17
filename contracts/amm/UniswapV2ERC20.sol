@@ -1,5 +1,7 @@
 pragma solidity =0.5.16;
 
+// https://github.com/Uniswap/v2-core/tree/master/contracts/UniswapV2ERC20.sol
+
 import './interfaces/IUniswapV2ERC20.sol';
 import './libraries/SafeMath.sol';
 

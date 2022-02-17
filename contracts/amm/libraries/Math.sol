@@ -1,5 +1,7 @@
 pragma solidity =0.5.16;
 
+// https://github.com/Uniswap/v2-core/tree/master/contracts/libraries/Math.sol
+
 // a library for performing various math operations
 
 library Math {

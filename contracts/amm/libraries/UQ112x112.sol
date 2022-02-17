@@ -1,10 +1,9 @@
 pragma solidity =0.5.16;
 
-// a library for handling binary fixed point numbers (https://en.wikipedia.org/wiki/Q_(number_format))
+// https://github.com/Uniswap/v2-core/tree/master/contracts/libraries/UQ112x112.sol
 
 // range: [0, 2**112 - 1]
 // resolution: 1 / 2**112
-
 library UQ112x112 {
     uint224 constant Q112 = 2**112;
 
