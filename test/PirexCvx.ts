@@ -135,7 +135,8 @@ describe('PirexCvx', () => {
       initialEpochDepositDuration,
       cvxLockerLockDuration,
       admin.address,
-      baseRewardPool.address
+      baseRewardPool.address,
+      cvxCrvToken.address
     );
     votiumRewardManager = await VotiumRewardManager.deploy(
       pirexCvx.address,
@@ -1291,9 +1292,21 @@ describe('PirexCvx', () => {
       const expectedCvxCrvRemaining = cvxCrvEpochReward.sub(
         expectedCvxCrvClaimAmount
       );
+      const notAdminCrvBalanceBeforeClaim = await crv.balanceOf(
+        notAdmin.address
+      );
+      const notAdminCvxCrvBalanceBeforeClaim = await cvxCrvToken.balanceOf(
+        notAdmin.address
+      );
       const claimRewardEpochRewardsEvent = await callAndReturnEvent(
         pirexCvx.connect(notAdmin).claimEpochRewards,
         [currentEpoch]
+      );
+      const notAdminCrvBalanceAfterClaim = await crv.balanceOf(
+        notAdmin.address
+      );
+      const notAdminCvxCrvBalanceAfterClaim = await cvxCrvToken.balanceOf(
+        notAdmin.address
       );
       const [claimedCvxCrvRewardToken, claimedCrvRewardToken] =
         claimRewardEpochRewardsEvent.args.tokens;
@@ -1311,10 +1324,26 @@ describe('PirexCvx', () => {
       );
       expect(claimedCvxCrvRewardToken).to.equal(cvxCrvToken.address);
       expect(claimedCrvRewardToken).to.equal(crv.address);
-      expect(claimedCvxCrvRewardAmounts).to.equal(expectedCvxCrvClaimAmount);
-      expect(claimedCrvRewardAmounts).to.equal(expectedCrvClaimAmount);
-      expect(claimedCvxCrvRewardRemaining).to.equal(expectedCvxCrvRemaining);
-      expect(claimedCrvRewardRemaining).to.equal(expectedCrvRemaining);
+      expect(claimedCvxCrvRewardAmounts)
+        .to.equal(expectedCvxCrvClaimAmount)
+        .and.gt(0);
+      expect(claimedCrvRewardAmounts)
+        .to.equal(expectedCrvClaimAmount)
+        .and.gt(0);
+      expect(claimedCvxCrvRewardRemaining)
+        .to.equal(expectedCvxCrvRemaining)
+        .and.gt(0);
+      expect(claimedCrvRewardRemaining)
+        .to.equal(expectedCrvRemaining)
+        .and.gt(0);
+      expect(notAdminCrvBalanceAfterClaim)
+        .to.equal(notAdminCrvBalanceBeforeClaim.add(expectedCrvClaimAmount))
+        .and.gt(0);
+      expect(notAdminCvxCrvBalanceAfterClaim)
+        .to.equal(
+          notAdminCvxCrvBalanceBeforeClaim.add(expectedCvxCrvClaimAmount)
+        )
+        .and.gt(0);
     });
   });
 });
