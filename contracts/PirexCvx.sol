@@ -81,6 +81,8 @@ interface IBaseRewardPool {
     function balanceOf(address account) external view returns (uint256);
 
     function withdraw(uint256 amount, bool claim) external returns (bool);
+
+    function stake(uint256 _amount) external returns (bool);
 }
 
 contract PirexCvx is Ownable {
@@ -648,23 +650,69 @@ contract PirexCvx is Ownable {
             address(this)
         );
 
-        // Claim and stake
-        c.getReward(address(this), true);
+        // Store balances to calculate differences to account for ERC20 token fees
+        uint256[] memory balancesBeforeClaiming = new uint256[](
+            claimable.length
+        );
+
+        for (uint256 i = 0; i < claimable.length; ++i) {
+            // Skip if there's nothing to claim or if the token is cvxCRV
+            // The contract's cvxCRV balance will always be 0 before claiming
+            // since it is immediately staked, so no need to calculate the diff
+            if (claimable[i].amount == 0 || claimable[i].token == cvxCrv) {
+                continue;
+            }
+
+            balancesBeforeClaiming[i] = IERC20(claimable[i].token).balanceOf(
+                address(this)
+            );
+        }
+
+        // Get claimable tokens
+        c.getReward(address(this), false);
 
         // Users will be able to redeem these rewards next epoch
         uint256 rewardEpoch = getCurrentEpoch() + epochDepositDuration;
 
-        for (uint256 i = 0; i < claimable.length; ++i) {
-            // Push to epochRewardTokens if new token with amount above 0
-            if (
-                epochRewards[rewardEpoch][claimable[i].token] == 0 &&
-                claimable[i].amount != 0
-            ) {
-                epochRewardTokens[rewardEpoch].push(claimable[i].token);
+        for (uint256 j = 0; j < claimable.length; ++j) {
+            address claimableToken = claimable[j].token;
+
+            if (claimable[j].amount == 0) {
+                continue;
             }
 
-            epochRewards[rewardEpoch][claimable[i].token] += claimable[i]
-                .amount;
+            // Only add claimableToken to epochRewardTokens if it's not a duplicate
+            if (epochRewards[rewardEpoch][claimableToken] == 0) {
+                epochRewardTokens[rewardEpoch].push(claimableToken);
+            }
+
+            uint256 balanceAfterClaiming = IERC20(claimableToken).balanceOf(
+                address(this)
+            );
+
+            // If the claimable token is cvxCRV then stake it and update rewards
+            if (claimableToken == cvxCrv) {
+                IERC20(cvxCrv).safeIncreaseAllowance(
+                    baseRewardPool,
+                    balanceAfterClaiming
+                );
+
+                require(
+                    IBaseRewardPool(baseRewardPool).stake(balanceAfterClaiming),
+                    "Error staking cvxCRV"
+                );
+
+                epochRewards[rewardEpoch][
+                    claimableToken
+                ] += balanceAfterClaiming;
+
+                continue;
+            }
+
+            // Calculate the difference between balances after & before for other tokens
+            epochRewards[rewardEpoch][claimableToken] +=
+                balanceAfterClaiming -
+                balancesBeforeClaiming[j];
         }
 
         emit ClaimAndStakeCvxCrvReward(claimable);

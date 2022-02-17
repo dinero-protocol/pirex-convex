@@ -1136,7 +1136,6 @@ describe('PirexCvx', () => {
         nextEpoch,
         cvxCrvRewardToken
       );
-
       const [_, cvxCrv] = claimEvent.args.claimed;
 
       // Check that the amounts add up
