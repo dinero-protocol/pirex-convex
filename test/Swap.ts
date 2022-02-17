@@ -291,7 +291,7 @@ describe('Swap', () => {
       const ethBalanceAfter = await ethers.provider.getBalance(admin.address);
       const lockedBalanceAfter = await lockedCvxToken.balanceOf(admin.address);
 
-      expect(lpBalanceBefore).to.be.gt(lpBalanceAfter);
+      expect(lpBalanceBefore).to.be.eq(lpBalanceAfter.add(lpBalanceToRemove));
       expect(ethBalanceAfter).to.be.gt(ethBalanceBefore);
       expect(lockedBalanceAfter).to.be.gt(lockedBalanceBefore);
     });
