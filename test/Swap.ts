@@ -124,7 +124,8 @@ describe('Swap', () => {
       initialEpochDepositDuration,
       cvxLockerLockDuration,
       admin.address,
-      baseRewardPool.address
+      baseRewardPool.address,
+      cvxCrvToken.address
     );
     swapFactory = await SwapFactory.deploy(admin.address);
     swapRouter = await SwapRouter.deploy(swapFactory.address, wethAddress);
