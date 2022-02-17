@@ -17,7 +17,7 @@ import {
   UniswapV2Router02,
 } from '../typechain-types';
 
-describe('PirexCvx', () => {
+describe('Swap', () => {
   let admin: SignerWithAddress;
   let cvx: Cvx;
   let cvxLocker: CvxLocker;
