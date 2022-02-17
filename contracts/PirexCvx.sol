@@ -237,10 +237,7 @@ contract PirexCvx is Ownable {
         require(delegate != address(0), "Invalid delegate");
         voteDelegate = delegate;
 
-        IConvexDelegateRegistry(cvxDelegateRegistry).setDelegate(
-            id,
-            delegate
-        );
+        IConvexDelegateRegistry(cvxDelegateRegistry).setDelegate(id, delegate);
 
         emit VoteDelegateSet(id, delegate);
     }
@@ -606,8 +603,7 @@ contract PirexCvx is Ownable {
             // E.g. Owning 10% of voteCVX tokens means they'll get 10% of the rewards
             Reward storage row = v[i];
             uint256 amount = row.amount;
-            uint256 rewardAmount = (amount * voteCvxBalance) /
-                voteCvxSupply;
+            uint256 rewardAmount = (amount * voteCvxBalance) / voteCvxSupply;
 
             rewardTokens[i] = row.token;
             rewardTokenAmounts[i] = rewardAmount;
@@ -653,8 +649,11 @@ contract PirexCvx is Ownable {
         uint256 rewardEpoch = getCurrentEpoch() + epochDepositDuration;
 
         for (uint256 i = 0; i < claimable.length; ++i) {
-            // Push to epochRewardTokens list if new token
-            if (epochRewards[rewardEpoch][claimable[i].token] == 0) {
+            // Push to epochRewardTokens if new token with amount above 0
+            if (
+                epochRewards[rewardEpoch][claimable[i].token] == 0 &&
+                claimable[i].amount != 0
+            ) {
                 epochRewardTokens[rewardEpoch].push(claimable[i].token);
             }
 

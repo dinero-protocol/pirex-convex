@@ -157,6 +157,7 @@ describe('PirexCvx', () => {
 
     await cvxLocker.setStakingContract(cvxStakingProxy.address);
     await cvxLocker.setApprovals();
+    await cvxLocker.addReward(crv.address, admin.address, true);
     await cvxLocker.addReward(cvxCrvToken.address, admin.address, true);
     await cvxStakingProxy.setApprovals();
     await cvx.mint(admin.address, initialCvxBalanceForAdmin);
@@ -1052,18 +1053,20 @@ describe('PirexCvx', () => {
         convertBigNumberToNumber(epochDepositDuration)
       );
 
-      const [expectedClaim] = await cvxLocker.claimableRewards(
+      const [claimableCrv, claimableCvxCrv] = await cvxLocker.claimableRewards(
         pirexCvx.address
       );
       const claimEvent = await callAndReturnEvent(
         pirexCvx.claimAndStakeCvxCrvReward,
         []
       );
-      const [claim] = claimEvent.args.claimed;
+      const [crvEventArg, cvxCrvEventArg] = claimEvent.args.claimed;
       const stakedAmount = await baseRewardPool.balanceOf(pirexCvx.address);
       const rewardEpoch = (await pirexCvx.getCurrentEpoch()).add(
         epochDepositDuration
       );
+
+      // Independent from claimEvent data to ensure epoch reward tokens stored as expected
       const getEpochRewardTokens: any = async (
         idx = 0,
         tokens: string[] = []
@@ -1087,16 +1090,19 @@ describe('PirexCvx', () => {
       expect(claimEvent.eventSignature).to.equal(
         'ClaimAndStakeCvxCrvReward((address,uint256)[])'
       );
-      expect(claim.token).to.equal(cvxCrvToken.address);
-      expect(claim.token).to.equal(expectedClaim.token);
-      expect(claim.amount).to.equal(expectedClaim.amount);
-      expect(claim.amount).to.equal(stakedAmount);
+      expect(crvEventArg.token).to.equal(crv.address);
+      expect(cvxCrvEventArg.token).to.equal(cvxCrvToken.address);
+      expect(crvEventArg.token).to.equal(claimableCrv.token);
+      expect(crvEventArg.amount).to.equal(claimableCrv.amount);
+      expect(cvxCrvEventArg.token).to.equal(claimableCvxCrv.token);
+      expect(cvxCrvEventArg.amount).to.equal(claimableCvxCrv.amount);
+      expect(cvxCrvEventArg.amount).to.equal(stakedAmount);
       expect(epochRewardTokens.length).to.equal(epochRewards.length);
-      expect(epochRewardTokens[0]).to.equal(claim.token);
-      expect(epochRewards[0]).to.equal(claim.amount);
+      expect(epochRewardTokens[0]).to.equal(cvxCrvEventArg.token);
+      expect(epochRewards[0]).to.equal(cvxCrvEventArg.amount);
     });
 
-    it('Should increase the reward amount without a new token if same epoch', async () => {
+    it('Should increase cvxCRV reward amount without modifying epochRewardTokens', async () => {
       const epochDepositDuration = await pirexCvx.epochDepositDuration();
       const depositAmount = toBN(1e18);
       const rewardAmount = '10000000000000000000000';
@@ -1112,13 +1118,10 @@ describe('PirexCvx', () => {
       const currentEpoch = await pirexCvx.getCurrentEpoch();
       const nextEpoch = currentEpoch.add(epochDepositDuration);
       const increaseBy = nextEpoch.sub(timestamp).div(2);
-      const onlyEpochRewardToken = await pirexCvx.epochRewardTokens(
+      const cvxCrvRewardToken = await pirexCvx.epochRewardTokens(nextEpoch, 0);
+      const cvxCrvRewardsBeforeClaim = await pirexCvx.getEpochReward(
         nextEpoch,
-        0
-      );
-      const epochRewardsBeforeClaim = await pirexCvx.getEpochReward(
-        nextEpoch,
-        onlyEpochRewardToken
+        cvxCrvRewardToken
       );
 
       // Fast forward but maintain the same epoch (we want to increase stored reward amount)
@@ -1128,15 +1131,16 @@ describe('PirexCvx', () => {
         pirexCvx.claimAndStakeCvxCrvReward,
         []
       );
-      const epochRewardsAfterClaim = await pirexCvx.getEpochReward(
+      const cvxCrvRewardsAfterClaim = await pirexCvx.getEpochReward(
         nextEpoch,
-        onlyEpochRewardToken
+        cvxCrvRewardToken
       );
-      const [claim] = claimEvent.args.claimed;
+
+      const [_, cvxCrv] = claimEvent.args.claimed;
 
       // Check that the amounts add up
-      expect(epochRewardsBeforeClaim.add(claim.amount)).to.equal(
-        epochRewardsAfterClaim
+      expect(cvxCrvRewardsBeforeClaim.add(cvxCrv.amount)).to.equal(
+        cvxCrvRewardsAfterClaim
       );
 
       // There should not be another token
@@ -1162,22 +1166,23 @@ describe('PirexCvx', () => {
 
       const currentEpoch = await pirexCvx.getCurrentEpoch();
       const nextEpoch = currentEpoch.add(epochDepositDuration);
-      const currentEpochRewardToken = await pirexCvx.epochRewardTokens(
+      const currentEpochCvxCrvRewardToken = await pirexCvx.epochRewardTokens(
         currentEpoch,
         0
       );
-      const currentEpochRewardsBeforeClaim = await pirexCvx.getEpochReward(
-        currentEpoch,
-        currentEpochRewardToken
-      );
+      const currentEpochCvxCrvRewardsBeforeClaim =
+        await pirexCvx.getEpochReward(
+          currentEpoch,
+          currentEpochCvxCrvRewardToken
+        );
       const claimEvent = await callAndReturnEvent(
         pirexCvx.claimAndStakeCvxCrvReward,
         []
       );
-      const [claim] = claimEvent.args.claimed;
-      const currentEpochRewardsAfterClaim = await pirexCvx.getEpochReward(
+      const [_, cvxCrv] = claimEvent.args.claimed;
+      const currentEpochCvxCrvRewardsAfterClaim = await pirexCvx.getEpochReward(
         currentEpoch,
-        currentEpochRewardToken
+        currentEpochCvxCrvRewardToken
       );
       const nextEpochRewards = await pirexCvx.getEpochReward(
         nextEpoch,
@@ -1185,17 +1190,70 @@ describe('PirexCvx', () => {
       );
 
       // Current epoch rewards should not change
-      expect(currentEpochRewardsAfterClaim).to.equal(
-        currentEpochRewardsBeforeClaim
+      expect(currentEpochCvxCrvRewardsAfterClaim).to.equal(
+        currentEpochCvxCrvRewardsBeforeClaim
       );
 
       // Verify amount set correctly for next epoch
-      expect(claim.amount).to.equal(nextEpochRewards);
+      expect(cvxCrv.amount).to.equal(nextEpochRewards);
+    });
+
+    it('Should set reward data for new claimable reward tokens', async () => {
+      const epochDepositDuration = await pirexCvx.epochDepositDuration();
+      const depositAmount = toBN(1e18);
+      const crvRewardAmount = '5000000000000000000000';
+      const rewardEpoch = (await pirexCvx.getCurrentEpoch()).add(
+        epochDepositDuration
+      );
+      const { timestamp } = await ethers.provider.getBlock('latest');
+
+      // Deposit and set up more rewards for PirexCvx
+      await cvx.approve(pirexCvx.address, depositAmount);
+      await pirexCvx.deposit(depositAmount, defaultSpendRatio);
+      await crv.mint(admin.address, crvRewardAmount);
+      await crv.approve(cvxLocker.address, crvRewardAmount);
+      await cvxLocker.notifyRewardAmount(crv.address, crvRewardAmount);
+
+      // Fast forward to the next epoch to test rewards data storage correctness
+      await increaseBlockTimestamp(
+        convertBigNumberToNumber(rewardEpoch.sub(timestamp).div(2))
+      );
+
+      const cvxCrvEpochRewardsBeforeClaim = await pirexCvx.getEpochReward(
+        rewardEpoch,
+        cvxCrvToken.address
+      );
+      const claimEvent = await callAndReturnEvent(
+        pirexCvx.claimAndStakeCvxCrvReward,
+        []
+      );
+      const [crvEventArg, cvxCrvEventArg] = claimEvent.args.claimed;
+      const crvEpochRewards = await pirexCvx.getEpochReward(
+        rewardEpoch,
+        crv.address
+      );
+      const cvxCrvEpochRewardsAfterClaim = await pirexCvx.getEpochReward(
+        rewardEpoch,
+        cvxCrvToken.address
+      );
+
+      expect(crvEventArg.token).to.equal(crv.address);
+      expect(cvxCrvEventArg.token).to.equal(cvxCrvToken.address);
+      expect(crvEventArg.amount).to.equal(crvEpochRewards);
+      expect(cvxCrvEventArg.amount).to.equal(0);
+      expect(cvxCrvEpochRewardsBeforeClaim).to.equal(
+        cvxCrvEpochRewardsAfterClaim
+      );
     });
   });
 
   describe('claimEpochRewards', () => {
     it('Should claim the correct epoch rewards for notAdmin', async () => {
+      // Fast forward to the next epoch so that we can claim recently-added CRV
+      await increaseBlockTimestamp(
+        convertBigNumberToNumber(await pirexCvx.epochDepositDuration())
+      );
+
       const currentEpoch = await pirexCvx.getCurrentEpoch();
       const rewardCvx = await getPirexCvxToken(
         await pirexCvx.rewardEpochs(currentEpoch)
@@ -1216,19 +1274,33 @@ describe('PirexCvx', () => {
           notAdminRewardCvxTokensBeforeClaim
         );
 
-      const epochReward = await pirexCvx.getEpochReward(
+      const crvEpochReward = await pirexCvx.getEpochReward(
+        currentEpoch,
+        crv.address
+      );
+      const cvxCrvEpochReward = await pirexCvx.getEpochReward(
         currentEpoch,
         cvxCrvToken.address
       );
 
       // notAdmin has 10% of the rewardCvx for this epoch and should get 10% rewards
-      const expectedClaimAmount = epochReward.div(10);
+      const expectedCrvClaimAmount = crvEpochReward.div(10);
+      const expectedCvxCrvClaimAmount = cvxCrvEpochReward.div(10);
 
-      const expectedRemaining = epochReward.sub(expectedClaimAmount);
+      const expectedCrvRemaining = crvEpochReward.sub(expectedCrvClaimAmount);
+      const expectedCvxCrvRemaining = cvxCrvEpochReward.sub(
+        expectedCvxCrvClaimAmount
+      );
       const claimRewardEpochRewardsEvent = await callAndReturnEvent(
         pirexCvx.connect(notAdmin).claimEpochRewards,
         [currentEpoch]
       );
+      const [claimedCvxCrvRewardToken, claimedCrvRewardToken] =
+        claimRewardEpochRewardsEvent.args.tokens;
+      const [claimedCvxCrvRewardAmounts, claimedCrvRewardAmounts] =
+        claimRewardEpochRewardsEvent.args.amounts;
+      const [claimedCvxCrvRewardRemaining, claimedCrvRewardRemaining] =
+        claimRewardEpochRewardsEvent.args.remaining;
       const notAdminRewardCvxTokensAfterClaim = await rewardCvx.balanceOf(
         notAdmin.address
       );
@@ -1237,15 +1309,12 @@ describe('PirexCvx', () => {
       expect(claimRewardEpochRewardsEvent.eventSignature).to.equal(
         'EpochRewardsClaimed(address[],uint256[],uint256[])'
       );
-      expect(claimRewardEpochRewardsEvent.args.amounts[0]).to.equal(
-        expectedClaimAmount
-      );
-      expect(claimRewardEpochRewardsEvent.args.tokens[0]).to.equal(
-        cvxCrvToken.address
-      );
-      expect(claimRewardEpochRewardsEvent.args.remaining[0]).to.equal(
-        expectedRemaining
-      );
+      expect(claimedCvxCrvRewardToken).to.equal(cvxCrvToken.address);
+      expect(claimedCrvRewardToken).to.equal(crv.address);
+      expect(claimedCvxCrvRewardAmounts).to.equal(expectedCvxCrvClaimAmount);
+      expect(claimedCrvRewardAmounts).to.equal(expectedCrvClaimAmount);
+      expect(claimedCvxCrvRewardRemaining).to.equal(expectedCvxCrvRemaining);
+      expect(claimedCrvRewardRemaining).to.equal(expectedCrvRemaining);
     });
   });
 });
