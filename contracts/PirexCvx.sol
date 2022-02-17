@@ -198,10 +198,10 @@ contract PirexCvx is Ownable {
         require(_votiumMultiMerkleStash != address(0));
         votiumMultiMerkleStash = _votiumMultiMerkleStash;
 
-        require(_epochDepositDuration > 0, "Invalid _epochDepositDuration");
+        require(_epochDepositDuration != 0, "Invalid _epochDepositDuration");
         epochDepositDuration = _epochDepositDuration;
 
-        require(_lockDuration > 0, "Invalid _lockDuration");
+        require(_lockDuration != 0, "Invalid _lockDuration");
         lockDuration = _lockDuration;
 
         require(_voteDelegate != address(0), "Invalid _voteDelegate");
@@ -239,10 +239,10 @@ contract PirexCvx is Ownable {
 
         IConvexDelegateRegistry(cvxDelegateRegistry).setDelegate(
             id,
-            voteDelegate
+            delegate
         );
 
-        emit VoteDelegateSet(id, voteDelegate);
+        emit VoteDelegateSet(id, delegate);
     }
 
     /**
@@ -253,7 +253,7 @@ contract PirexCvx is Ownable {
         require(manager != address(0), "Invalid manager");
         votiumRewardManager = manager;
 
-        emit VotiumRewardManagerSet(votiumRewardManager);
+        emit VotiumRewardManagerSet(manager);
     }
 
     /**
@@ -270,7 +270,7 @@ contract PirexCvx is Ownable {
         @param  spendRatio  uint256  Used to calculate the spend amount and boost ratio
      */
     function deposit(uint256 amount, uint256 spendRatio) external {
-        require(amount > 0, "Invalid amount");
+        require(amount != 0, "Invalid amount");
 
         // CvxLocker transfers CVX from msg.sender (this contract) to itself
         IERC20(cvx).safeTransferFrom(msg.sender, address(this), amount);
@@ -292,13 +292,13 @@ contract PirexCvx is Ownable {
             currentEpoch
         );
 
+        assert(lockExpiry != 0);
+        assert(token != address(0));
+
         if (d.lockExpiry == 0) {
             d.lockExpiry = lockExpiry;
             d.token = token;
         }
-
-        assert(d.lockExpiry != 0);
-        assert(d.token != address(0));
 
         emit Deposited(
             amount,
@@ -323,9 +323,9 @@ contract PirexCvx is Ownable {
         address recipient,
         uint256 amount
     ) internal returns (address) {
-        require(bytes(tokenId).length > 0, "Invalid tokenId");
+        require(bytes(tokenId).length != 0, "Invalid tokenId");
         require(recipient != address(0), "Invalid recipient");
-        require(amount > 0, "Invalid amount");
+        require(amount != 0, "Invalid amount");
 
         // If token does not yet exist, create new
         if (token == address(0)) {
@@ -380,7 +380,7 @@ contract PirexCvx is Ownable {
 
         // Mint 1 voteCVX for each Convex gauge weight proposal that users can vote on
         // Mint 1 rewardCVX for each reward-claiming period (every 2 weeks)
-        for (uint8 i = 0; i < 8; i += 1) {
+        for (uint8 i = 0; i < 8; ++i) {
             uint256 epoch = startingEpoch + (epochDepositDuration * i);
 
             epochs[i] = epoch;
@@ -422,7 +422,7 @@ contract PirexCvx is Ownable {
      */
     function withdraw(uint256 epoch, uint256 spendRatio) external {
         Deposit memory d = deposits[epoch];
-        require(d.lockExpiry > 0 && d.token != address(0), "Invalid epoch");
+        require(d.lockExpiry != 0 && d.token != address(0), "Invalid epoch");
         require(
             d.lockExpiry <= block.timestamp,
             "Cannot withdraw before lock expiry"
@@ -433,7 +433,7 @@ contract PirexCvx is Ownable {
             );
         uint256 epochTokenBalance = _erc20.balanceOf(msg.sender);
         require(
-            epochTokenBalance > 0,
+            epochTokenBalance != 0,
             "Msg.sender does not have lockedCVX for epoch"
         );
 
@@ -453,7 +453,7 @@ contract PirexCvx is Ownable {
         uint256 stakeableCvx = IERC20(cvx).balanceOf(address(this));
 
         // Stake remaining CVX to keep assets productive
-        if (stakeableCvx > 0) {
+        if (stakeableCvx != 0) {
             stakeCvx(stakeableCvx);
         }
 
@@ -478,7 +478,7 @@ contract PirexCvx is Ownable {
         (, uint256 unlockable, , ) = _cvxLocker.lockedBalances(address(this));
 
         // Withdraw all unlockable tokens
-        if (unlockable > 0) {
+        if (unlockable != 0) {
             _cvxLocker.processExpiredLocks(false, spendRatio, address(this));
         }
 
@@ -490,7 +490,7 @@ contract PirexCvx is Ownable {
         @param  amount  uint256  Amount of CVX to stake
      */
     function stakeCvx(uint256 amount) public {
-        require(amount > 0, "Invalid amount");
+        require(amount != 0, "Invalid amount");
 
         IERC20(cvx).safeIncreaseAllowance(cvxRewardPool, amount);
         IcvxRewardPool(cvxRewardPool).stake(amount);
@@ -503,7 +503,7 @@ contract PirexCvx is Ownable {
         @param  amount  uint256  Amount of CVX to unstake
      */
     function unstakeCvx(uint256 amount) public {
-        require(amount > 0, "Invalid amount");
+        require(amount != 0, "Invalid amount");
 
         IcvxRewardPool(cvxRewardPool).withdraw(amount, false);
 
@@ -525,7 +525,7 @@ contract PirexCvx is Ownable {
         bytes32[] calldata merkleProof,
         uint256 voteEpoch
     ) external onlyVotiumRewardManager {
-        require(voteEpoch > 0, "Invalid voteEpoch");
+        require(voteEpoch != 0, "Invalid voteEpoch");
         require(
             voteEpoch < getCurrentEpoch(),
             "voteEpoch must be previous epoch"
@@ -578,6 +578,7 @@ contract PirexCvx is Ownable {
      */
     function claimVoteEpochRewards(uint256 voteEpoch) external {
         Reward[] storage v = voteEpochRewards[voteEpoch];
+        uint256 vLen = v.length;
         require(v.length > 0, "No rewards to claim");
 
         // If there are claimable rewards, there has to be a vote epoch token set
@@ -589,27 +590,29 @@ contract PirexCvx is Ownable {
             );
         uint256 voteCvxBalance = voteCvx.balanceOf(msg.sender);
         require(
-            voteCvxBalance > 0,
+            voteCvxBalance != 0,
             "Msg.sender does not have voteCVX for epoch"
         );
 
         uint256 voteCvxSupply = voteCvx.totalSupply();
-        address[] memory rewardTokens = new address[](v.length);
-        uint256[] memory rewardTokenAmounts = new uint256[](v.length);
-        uint256[] memory rewardTokenAmountsRemaining = new uint256[](v.length);
+        address[] memory rewardTokens = new address[](vLen);
+        uint256[] memory rewardTokenAmounts = new uint256[](vLen);
+        uint256[] memory rewardTokenAmountsRemaining = new uint256[](vLen);
 
         voteCvx.burnFrom(msg.sender, voteCvxBalance);
 
-        for (uint256 i = 0; i < v.length; i += 1) {
+        for (uint256 i = 0; i < vLen; ++i) {
             // The reward amount is calculated using the user's % voteCVX ownership for the vote epoch
             // E.g. Owning 10% of voteCVX tokens means they'll get 10% of the rewards
-            uint256 rewardAmount = (v[i].amount * voteCvxBalance) /
+            Reward storage row = v[i];
+            uint256 amount = row.amount;
+            uint256 rewardAmount = (amount * voteCvxBalance) /
                 voteCvxSupply;
 
-            rewardTokens[i] = v[i].token;
+            rewardTokens[i] = row.token;
             rewardTokenAmounts[i] = rewardAmount;
-            rewardTokenAmountsRemaining[i] = v[i].amount - rewardAmount;
-            v[i].amount = rewardTokenAmountsRemaining[i];
+            rewardTokenAmountsRemaining[i] = amount - rewardAmount;
+            row.amount = rewardTokenAmountsRemaining[i];
 
             IERC20(rewardTokens[i]).safeTransfer(
                 msg.sender,
