@@ -1,6 +1,7 @@
 pragma solidity =0.6.6;
 
 // https://github.com/Uniswap/v2-periphery/tree/master/contracts/libraries/UniswapV2Library.sol
+// Note: Updated the init code hash for UniswapV2Pair as it differs to the original deployed one
 
 import '../interfaces/IUniswapV2Pair.sol';
 
@@ -23,7 +24,7 @@ library UniswapV2Library {
                 hex'ff',
                 factory,
                 keccak256(abi.encodePacked(token0, token1)),
-                hex'87514bc69fc68ab5a779e445dc184f6c38105ad8c885e7a4ed1976b9aab05d6e' // init code hash
+                hex'20ba3860e709a0c9997152d519ffa745197d6e9549a89d29aa78ba21f8c4fd09' // init code hash
             ))));
     }
 
