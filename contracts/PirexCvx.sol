@@ -675,7 +675,8 @@ contract PirexCvx is Ownable {
         );
 
         address[] memory r = epochRewardTokens[rewardEpoch];
-        require(r.length > 0, "No rewards to claim");
+        uint256 rLen = r.length;
+        require(rLen > 0, "No rewards to claim");
 
         ERC20PresetMinterPauserUpgradeable rewardCvx = ERC20PresetMinterPauserUpgradeable(
                 rewardEpochs[rewardEpoch]
@@ -687,13 +688,13 @@ contract PirexCvx is Ownable {
         );
 
         uint256 rewardCvxSupply = rewardCvx.totalSupply();
-        address[] memory rewardTokens = new address[](r.length);
-        uint256[] memory rewardTokenAmounts = new uint256[](r.length);
-        uint256[] memory rewardTokenAmountsRemaining = new uint256[](r.length);
+        address[] memory rewardTokens = new address[](rLen);
+        uint256[] memory rewardTokenAmounts = new uint256[](rLen);
+        uint256[] memory rewardTokenAmountsRemaining = new uint256[](rLen);
 
         rewardCvx.burnFrom(msg.sender, rewardCvxBalance);
 
-        for (uint256 i = 0; i < r.length; i += 1) {
+        for (uint256 i = 0; i < rLen; ++i) {
             // The reward amount is calculated using the user's % rewardCVX ownership for the reward epoch
             // E.g. Owning 10% of rewardCVX tokens means they'll get 10% of the rewards
             uint256 epochReward = epochRewards[rewardEpoch][r[i]];
