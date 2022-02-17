@@ -112,28 +112,21 @@ describe('PirexCvx', () => {
         firstLockedCvxAddress,
       ]);
       firstPairAddress = createPairEvent.args.pair;
-      const token0 = (
-        wethAddress < firstLockedCvxAddress
-          ? wethAddress
-          : firstLockedCvxAddress
-      ).toLowerCase();
-      const token1 = (
-        wethAddress < firstLockedCvxAddress
-          ? firstLockedCvxAddress
-          : wethAddress
-      ).toLowerCase();
+      const orderPairTokens = (tokenA: string, tokenB: string) => {
+        const lowerCaseTokenA = tokenA.toLowerCase();
+        const lowerCaseTokenB = tokenB.toLowerCase();
+        return Number(tokenA) < Number(tokenB)
+          ? [lowerCaseTokenA, lowerCaseTokenB]
+          : [lowerCaseTokenB, lowerCaseTokenA];
+      };
+      const [token0, token1] = orderPairTokens(wethAddress, firstLockedCvxAddress);
 
       expect(createPairEvent.eventSignature).to.equal(
         'PairCreated(address,address,address,uint256)'
       );
-      expect(createPairEvent.args.token0.toLowerCase()).to.be.oneOf([
-        token0,
-        token1,
-      ]);
-      expect(createPairEvent.args.token1.toLowerCase()).to.be.oneOf([
-        token0,
-        token1,
-      ]);
+
+      expect(createPairEvent.args.token0.toLowerCase()).to.be.equal(token0);
+      expect(createPairEvent.args.token1.toLowerCase()).to.be.equal(token1);
       expect(createPairEvent.args.token1.toLowerCase()).to.not.equal(
         createPairEvent.args.token0.toLowerCase()
       );
@@ -217,7 +210,7 @@ describe('PirexCvx', () => {
           expiry
         );
       const receipt = await tx.wait();
-      const gasUsed = receipt.cumulativeGasUsed.mul(receipt.effectiveGasPrice);
+      const gasUsed = receipt.gasUsed.mul(receipt.effectiveGasPrice);
 
       const ethBalanceAfter = await ethers.provider.getBalance(admin.address);
       const lockedBalanceAfter = await lockedCvxToken.balanceOf(
