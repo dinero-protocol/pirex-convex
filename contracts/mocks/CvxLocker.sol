@@ -2,6 +2,8 @@
  *Submitted for verification at Etherscan.io on 2021-09-03
  */
 
+// https://etherscan.io/address/0xD18140b4B819b895A3dba5442F959fA44994AF50#code
+
 /**
  * PIREX CHANGES:
  * - Remove constant modifier from stakingToken
