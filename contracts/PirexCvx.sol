@@ -730,14 +730,14 @@ contract PirexCvx is Ownable {
 
         address[] memory r = epochRewardTokens[rewardEpoch];
         uint256 rLen = r.length;
-        require(rLen > 0, "No rewards to claim");
+        require(rLen != 0, "No rewards to claim");
 
         ERC20PresetMinterPauserUpgradeable rewardCvx = ERC20PresetMinterPauserUpgradeable(
                 rewardEpochs[rewardEpoch]
             );
         uint256 rewardCvxBalance = rewardCvx.balanceOf(msg.sender);
         require(
-            rewardCvxBalance > 0,
+            rewardCvxBalance != 0,
             "Msg.sender does not have rewardCVX for epoch"
         );
 
@@ -755,6 +755,7 @@ contract PirexCvx is Ownable {
             uint256 rewardAmount = (epochReward * rewardCvxBalance) /
                 rewardCvxSupply;
 
+            // Unstake enough cvxCRV to satisfy withdrawal
             if (r[i] == cvxCrv) {
                 require(
                     IBaseRewardPool(baseRewardPool).withdraw(
@@ -765,10 +766,12 @@ contract PirexCvx is Ownable {
                 );
             }
 
+            uint256 remainingAmount = epochReward - rewardAmount;
+
             rewardTokens[i] = r[i];
             rewardTokenAmounts[i] = rewardAmount;
-            rewardTokenAmountsRemaining[i] = epochReward - rewardAmount;
-            epochRewards[rewardEpoch][r[i]] = epochReward - rewardAmount;
+            rewardTokenAmountsRemaining[i] = remainingAmount;
+            epochRewards[rewardEpoch][r[i]] = remainingAmount;
 
             IERC20(r[i]).safeTransfer(msg.sender, rewardAmount);
         }
