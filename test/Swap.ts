@@ -277,10 +277,18 @@ describe('Swap', () => {
 
       const ethBalanceBefore = await ethers.provider.getBalance(admin.address);
       const lockedBalanceBefore = await lockedCvxToken.balanceOf(admin.address);
+      const getReserves = async () => {
+        const [token0, token1] = await lpToken.getReserves();
+        const token0Addr = await lpToken.token0();
+
+        return wethAddress === token0Addr.toLowerCase()
+          ? [token0, token1]
+          : [token1, token0];
+      };
 
       // Calculate expected returned tokens if we remove the liquidity
-      const [lpTokenEthBalance, lpTokenLockedCvxBalance] =
-        await lpToken.getReserves();
+      const [lpTokenEthBalance, lpTokenLockedCvxBalance] = await getReserves();
+
       const lpTokenTotalSupply = await lpToken.totalSupply();
       const expectedEthAmount = lpBalanceToRemove
         .mul(lpTokenEthBalance)
@@ -288,7 +296,6 @@ describe('Swap', () => {
       const expectedLockedCvxAmount = lpBalanceToRemove
         .mul(lpTokenLockedCvxBalance)
         .div(lpTokenTotalSupply);
-
       const tx = await swapRouter.removeLiquidityETH(
         firstLockedCvxAddress,
         lpBalanceToRemove,
@@ -297,10 +304,8 @@ describe('Swap', () => {
         admin.address,
         expiry
       );
-
       const receipt = await tx.wait();
       const gasUsed = receipt.gasUsed.mul(receipt.effectiveGasPrice);
-
       const lpBalanceAfter = await lpToken.balanceOf(admin.address);
       const ethBalanceAfter = await ethers.provider.getBalance(admin.address);
       const lockedBalanceAfter = await lockedCvxToken.balanceOf(admin.address);
