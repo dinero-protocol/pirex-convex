@@ -108,6 +108,7 @@ contract PirexCvx is Ownable {
     address public voteDelegate;
     address public votiumRewardManager;
     address public baseRewardPool;
+    address public cvxCrv;
 
     mapping(uint256 => Deposit) public deposits;
 
@@ -178,7 +179,8 @@ contract PirexCvx is Ownable {
         uint256 _epochDepositDuration,
         uint256 _lockDuration,
         address _voteDelegate,
-        address _baseRewardPool
+        address _baseRewardPool,
+        address _cvxCrv
     ) {
         require(_cvxLocker != address(0), "Invalid _cvxLocker");
         cvxLocker = _cvxLocker;
@@ -209,6 +211,9 @@ contract PirexCvx is Ownable {
 
         require(_baseRewardPool != address(0), "Invalid _baseRewardPool");
         baseRewardPool = _baseRewardPool;
+
+        require(_cvxCrv != address(0), "Invalid _cvxCrv");
+        cvxCrv = _cvxCrv;
 
         // Default reward manager
         votiumRewardManager = address(this);
@@ -643,6 +648,7 @@ contract PirexCvx is Ownable {
             address(this)
         );
 
+        // Claim and stake
         c.getReward(address(this), true);
 
         // Users will be able to redeem these rewards next epoch
@@ -701,10 +707,15 @@ contract PirexCvx is Ownable {
             uint256 rewardAmount = (epochReward * rewardCvxBalance) /
                 rewardCvxSupply;
 
-            require(
-                IBaseRewardPool(baseRewardPool).withdraw(rewardAmount, true),
-                "Failed to withdraw reward"
-            );
+            if (r[i] == cvxCrv) {
+                require(
+                    IBaseRewardPool(baseRewardPool).withdraw(
+                        rewardAmount,
+                        true
+                    ),
+                    "Failed to withdraw reward"
+                );
+            }
 
             rewardTokens[i] = r[i];
             rewardTokenAmounts[i] = rewardAmount;
