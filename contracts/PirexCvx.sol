@@ -593,7 +593,7 @@ contract PirexCvx is Ownable {
     function redeemVoteEpochRewards(uint256 voteEpoch) external {
         Reward[] storage v = voteEpochRewards[voteEpoch];
         uint256 vLen = v.length;
-        require(vLen > 0, "No rewards to claim");
+        require(vLen != 0, "No rewards to claim");
 
         // If there are redeemable rewards, there has to be a vote epoch token set
         address voteEpochToken = voteEpochs[voteEpoch];
