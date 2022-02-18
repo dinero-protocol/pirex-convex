@@ -160,17 +160,17 @@ contract PirexCvx is Ownable {
         address managerToken,
         uint256 managerTokenAmount
     );
-    event VoteEpochRewardsClaimed(
+    event VoteEpochRewardsRedeemed(
         address[] tokens,
         uint256[] amounts,
         uint256[] remaining
     );
-    event EpochRewardsClaimed(
+    event EpochRewardsClaimedAndStaked(ICvxLocker.EarnedData[] claimed);
+    event EpochRewardsRedeemed(
         address[] tokens,
         uint256[] amounts,
         uint256[] remaining
     );
-    event ClaimAndStakeCvxCrvReward(ICvxLocker.EarnedData[] claimed);
 
     constructor(
         address _cvxLocker,
@@ -266,6 +266,17 @@ contract PirexCvx is Ownable {
      */
     function getCurrentEpoch() public view returns (uint256) {
         return (block.timestamp / epochDepositDuration) * epochDepositDuration;
+    }
+
+    /**
+        @notice Get epoch reward
+     */
+    function getEpochReward(uint256 epoch, address token)
+        external
+        view
+        returns (uint256)
+    {
+        return epochRewards[epoch][token];
     }
 
     /**
@@ -576,15 +587,15 @@ contract PirexCvx is Ownable {
     }
 
     /**
-        @notice Claim Votium rewards for user
+        @notice Redeem vote epoch rewards by burning voteCVX
         @param  voteEpoch    uint256   Vote epoch associated with rewards
      */
-    function claimVoteEpochRewards(uint256 voteEpoch) external {
+    function redeemVoteEpochRewards(uint256 voteEpoch) external {
         Reward[] storage v = voteEpochRewards[voteEpoch];
         uint256 vLen = v.length;
         require(vLen > 0, "No rewards to claim");
 
-        // If there are claimable rewards, there has to be a vote epoch token set
+        // If there are redeemable rewards, there has to be a vote epoch token set
         address voteEpochToken = voteEpochs[voteEpoch];
         assert(voteEpochToken != address(0));
 
@@ -622,7 +633,7 @@ contract PirexCvx is Ownable {
             );
         }
 
-        emit VoteEpochRewardsClaimed(
+        emit VoteEpochRewardsRedeemed(
             rewardTokens,
             rewardTokenAmounts,
             rewardTokenAmountsRemaining
@@ -630,20 +641,9 @@ contract PirexCvx is Ownable {
     }
 
     /**
-        @notice Get epoch reward
+        @notice Claim and stake epoch rewards
      */
-    function getEpochReward(uint256 epoch, address token)
-        external
-        view
-        returns (uint256)
-    {
-        return epochRewards[epoch][token];
-    }
-
-    /**
-        @notice Claim and stake cvxCRV reward
-     */
-    function claimAndStakeCvxCrvReward() external {
+    function claimAndStakeEpochRewards() external {
         ICvxLocker c = ICvxLocker(cvxLocker);
         ICvxLocker.EarnedData[] memory claimable = c.claimableRewards(
             address(this)
@@ -704,14 +704,14 @@ contract PirexCvx is Ownable {
             );
         }
 
-        emit ClaimAndStakeCvxCrvReward(claimable);
+        emit EpochRewardsClaimedAndStaked(claimable);
     }
 
     /**
-        @notice Claim epoch rewards
+        @notice Redeem epoch rewards by burning rewardCVX
         @param  rewardEpoch  uint256  Epoch associated with rewards
      */
-    function claimEpochRewards(uint256 rewardEpoch) external {
+    function redeemEpochRewards(uint256 rewardEpoch) external {
         require(
             rewardEpoch <= getCurrentEpoch(),
             "Cannot claim rewards for a future epoch"
@@ -740,12 +740,13 @@ contract PirexCvx is Ownable {
         for (uint256 i = 0; i < rLen; ++i) {
             // The reward amount is calculated using the user's % rewardCVX ownership for the reward epoch
             // E.g. Owning 10% of rewardCVX tokens means they'll get 10% of the rewards
-            uint256 epochReward = epochRewards[rewardEpoch][r[i]];
+            address rewardToken = r[i];
+            uint256 epochReward = epochRewards[rewardEpoch][rewardToken];
             uint256 rewardAmount = (epochReward * rewardCvxBalance) /
                 rewardCvxSupply;
 
             // Unstake enough cvxCRV to satisfy withdrawal
-            if (r[i] == cvxCrv) {
+            if (rewardToken == cvxCrv) {
                 require(
                     IBaseRewardPool(baseRewardPool).withdraw(
                         rewardAmount,
@@ -755,17 +756,15 @@ contract PirexCvx is Ownable {
                 );
             }
 
-            uint256 remainingAmount = epochReward - rewardAmount;
-
-            rewardTokens[i] = r[i];
+            rewardTokens[i] = rewardToken;
             rewardTokenAmounts[i] = rewardAmount;
-            rewardTokenAmountsRemaining[i] = remainingAmount;
-            epochRewards[rewardEpoch][r[i]] = remainingAmount;
+            rewardTokenAmountsRemaining[i] = epochReward - rewardAmount;
+            epochRewards[rewardEpoch][rewardToken] = epochReward - rewardAmount;
 
-            IERC20(r[i]).safeTransfer(msg.sender, rewardAmount);
+            IERC20(rewardToken).safeTransfer(msg.sender, rewardAmount);
         }
 
-        emit EpochRewardsClaimed(
+        emit EpochRewardsRedeemed(
             rewardTokens,
             rewardTokenAmounts,
             rewardTokenAmountsRemaining
