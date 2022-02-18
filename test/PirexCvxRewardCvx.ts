@@ -131,8 +131,8 @@ describe('PirexCvx: RewardCVX', () => {
   const getPirexCvxToken = async (address: string) =>
     await ethers.getContractAt('ERC20PresetMinterPauserUpgradeable', address);
 
-  describe('claimAndStakeCvxCrvReward', () => {
-    it('Should claim and stake cvxCRV reward', async () => {
+  describe('claimAndStakeEpochRewards', () => {
+    it('Should claim rewards and stake cvxCRV', async () => {
       const epochDepositDuration = await pirexCvx.epochDepositDuration();
       const depositAmount = toBN(1e18);
       const rewardAmount = '10000000000000000000000';
@@ -155,7 +155,7 @@ describe('PirexCvx: RewardCVX', () => {
         pirexCvx.address
       );
       const claimEvent = await callAndReturnEvent(
-        pirexCvx.claimAndStakeCvxCrvReward,
+        pirexCvx.claimAndStakeEpochRewards,
         []
       );
       const [crvEventArg, cvxCrvEventArg] = claimEvent.args.claimed;
@@ -186,7 +186,7 @@ describe('PirexCvx: RewardCVX', () => {
       );
 
       expect(claimEvent.eventSignature).to.equal(
-        'ClaimAndStakeCvxCrvReward((address,uint256)[])'
+        'EpochRewardsClaimedAndStaked((address,uint256)[])'
       );
       expect(crvEventArg.token).to.equal(crv.address);
       expect(cvxCrvEventArg.token).to.equal(cvxCrvToken.address);
@@ -200,7 +200,7 @@ describe('PirexCvx: RewardCVX', () => {
       expect(epochRewards[0]).to.equal(cvxCrvEventArg.amount);
     });
 
-    it('Should increase cvxCRV reward amount without modifying epochRewardTokens', async () => {
+    it('Should increase existing reward amounts without modifying epochRewardTokens', async () => {
       const epochDepositDuration = await pirexCvx.epochDepositDuration();
       const depositAmount = toBN(1e18);
       const rewardAmount = '10000000000000000000000';
@@ -226,7 +226,7 @@ describe('PirexCvx: RewardCVX', () => {
       await increaseBlockTimestamp(convertBigNumberToNumber(increaseBy));
 
       const claimEvent = await callAndReturnEvent(
-        pirexCvx.claimAndStakeCvxCrvReward,
+        pirexCvx.claimAndStakeEpochRewards,
         []
       );
       const cvxCrvRewardsAfterClaim = await pirexCvx.getEpochReward(
@@ -273,7 +273,7 @@ describe('PirexCvx: RewardCVX', () => {
           currentEpochCvxCrvRewardToken
         );
       const claimEvent = await callAndReturnEvent(
-        pirexCvx.claimAndStakeCvxCrvReward,
+        pirexCvx.claimAndStakeEpochRewards,
         []
       );
       const [, cvxCrv] = claimEvent.args.claimed;
@@ -321,7 +321,7 @@ describe('PirexCvx: RewardCVX', () => {
         cvxCrvToken.address
       );
       const claimEvent = await callAndReturnEvent(
-        pirexCvx.claimAndStakeCvxCrvReward,
+        pirexCvx.claimAndStakeEpochRewards,
         []
       );
       const [crvEventArg, cvxCrvEventArg] = claimEvent.args.claimed;
@@ -344,9 +344,9 @@ describe('PirexCvx: RewardCVX', () => {
     });
   });
 
-  describe('claimEpochRewards', () => {
-    it('Should claim the correct epoch rewards for notAdmin', async () => {
-      // Fast forward to the next epoch so that we can claim recently-added CRV
+  describe('redeemEpochRewards', () => {
+    it('Should redeem the correct epoch rewards for notAdmin', async () => {
+      // Fast forward to the next epoch so that we can redeem recently-added CRV
       await increaseBlockTimestamp(
         convertBigNumberToNumber(await pirexCvx.epochDepositDuration())
       );
@@ -394,8 +394,8 @@ describe('PirexCvx: RewardCVX', () => {
       const notAdminCvxCrvBalanceBeforeClaim = await cvxCrvToken.balanceOf(
         notAdmin.address
       );
-      const claimRewardEpochRewardsEvent = await callAndReturnEvent(
-        pirexCvx.connect(notAdmin).claimEpochRewards,
+      const redeemEpochRewardsEvent = await callAndReturnEvent(
+        pirexCvx.connect(notAdmin).redeemEpochRewards,
         [currentEpoch]
       );
       const notAdminCrvBalanceAfterClaim = await crv.balanceOf(
@@ -405,18 +405,18 @@ describe('PirexCvx: RewardCVX', () => {
         notAdmin.address
       );
       const [claimedCvxCrvRewardToken, claimedCrvRewardToken] =
-        claimRewardEpochRewardsEvent.args.tokens;
+        redeemEpochRewardsEvent.args.tokens;
       const [claimedCvxCrvRewardAmounts, claimedCrvRewardAmounts] =
-        claimRewardEpochRewardsEvent.args.amounts;
+        redeemEpochRewardsEvent.args.amounts;
       const [claimedCvxCrvRewardRemaining, claimedCrvRewardRemaining] =
-        claimRewardEpochRewardsEvent.args.remaining;
+        redeemEpochRewardsEvent.args.remaining;
       const notAdminRewardCvxTokensAfterClaim = await rewardCvx.balanceOf(
         notAdmin.address
       );
 
       expect(notAdminRewardCvxTokensAfterClaim).to.equal(0);
-      expect(claimRewardEpochRewardsEvent.eventSignature).to.equal(
-        'EpochRewardsClaimed(address[],uint256[],uint256[])'
+      expect(redeemEpochRewardsEvent.eventSignature).to.equal(
+        'EpochRewardsRedeemed(address[],uint256[],uint256[])'
       );
       expect(claimedCvxCrvRewardToken).to.equal(cvxCrvToken.address);
       expect(claimedCrvRewardToken).to.equal(crv.address);
