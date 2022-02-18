@@ -316,7 +316,7 @@ contract PirexCvx is Ownable {
 
     /**
         @notice Reusable method for minting different types of CVX tokens
-        @param  token      address  Token address if it already exists
+        @param  token      address  Token address
         @param  tokenId    string   Token name/symbol
         @param  recipient  address  Account receiving tokens
         @param  amount     uint256  Amount of tokens to mint account
@@ -331,7 +331,7 @@ contract PirexCvx is Ownable {
         require(recipient != address(0), "Invalid recipient");
         require(amount != 0, "Invalid amount");
 
-        // If token does not yet exist, create new
+        // If token does not yet exist, deploy minimal proxy
         if (token == address(0)) {
             ERC20PresetMinterPauserUpgradeable _erc20 = ERC20PresetMinterPauserUpgradeable(
                     Clones.clone(erc20Implementation)
@@ -410,7 +410,6 @@ contract PirexCvx is Ownable {
                 amount
             );
 
-            // Only modify storage if necessary
             // If voteCvx is zero address, so is rewardCvx, since they're minted at the same time
             if (voteCvx == address(0) && rewardCvx == address(0)) {
                 voteEpochs[epoch] = mintedVoteCvx;
@@ -583,7 +582,7 @@ contract PirexCvx is Ownable {
     function claimVoteEpochRewards(uint256 voteEpoch) external {
         Reward[] storage v = voteEpochRewards[voteEpoch];
         uint256 vLen = v.length;
-        require(v.length > 0, "No rewards to claim");
+        require(vLen > 0, "No rewards to claim");
 
         // If there are claimable rewards, there has to be a vote epoch token set
         address voteEpochToken = voteEpochs[voteEpoch];
@@ -649,21 +648,21 @@ contract PirexCvx is Ownable {
         ICvxLocker.EarnedData[] memory claimable = c.claimableRewards(
             address(this)
         );
+        uint256 cLen = claimable.length;
 
         // Store balances to calculate differences to account for ERC20 token fees
-        uint256[] memory balancesBeforeClaiming = new uint256[](
-            claimable.length
-        );
+        uint256[] memory balancesBeforeClaiming = new uint256[](cLen);
 
-        for (uint256 i = 0; i < claimable.length; ++i) {
+        for (uint256 i = 0; i < cLen; ++i) {
+            address claimableToken = claimable[i].token;
             // Skip if there's nothing to claim or if the token is cvxCRV
             // The contract's cvxCRV balance will always be 0 before claiming
             // since it is immediately staked, so no need to calculate the diff
-            if (claimable[i].amount == 0 || claimable[i].token == cvxCrv) {
+            if (claimable[i].amount == 0 || claimableToken == cvxCrv) {
                 continue;
             }
 
-            balancesBeforeClaiming[i] = IERC20(claimable[i].token).balanceOf(
+            balancesBeforeClaiming[i] = IERC20(claimableToken).balanceOf(
                 address(this)
             );
         }
@@ -674,45 +673,35 @@ contract PirexCvx is Ownable {
         // Users will be able to redeem these rewards next epoch
         uint256 rewardEpoch = getCurrentEpoch() + epochDepositDuration;
 
-        for (uint256 j = 0; j < claimable.length; ++j) {
-            address claimableToken = claimable[j].token;
-
+        for (uint256 j = 0; j < cLen; ++j) {
+            // Skip if there's nothing to claim
             if (claimable[j].amount == 0) {
                 continue;
             }
+
+            address claimableToken = claimable[j].token;
 
             // Only add claimableToken to epochRewardTokens if it's not a duplicate
             if (epochRewards[rewardEpoch][claimableToken] == 0) {
                 epochRewardTokens[rewardEpoch].push(claimableToken);
             }
 
-            uint256 balanceAfterClaiming = IERC20(claimableToken).balanceOf(
-                address(this)
-            );
-
-            // If the claimable token is cvxCRV then stake it and update rewards
-            if (claimableToken == cvxCrv) {
-                IERC20(cvxCrv).safeIncreaseAllowance(
-                    baseRewardPool,
-                    balanceAfterClaiming
-                );
-
-                require(
-                    IBaseRewardPool(baseRewardPool).stake(balanceAfterClaiming),
-                    "Error staking cvxCRV"
-                );
-
-                epochRewards[rewardEpoch][
-                    claimableToken
-                ] += balanceAfterClaiming;
-
-                continue;
-            }
-
-            // Calculate the difference between balances after & before for other tokens
+            // Calculate the difference between before and after balances
             epochRewards[rewardEpoch][claimableToken] +=
-                balanceAfterClaiming -
+                IERC20(claimableToken).balanceOf(address(this)) -
                 balancesBeforeClaiming[j];
+        }
+
+        uint256 cvxCrvBalance = IERC20(cvxCrv).balanceOf(address(this));
+
+        // Stake cvxCrv, if any
+        if (cvxCrvBalance != 0) {
+            IERC20(cvxCrv).safeIncreaseAllowance(baseRewardPool, cvxCrvBalance);
+
+            require(
+                IBaseRewardPool(baseRewardPool).stake(cvxCrvBalance),
+                "Error staking cvxCRV"
+            );
         }
 
         emit ClaimAndStakeCvxCrvReward(claimable);
