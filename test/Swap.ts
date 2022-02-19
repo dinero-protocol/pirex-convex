@@ -9,19 +9,35 @@ import {
 } from './helpers';
 import { BigNumber } from 'ethers';
 import {
+  Crv,
   Cvx,
   CvxLocker,
   CvxRewardPool,
   PirexCvx,
   UniswapV2Factory,
   UniswapV2Router02,
+  CurveVoterProxy,
+  Booster,
+  RewardFactory,
+  CvxStakingProxy,
 } from '../typechain-types';
 
 describe('Swap', () => {
-  let admin: SignerWithAddress;
+  // Mocked Convex contracts
   let cvx: Cvx;
+  let crv: Crv;
+
+  // Seemingly invalid errors thrown for typechain types but they are correct
+  let cvxCrvToken: any;
+  let baseRewardPool: any;
+
+  let curveVoterProxy: CurveVoterProxy;
+  let booster: Booster;
+  let rewardFactory: RewardFactory;
   let cvxLocker: CvxLocker;
   let cvxRewardPool: CvxRewardPool;
+  let cvxStakingProxy: CvxStakingProxy;
+  let admin: SignerWithAddress;
   let pirexCvx: PirexCvx;
   let cvxLockerLockDuration: BigNumber;
   let swapFactory: UniswapV2Factory;
@@ -44,26 +60,62 @@ describe('Swap', () => {
   before(async () => {
     [admin] = await ethers.getSigners();
 
-    const CVX = await ethers.getContractFactory('Cvx');
-    const CVXLocker = await ethers.getContractFactory('CvxLocker');
-    const CVXRewardPool = await ethers.getContractFactory('CvxRewardPool');
-    const PirexCVX = await ethers.getContractFactory('PirexCvx');
+    const PirexCvx = await ethers.getContractFactory('PirexCvx');
+
+    // Mocked Convex contracts
+    const Cvx = await ethers.getContractFactory('Cvx');
+    const Crv = await ethers.getContractFactory('Crv');
+    const CvxCrvToken = await ethers.getContractFactory('cvxCrvToken');
+    const CurveVoterProxy = await ethers.getContractFactory('CurveVoterProxy');
+    const Booster = await ethers.getContractFactory('Booster');
+    const RewardFactory = await ethers.getContractFactory('RewardFactory');
+    const BaseRewardPool = await ethers.getContractFactory(
+      'contracts/mocks/BaseRewardPool.sol:BaseRewardPool'
+    );
+    const CvxLocker = await ethers.getContractFactory('CvxLocker');
+    const CvxRewardPool = await ethers.getContractFactory('CvxRewardPool');
+    const CvxStakingProxy = await ethers.getContractFactory('CvxStakingProxy');
+
     const SwapFactory = await ethers.getContractFactory('UniswapV2Factory');
     const SwapRouter = await ethers.getContractFactory('UniswapV2Router02');
 
-    cvx = await CVX.deploy();
-    cvxLocker = await CVXLocker.deploy(cvx.address);
-    cvxRewardPool = await CVXRewardPool.deploy(
+    // Mocked Convex contracts
+    cvx = await Cvx.deploy();
+    crv = await Crv.deploy();
+    cvxCrvToken = await CvxCrvToken.deploy();
+    curveVoterProxy = await CurveVoterProxy.deploy();
+    booster = await Booster.deploy(curveVoterProxy.address, cvx.address);
+    rewardFactory = await RewardFactory.deploy(booster.address);
+    baseRewardPool = await BaseRewardPool.deploy(
+      0,
+      cvxCrvToken.address,
+      crv.address,
+      booster.address,
+      rewardFactory.address
+    );
+    cvxLocker = await CvxLocker.deploy(
+      cvx.address,
+      cvxCrvToken.address,
+      baseRewardPool.address
+    );
+    cvxRewardPool = await CvxRewardPool.deploy(
       cvx.address,
       crvAddr,
       crvDepositorAddr,
       cvxCrvRewardsAddr,
       cvxCrvTokenAddr,
-      admin.address,
+      booster.address,
       admin.address
     );
     cvxLockerLockDuration = await cvxLocker.lockDuration();
-    pirexCvx = await PirexCVX.deploy(
+    cvxStakingProxy = await CvxStakingProxy.deploy(
+      cvxLocker.address,
+      cvxRewardPool.address,
+      crv.address,
+      cvx.address,
+      cvxCrvToken.address
+    );
+    pirexCvx = await PirexCvx.deploy(
       cvxLocker.address,
       cvx.address,
       cvxRewardPool.address,
@@ -71,15 +123,17 @@ describe('Swap', () => {
       votiumMultiMerkleStash,
       initialEpochDepositDuration,
       cvxLockerLockDuration,
-      admin.address
+      admin.address,
+      baseRewardPool.address,
+      cvxCrvToken.address
     );
     swapFactory = await SwapFactory.deploy(admin.address);
     swapRouter = await SwapRouter.deploy(swapFactory.address, wethAddress);
 
-    await cvxLocker.setStakingContract(
-      '0xe096ccec4a1d36f191189fe61e803d8b2044dfc3'
-    );
+    await cvxLocker.setStakingContract(cvxStakingProxy.address);
     await cvxLocker.setApprovals();
+    await cvxLocker.addReward(cvxCrvToken.address, admin.address, true);
+    await cvxStakingProxy.setApprovals();
     await cvx.mint(admin.address, initialCvxBalanceForAdmin);
   });
 
