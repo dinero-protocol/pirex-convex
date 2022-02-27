@@ -43,17 +43,17 @@ contract ERC4626VaultInitializable is
     /// @param _underlying The ERC20 compliant token the Vault should accept.
     /// @param _name The name for the vault token.
     /// @param _symbol The symbol for the vault token.
-    function initialize(
+    function _initialize(
         ERC20 _underlying,
         string memory _name,
         string memory _symbol
-    ) external initializer {
+    ) internal initializer {
         require(address(_underlying) != address(0), "Invalid _underlying");
         underlying = _underlying;
 
         require(bytes(_name).length != 0, "Invalid _name");
         require(bytes(_symbol).length != 0, "Invalid _symbol");
-        ERC20PresetMinterPauserUpgradeable.initialize(_name, _symbol);
+        __ERC20PresetMinterPauser_init(_name, _symbol);
 
         baseUnit = 10**decimals();
     }
