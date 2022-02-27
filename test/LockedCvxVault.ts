@@ -101,14 +101,7 @@ describe('LockedCvxVault', () => {
       baseRewardPool.address
     );
     lockExpiry = (await cvxLocker.lockDuration()).add(depositDeadline);
-    lockedCvxVault = await LockedCvxVault.deploy(
-      depositDeadline,
-      lockExpiry,
-      cvxLocker.address,
-      cvx.address,
-      underlyingTokenNameSymbol,
-      underlyingTokenNameSymbol
-    );
+    lockedCvxVault = await LockedCvxVault.deploy();
     cvxRewardPool = await CvxRewardPool.deploy(
       cvx.address,
       crvAddr,
@@ -126,6 +119,14 @@ describe('LockedCvxVault', () => {
       cvxCrvToken.address
     );
 
+    await lockedCvxVault.init(
+      depositDeadline,
+      lockExpiry,
+      cvxLocker.address,
+      cvx.address,
+      underlyingTokenNameSymbol,
+      underlyingTokenNameSymbol
+    );
     await cvxLocker.setStakingContract(cvxStakingProxy.address);
     await cvxLocker.setApprovals();
     await cvxLocker.addReward(crv.address, admin.address, true);
@@ -134,11 +135,24 @@ describe('LockedCvxVault', () => {
     await cvx.mint(admin.address, initialCvxBalanceForAdmin);
   });
 
-  describe('constructor', () => {
+  describe('init', () => {
+    it('Should not be callable more than once', async () => {
+      await expect(
+        lockedCvxVault.init(
+          depositDeadline,
+          lockExpiry,
+          cvxLocker.address,
+          cvx.address,
+          underlyingTokenNameSymbol,
+          underlyingTokenNameSymbol
+        )
+      ).to.be.revertedWith('Initializable: contract is already initialized');
+    });
+
     it('Should set up contract state', async () => {
-      const DEPOSIT_DEADLINE = await lockedCvxVault.DEPOSIT_DEADLINE();
-      const LOCK_EXPIRY = await lockedCvxVault.LOCK_EXPIRY();
-      const CVX_LOCKER = await lockedCvxVault.CVX_LOCKER();
+      const depositDeadline = await lockedCvxVault.depositDeadline();
+      const lockExpiry = await lockedCvxVault.lockExpiry();
+      const cvxLockerAddr = await lockedCvxVault.cvxLocker();
       const underlying = await lockedCvxVault.underlying();
       const baseUnit = await lockedCvxVault.baseUnit();
       const name = await lockedCvxVault.name();
@@ -147,9 +161,9 @@ describe('LockedCvxVault', () => {
         await cvx.decimals()
       );
 
-      expect(DEPOSIT_DEADLINE).to.equal(depositDeadline);
-      expect(LOCK_EXPIRY).to.equal(lockExpiry);
-      expect(CVX_LOCKER).to.equal(cvxLocker.address);
+      expect(depositDeadline).to.equal(depositDeadline);
+      expect(lockExpiry).to.equal(lockExpiry);
+      expect(cvxLockerAddr).to.equal(cvxLocker.address);
       expect(underlying).to.equal(cvx.address);
       expect(baseUnit).to.equal(expectedBaseUnit);
       expect(name).to.equal(symbol).to.equal(underlyingTokenNameSymbol);
@@ -281,7 +295,7 @@ describe('LockedCvxVault', () => {
     });
 
     it('Should revert if depositing after deadline', async () => {
-      const DEPOSIT_DEADLINE = await lockedCvxVault.DEPOSIT_DEADLINE();
+      const depositDeadline = await lockedCvxVault.depositDeadline();
       const epochDepositDuration = Number(
         (await vaultController.EPOCH_DEPOSIT_DURATION()).toString()
       );
@@ -292,7 +306,7 @@ describe('LockedCvxVault', () => {
       const { timestamp: timestampAfterIncrease } =
         await ethers.provider.getBlock('latest');
 
-      expect(timestampAfterIncrease).to.be.gt(DEPOSIT_DEADLINE);
+      expect(timestampAfterIncrease).to.be.gt(depositDeadline);
       await expect(
         lockedCvxVault.deposit(admin.address, depositAmount)
       ).to.be.revertedWith(`AfterDepositDeadline`);
@@ -317,23 +331,23 @@ describe('LockedCvxVault', () => {
     it('withdraw: Should revert if before lock expiry', async () => {
       const withdrawAmount = toBN(1e18);
       const { timestamp } = await ethers.provider.getBlock('latest');
-      const LOCK_EXPIRY = await lockedCvxVault.LOCK_EXPIRY();
+      const lockExpiry = await lockedCvxVault.lockExpiry();
 
-      expect(LOCK_EXPIRY.gt(timestamp)).to.equal(true);
+      expect(lockExpiry.gt(timestamp)).to.equal(true);
       await expect(
         lockedCvxVault.withdraw(admin.address, withdrawAmount)
       ).to.be.revertedWith('BeforeLockExpiry');
     });
 
     it('withdraw: Should revert if insufficient CVX balance', async () => {
-      const LOCK_EXPIRY = await lockedCvxVault.LOCK_EXPIRY();
+      const lockExpiry = await lockedCvxVault.lockExpiry();
       const { timestamp: timestampBefore } = await ethers.provider.getBlock(
         'latest'
       );
 
       // Increase timestamp to 1 second past lock expiry
       const timestampIncreaseAmount = Number(
-        LOCK_EXPIRY.sub(timestampBefore).add(1).toString()
+        lockExpiry.sub(timestampBefore).add(1).toString()
       );
 
       await increaseBlockTimestamp(timestampIncreaseAmount);
@@ -344,8 +358,8 @@ describe('LockedCvxVault', () => {
       const cvxBalance = await cvx.balanceOf(lockedCvxVault.address);
       const withdrawAmount = toBN(1e18);
 
-      expect(LOCK_EXPIRY.lt(timestampBefore)).to.equal(false);
-      expect(LOCK_EXPIRY.lt(timestampAfter)).to.equal(true);
+      expect(lockExpiry.lt(timestampBefore)).to.equal(false);
+      expect(lockExpiry.lt(timestampAfter)).to.equal(true);
       expect(cvxBalance).to.equal(0);
       await expect(
         lockedCvxVault.withdraw(admin.address, withdrawAmount)
@@ -353,7 +367,7 @@ describe('LockedCvxVault', () => {
     });
 
     it('unlockCvx: Should unlock unlockable CVX', async () => {
-      const LOCK_EXPIRY = await lockedCvxVault.LOCK_EXPIRY();
+      const lockExpiry = await lockedCvxVault.lockExpiry();
       const { unlockable } = await cvxLocker.lockedBalances(
         lockedCvxVault.address
       );
@@ -363,7 +377,7 @@ describe('LockedCvxVault', () => {
         'latest'
       );
 
-      expect(LOCK_EXPIRY.lt(timestampAfter)).to.equal(true);
+      expect(lockExpiry.lt(timestampAfter)).to.equal(true);
       expect(unlockEvent.eventSignature).to.equal('UnlockCvx(uint256)');
       expect(unlockEvent.args.amount).to.equal(unlockable);
     });
@@ -372,7 +386,7 @@ describe('LockedCvxVault', () => {
       const withdrawAmount = toBN(1e18);
       const shareBalanceBefore = await lockedCvxVault.balanceOf(admin.address);
       const totalHoldingsBefore = await lockedCvxVault.totalHoldings();
-      const LOCK_EXPIRY = await lockedCvxVault.LOCK_EXPIRY();
+      const lockExpiry = await lockedCvxVault.lockExpiry();
       const { timestamp } = await ethers.provider.getBlock('latest');
       const events = await callAndReturnEvents(lockedCvxVault.withdraw, [
         admin.address,
@@ -384,7 +398,7 @@ describe('LockedCvxVault', () => {
       const shareBalanceAfter = await lockedCvxVault.balanceOf(admin.address);
       const totalHoldingsAfter = await lockedCvxVault.totalHoldings();
 
-      expect(LOCK_EXPIRY.lt(timestamp)).to.equal(true);
+      expect(lockExpiry.lt(timestamp)).to.equal(true);
       expect(shareBalanceAfter).to.equal(
         shareBalanceBefore.sub(withdrawAmount)
       );

@@ -39,9 +39,9 @@ interface ICvxLocker {
 contract LockedCvxVault is ERC4626VaultInitializable {
     using SafeERC20 for ERC20;
 
-    uint256 public immutable DEPOSIT_DEADLINE;
-    uint256 public immutable LOCK_EXPIRY;
-    ICvxLocker public immutable CVX_LOCKER;
+    uint256 public depositDeadline;
+    uint256 public lockExpiry;
+    ICvxLocker public cvxLocker;
 
     event UnlockCvx(uint256 amount);
 
@@ -50,24 +50,33 @@ contract LockedCvxVault is ERC4626VaultInitializable {
     error AfterDepositDeadline(uint256 timestamp);
     error BeforeLockExpiry(uint256 timestamp);
 
-    constructor(
-        uint256 _DEPOSIT_DEADLINE,
-        uint256 _LOCK_EXPIRY,
-        ICvxLocker _CVX_LOCKER,
+    /**
+        @notice Initializes the contract
+        @param  _depositDeadline  uint256     Deposit deadline
+        @param  _lockExpiry       uint256     Lock expiry for CVX (17 weeks after deposit deadline)
+        @param  _cvxLocker        ICvxLocker  Deposit deadline
+        @param  _underlying       ERC20       Underlying asset
+        @param  _name             string      Token name
+        @param  _symbol           string      Token symbol
+     */
+    function init(
+        uint256 _depositDeadline,
+        uint256 _lockExpiry,
+        ICvxLocker _cvxLocker,
         ERC20 _underlying,
         string memory _name,
         string memory _symbol
-    ) {
-        if (_DEPOSIT_DEADLINE == 0) revert ZeroAmount();
-        DEPOSIT_DEADLINE = _DEPOSIT_DEADLINE;
+    ) external {
+        if (_depositDeadline == 0) revert ZeroAmount();
+        depositDeadline = _depositDeadline;
 
-        if (_LOCK_EXPIRY == 0) revert ZeroAmount();
-        LOCK_EXPIRY = _LOCK_EXPIRY;
+        if (_lockExpiry == 0) revert ZeroAmount();
+        lockExpiry = _lockExpiry;
 
-        if (address(_CVX_LOCKER) == address(0)) revert ZeroAddress();
-        CVX_LOCKER = _CVX_LOCKER;
+        if (address(_cvxLocker) == address(0)) revert ZeroAddress();
+        cvxLocker = _cvxLocker;
 
-        _initialize(_underlying, _name, _symbol);
+        _init(_underlying, _name, _symbol);
     }
 
     /**
@@ -76,7 +85,7 @@ contract LockedCvxVault is ERC4626VaultInitializable {
     function unlockCvx() external {
         uint256 balanceBefore = underlying.balanceOf(address(this));
 
-        CVX_LOCKER.processExpiredLocks(false, 0, address(this));
+        cvxLocker.processExpiredLocks(false, 0, address(this));
 
         emit UnlockCvx(underlying.balanceOf(address(this)) - balanceBefore);
     }
@@ -87,7 +96,7 @@ contract LockedCvxVault is ERC4626VaultInitializable {
      */
     function beforeDeposit(uint256 underlyingAmount) internal view override {
         if (underlyingAmount == 0) revert ZeroAmount();
-        if (DEPOSIT_DEADLINE < block.timestamp)
+        if (depositDeadline < block.timestamp)
             revert AfterDepositDeadline(block.timestamp);
     }
 
@@ -97,7 +106,7 @@ contract LockedCvxVault is ERC4626VaultInitializable {
      */
     function beforeWithdraw(uint256 underlyingAmount) internal override {
         if (underlyingAmount == 0) revert ZeroAmount();
-        if (LOCK_EXPIRY > block.timestamp)
+        if (lockExpiry > block.timestamp)
             revert BeforeLockExpiry(block.timestamp);
     }
 
@@ -106,15 +115,15 @@ contract LockedCvxVault is ERC4626VaultInitializable {
         @param  underlyingAmount  uint256  CVX amount
      */
     function afterDeposit(uint256 underlyingAmount) internal override {
-        underlying.safeIncreaseAllowance(address(CVX_LOCKER), underlyingAmount);
-        CVX_LOCKER.lock(address(this), underlyingAmount, 0);
+        underlying.safeIncreaseAllowance(address(cvxLocker), underlyingAmount);
+        cvxLocker.lock(address(this), underlyingAmount, 0);
     }
 
     /**
         @notice Get total balance: locked CVX balance + CVX balance
      */
     function totalHoldings() public view override returns (uint256) {
-        (uint256 total, , , ) = CVX_LOCKER.lockedBalances(address(this));
+        (uint256 total, , , ) = cvxLocker.lockedBalances(address(this));
 
         return total + underlying.balanceOf(address(this));
     }
