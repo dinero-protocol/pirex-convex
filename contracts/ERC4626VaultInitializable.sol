@@ -10,7 +10,6 @@ pragma solidity 0.8.12;
 - Use ERC20PresetMinterPauserUpgradeable methods in place of Solmate ERC20 methods
 */
 
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {ERC20PresetMinterPauserUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/presets/ERC20PresetMinterPauserUpgradeable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -20,16 +19,12 @@ import {FixedPointMathLib} from "./lib/FixedPointMathLib.sol";
 /// @author joeysantoro, Transmissions11 and JetJadeja
 
 /// @title Modifications
-/// @author kphed 🦋
-/// - Make initializable
+/// @author kphed [REDACTED]
 /// - Use OZ implementations until after we review Solmate
 ///     - Use OpenZeppelin ERC20 implementation
 ///     - Use SafeERC20
 /// - Add beforeDeposit hook
-contract ERC4626VaultInitializable is
-    Initializable,
-    ERC20PresetMinterPauserUpgradeable
-{
+contract ERC4626VaultInitializable is ERC20PresetMinterPauserUpgradeable {
     using SafeERC20 for ERC20;
     using FixedPointMathLib for uint256;
 
@@ -48,17 +43,17 @@ contract ERC4626VaultInitializable is
     /// @param _underlying The ERC20 compliant token the Vault should accept.
     /// @param _name The name for the vault token.
     /// @param _symbol The symbol for the vault token.
-    function _initialize(
+    function _init(
         ERC20 _underlying,
         string memory _name,
         string memory _symbol
-    ) internal initializer {
+    ) internal {
         require(address(_underlying) != address(0), "Invalid _underlying");
         underlying = _underlying;
 
         require(bytes(_name).length != 0, "Invalid _name");
         require(bytes(_symbol).length != 0, "Invalid _symbol");
-        __ERC20PresetMinterPauser_init(_name, _symbol);
+        initialize(_name, _symbol);
 
         baseUnit = 10**decimals();
     }
