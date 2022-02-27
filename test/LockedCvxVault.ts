@@ -28,6 +28,7 @@ describe('LockedCvxVault', () => {
   let vaultController: VaultController;
   let lockedCvxVault: LockedCvxVault;
   let depositDeadline: BigNumber;
+  let lockExpiry: BigNumber;
 
   // Mocked Convex contracts
   let cvx: Cvx;
@@ -99,8 +100,10 @@ describe('LockedCvxVault', () => {
       cvxCrvToken.address,
       baseRewardPool.address
     );
+    lockExpiry = (await cvxLocker.lockDuration()).add(depositDeadline);
     lockedCvxVault = await LockedCvxVault.deploy(
       depositDeadline,
+      lockExpiry,
       cvxLocker.address,
       cvx.address,
       underlyingTokenNameSymbol,
@@ -134,6 +137,7 @@ describe('LockedCvxVault', () => {
   describe('constructor', () => {
     it('Should set up contract state', async () => {
       const DEPOSIT_DEADLINE = await lockedCvxVault.DEPOSIT_DEADLINE();
+      const LOCK_EXPIRY = await lockedCvxVault.LOCK_EXPIRY();
       const CVX_LOCKER = await lockedCvxVault.CVX_LOCKER();
       const underlying = await lockedCvxVault.underlying();
       const baseUnit = await lockedCvxVault.baseUnit();
@@ -142,8 +146,9 @@ describe('LockedCvxVault', () => {
       const expectedBaseUnit = ethers.BigNumber.from(10).pow(
         await cvx.decimals()
       );
-      
+
       expect(DEPOSIT_DEADLINE).to.equal(depositDeadline);
+      expect(LOCK_EXPIRY).to.equal(lockExpiry);
       expect(CVX_LOCKER).to.equal(cvxLocker.address);
       expect(underlying).to.equal(cvx.address);
       expect(baseUnit).to.equal(expectedBaseUnit);
@@ -166,7 +171,7 @@ describe('LockedCvxVault', () => {
       ]);
       const shareBalanceAfter = await lockedCvxVault.balanceOf(admin.address);
       const totalHoldingsAfter = await lockedCvxVault.totalHoldings();
-      const shareTransferEvent = events[0];
+      const shareMintEvent = events[0];
       const depositEvent = events[1];
       const underlyingAllowanceUpdateEvent = events[2];
       const underlyingTransferEvent = events[3];
@@ -179,12 +184,12 @@ describe('LockedCvxVault', () => {
         .to.equal(totalHoldingsAfter)
         .to.equal(depositAmount)
         .to.be.gt(0);
-      expect(shareTransferEvent.eventSignature).to.equal(
+      expect(shareMintEvent.eventSignature).to.equal(
         'Transfer(address,address,uint256)'
       );
-      expect(shareTransferEvent.args.from).to.equal(zeroAddress);
-      expect(shareTransferEvent.args.to).to.equal(admin.address);
-      expect(shareTransferEvent.args.value).to.equal(depositAmount);
+      expect(shareMintEvent.args.from).to.equal(zeroAddress);
+      expect(shareMintEvent.args.to).to.equal(admin.address);
+      expect(shareMintEvent.args.value).to.equal(depositAmount);
       expect(depositEvent.eventSignature).to.equal(
         'Deposit(address,address,uint256)'
       );
@@ -267,6 +272,14 @@ describe('LockedCvxVault', () => {
       ).to.be.revertedWith('ZeroAmount()');
     });
 
+    it('Should revert if recipient is zero address', async () => {
+      const depositAmount = toBN(1e18);
+
+      await expect(
+        lockedCvxVault.deposit(zeroAddress, depositAmount)
+      ).to.be.revertedWith('ERC20: mint to the zero address');
+    });
+
     it('Should revert if depositing after deadline', async () => {
       const DEPOSIT_DEADLINE = await lockedCvxVault.DEPOSIT_DEADLINE();
       const epochDepositDuration = Number(
@@ -282,7 +295,139 @@ describe('LockedCvxVault', () => {
       expect(timestampAfterIncrease).to.be.gt(DEPOSIT_DEADLINE);
       await expect(
         lockedCvxVault.deposit(admin.address, depositAmount)
-      ).to.be.revertedWith(`AfterDeadline`);
+      ).to.be.revertedWith(`AfterDepositDeadline`);
+    });
+  });
+
+  describe('unlockCvx and withdraw', () => {
+    it('unlockCvx: Should revert if no unlockable CVX', async () => {
+      await expect(lockedCvxVault.unlockCvx()).to.be.revertedWith(
+        'no exp locks'
+      );
+    });
+
+    it('withdraw: Should revert if underlying amount is zero', async () => {
+      const invalidWithdrawAmount = 0;
+
+      await expect(
+        lockedCvxVault.withdraw(admin.address, invalidWithdrawAmount)
+      ).to.be.revertedWith('ZeroAmount()');
+    });
+
+    it('withdraw: Should revert if before lock expiry', async () => {
+      const withdrawAmount = toBN(1e18);
+      const { timestamp } = await ethers.provider.getBlock('latest');
+      const LOCK_EXPIRY = await lockedCvxVault.LOCK_EXPIRY();
+
+      expect(LOCK_EXPIRY.gt(timestamp)).to.equal(true);
+      await expect(
+        lockedCvxVault.withdraw(admin.address, withdrawAmount)
+      ).to.be.revertedWith('BeforeLockExpiry');
+    });
+
+    it('withdraw: Should revert if insufficient CVX balance', async () => {
+      const LOCK_EXPIRY = await lockedCvxVault.LOCK_EXPIRY();
+      const { timestamp: timestampBefore } = await ethers.provider.getBlock(
+        'latest'
+      );
+
+      // Increase timestamp to 1 second past lock expiry
+      const timestampIncreaseAmount = Number(
+        LOCK_EXPIRY.sub(timestampBefore).add(1).toString()
+      );
+
+      await increaseBlockTimestamp(timestampIncreaseAmount);
+
+      const { timestamp: timestampAfter } = await ethers.provider.getBlock(
+        'latest'
+      );
+      const cvxBalance = await cvx.balanceOf(lockedCvxVault.address);
+      const withdrawAmount = toBN(1e18);
+
+      expect(LOCK_EXPIRY.lt(timestampBefore)).to.equal(false);
+      expect(LOCK_EXPIRY.lt(timestampAfter)).to.equal(true);
+      expect(cvxBalance).to.equal(0);
+      await expect(
+        lockedCvxVault.withdraw(admin.address, withdrawAmount)
+      ).to.be.revertedWith('ERC20: transfer amount exceeds balance');
+    });
+
+    it('unlockCvx: Should unlock unlockable CVX', async () => {
+      const LOCK_EXPIRY = await lockedCvxVault.LOCK_EXPIRY();
+      const { unlockable } = await cvxLocker.lockedBalances(
+        lockedCvxVault.address
+      );
+      const events = await callAndReturnEvents(lockedCvxVault.unlockCvx, []);
+      const unlockEvent = events[events.length - 1];
+      const { timestamp: timestampAfter } = await ethers.provider.getBlock(
+        'latest'
+      );
+
+      expect(LOCK_EXPIRY.lt(timestampAfter)).to.equal(true);
+      expect(unlockEvent.eventSignature).to.equal('UnlockCvx(uint256)');
+      expect(unlockEvent.args.amount).to.equal(unlockable);
+    });
+
+    it('withdraw: Should withdraw underlying', async () => {
+      const withdrawAmount = toBN(1e18);
+      const shareBalanceBefore = await lockedCvxVault.balanceOf(admin.address);
+      const totalHoldingsBefore = await lockedCvxVault.totalHoldings();
+      const LOCK_EXPIRY = await lockedCvxVault.LOCK_EXPIRY();
+      const { timestamp } = await ethers.provider.getBlock('latest');
+      const events = await callAndReturnEvents(lockedCvxVault.withdraw, [
+        admin.address,
+        withdrawAmount,
+      ]);
+      const shareBurnEvent = events[0];
+      const withdrawEvent = events[1];
+      const underlyingTransferEvent = events[2];
+      const shareBalanceAfter = await lockedCvxVault.balanceOf(admin.address);
+      const totalHoldingsAfter = await lockedCvxVault.totalHoldings();
+
+      expect(LOCK_EXPIRY.lt(timestamp)).to.equal(true);
+      expect(shareBalanceAfter).to.equal(
+        shareBalanceBefore.sub(withdrawAmount)
+      );
+      expect(totalHoldingsAfter).to.equal(
+        totalHoldingsBefore.sub(withdrawAmount)
+      );
+      expect(shareBurnEvent.eventSignature).to.equal(
+        'Transfer(address,address,uint256)'
+      );
+      expect(shareBurnEvent.args.from).to.equal(admin.address);
+      expect(shareBurnEvent.args.to).to.equal(zeroAddress);
+      expect(shareBurnEvent.args.value).to.equal(withdrawAmount);
+      expect(withdrawEvent.eventSignature).to.equal(
+        'Withdraw(address,address,uint256)'
+      );
+      expect(withdrawEvent.args.from).to.equal(admin.address);
+      expect(withdrawEvent.args.to).to.equal(admin.address);
+      expect(withdrawEvent.args.underlyingAmount).to.equal(withdrawAmount);
+      expect(underlyingTransferEvent.eventSignature).to.equal(
+        'Transfer(address,address,uint256)'
+      );
+      expect(underlyingTransferEvent.args.from).to.equal(
+        lockedCvxVault.address
+      );
+      expect(underlyingTransferEvent.args.to).to.equal(admin.address);
+      expect(underlyingTransferEvent.args.value).to.equal(withdrawAmount);
+    });
+
+    it('Should revert if withdrawing more than share balance', async () => {
+      const shareBalance = await lockedCvxVault.balanceOf(admin.address);
+      const invalidWithdrawAmount = shareBalance.add(1);
+
+      await expect(
+        lockedCvxVault.withdraw(admin.address, invalidWithdrawAmount)
+      ).to.be.revertedWith('ERC20: burn amount exceeds balance');
+    });
+
+    it('Should revert if recipient is zero address', async () => {
+      const withdrawAmount = toBN(1e18);
+
+      await expect(
+        lockedCvxVault.withdraw(zeroAddress, withdrawAmount)
+      ).to.be.revertedWith('ERC20: transfer to the zero address');
     });
   });
 });
