@@ -198,6 +198,7 @@ describe('LockedCvxVault', () => {
       const cvxLockerApprovalEvent = events[4];
       const cvxLockerTransferEvent = events[5];
       const cvxLockerAllowanceUpdateEvent = events[6];
+      const cvxLockEvent = events[events.length - 1];
 
       expect(shareBalanceBefore).to.equal(totalHoldingsBefore).to.equal(0);
       expect(shareBalanceAfter)
@@ -258,6 +259,8 @@ describe('LockedCvxVault', () => {
       expect(cvxLockerTransferEvent.args.from).to.equal(lockedCvxVault.address);
       expect(cvxLockerTransferEvent.args.to).to.equal(cvxLocker.address);
       expect(cvxLockerTransferEvent.args.value).to.equal(depositAmount);
+      expect(cvxLockEvent.eventSignature).to.equal('LockCvx(uint256)');
+      expect(cvxLockEvent.args.amount).to.equal(depositAmount);
     });
 
     // Test that deposit works as expected on subsequent calls
