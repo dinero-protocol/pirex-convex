@@ -3,13 +3,6 @@ pragma solidity 0.8.12;
 
 // https://raw.githubusercontent.com/Joeysantoro/solmate/8e29eb81add18f7d7cb8abc1e5f1e30ed38c35b0/src/mixins/yield-erc/ERC20Vault.sol
 
-/** Modifications
-- Derive from Initializable and ERC20PresetMinterPauserUpgradeable contracts
-- Modify import paths for libraries
-- Replace constructor with initializer with argument checks
-- Use ERC20PresetMinterPauserUpgradeable methods in place of Solmate ERC20 methods
-*/
-
 import {ERC20PresetMinterPauserUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/presets/ERC20PresetMinterPauserUpgradeable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";

@@ -64,6 +64,11 @@ contract VaultController is Ownable {
             (block.timestamp / EPOCH_DEPOSIT_DURATION) * EPOCH_DEPOSIT_DURATION;
     }
 
+    /**
+        @notice Deploy a LockedCvxVault instance for an epoch
+        @param   epoch  uint256  Epoch without a LockedCvxVault instance
+        @return  vault  address  LockedCvxVault address
+     */
     function _createLockedCvxVault(uint256 epoch)
         internal
         returns (address vault)
