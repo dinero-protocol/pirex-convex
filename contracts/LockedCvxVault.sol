@@ -15,6 +15,7 @@ contract LockedCvxVault is ERC4626VaultInitializable {
     ICvxLocker public cvxLocker;
 
     event UnlockCvx(uint256 amount);
+    event LockCvx(uint256 amount);
     event Inititalized(
         uint256 _depositDeadline,
         uint256 _lockExpiry,
@@ -62,11 +63,9 @@ contract LockedCvxVault is ERC4626VaultInitializable {
         @notice Unlocks CVX
      */
     function unlockCvx() external {
-        uint256 balanceBefore = underlying.balanceOf(address(this));
-
+        (, uint256 unlockable, , ) = cvxLocker.lockedBalances(address(this));
         cvxLocker.processExpiredLocks(false, 0, address(this));
-
-        emit UnlockCvx(underlying.balanceOf(address(this)) - balanceBefore);
+        emit UnlockCvx(unlockable);
     }
 
     /**
@@ -96,6 +95,7 @@ contract LockedCvxVault is ERC4626VaultInitializable {
     function afterDeposit(uint256 underlyingAmount) internal override {
         underlying.safeIncreaseAllowance(address(cvxLocker), underlyingAmount);
         cvxLocker.lock(address(this), underlyingAmount, 0);
+        emit LockCvx(underlyingAmount);
     }
 
     /**
