@@ -64,7 +64,8 @@ contract LockedCvxVault is ERC4626VaultInitializable {
      */
     function unlockCvx() external {
         (, uint256 unlockable, , ) = cvxLocker.lockedBalances(address(this));
-        cvxLocker.processExpiredLocks(false, 0, address(this));
+        if (unlockable != 0)
+            cvxLocker.processExpiredLocks(false, 0, address(this));
         emit UnlockCvx(unlockable);
     }
 
