@@ -5,36 +5,7 @@ import "hardhat/console.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC4626VaultInitializable} from "./ERC4626VaultInitializable.sol";
-
-interface ICvxLocker {
-    struct LockedBalance {
-        uint112 amount;
-        uint112 boosted;
-        uint32 unlockTime;
-    }
-
-    function lock(
-        address _account,
-        uint256 _amount,
-        uint256 _spendRatio
-    ) external;
-
-    function lockedBalances(address _user)
-        external
-        view
-        returns (
-            uint256 total,
-            uint256 unlockable,
-            uint256 locked,
-            LockedBalance[] memory lockData
-        );
-
-    function processExpiredLocks(
-        bool _relock,
-        uint256 _spendRatio,
-        address _withdrawTo
-    ) external;
-}
+import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 
 contract LockedCvxVault is ERC4626VaultInitializable {
     using SafeERC20 for ERC20;
@@ -44,6 +15,14 @@ contract LockedCvxVault is ERC4626VaultInitializable {
     ICvxLocker public cvxLocker;
 
     event UnlockCvx(uint256 amount);
+    event Inititalized(
+        uint256 _depositDeadline,
+        uint256 _lockExpiry,
+        ICvxLocker _cvxLocker,
+        ERC20 _underlying,
+        string _name,
+        string _symbol
+    );
 
     error ZeroAddress();
     error ZeroAmount();

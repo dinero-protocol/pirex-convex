@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { increaseBlockTimestamp, toBN } from './helpers';
+import { Promise } from 'bluebird';
+import { increaseBlockTimestamp, toBN, callAndReturnEvents, getNumberBetweenRange } from './helpers';
 import {
   ConvexToken,
   Crv,
@@ -11,13 +12,15 @@ import {
   CvxRewardPool,
   CvxStakingProxy,
   CurveVoterProxy,
-  VaultController,
+  VaultControllerMock,
+  LockedCvxVault,
 } from '../typechain-types';
+import { BigNumber } from 'ethers';
 
-describe('LockedCvxVault', () => {
+describe('VaultController', () => {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
-  let vaultController: VaultController;
+  let vaultController: VaultControllerMock;
 
   // Mocked Convex contracts
   let cvx: ConvexToken;
@@ -33,8 +36,10 @@ describe('LockedCvxVault', () => {
   let cvxLocker: CvxLocker;
   let cvxRewardPool: CvxRewardPool;
   let cvxStakingProxy: CvxStakingProxy;
+  let cvxLockDuration: BigNumber;
+  let firstLockedCvxVault: LockedCvxVault;
 
-  const epochDepositDuration = 1209600; // 2 weeks in seconds
+  const epochDepositDuration = toBN(1209600); // 2 weeks in seconds
   const initialCvxBalanceForAdmin = toBN(100e18);
   const crvAddr = '0xd533a949740bb3306d119cc777fa900ba034cd52';
   const crvDepositorAddr = '0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae';
@@ -45,7 +50,9 @@ describe('LockedCvxVault', () => {
   before(async () => {
     [admin, notAdmin] = await ethers.getSigners();
 
-    const VaultController = await ethers.getContractFactory('VaultController');
+    const VaultController = await ethers.getContractFactory(
+      'VaultControllerMock'
+    );
 
     // Mocked Convex contracts
     const Cvx = await ethers.getContractFactory('ConvexToken');
@@ -65,10 +72,6 @@ describe('LockedCvxVault', () => {
     curveVoterProxy = await CurveVoterProxy.deploy();
     cvx = await Cvx.deploy(curveVoterProxy.address);
     crv = await Crv.deploy();
-    vaultController = await VaultController.deploy(
-      cvx.address,
-      epochDepositDuration
-    );
     cvxCrvToken = await CvxCrvToken.deploy();
     booster = await Booster.deploy(curveVoterProxy.address, cvx.address);
     rewardFactory = await RewardFactory.deploy(booster.address);
@@ -83,6 +86,15 @@ describe('LockedCvxVault', () => {
       cvx.address,
       cvxCrvToken.address,
       baseRewardPool.address
+    );
+    cvxLockDuration = (await cvxLocker.lockDuration()).add(
+      epochDepositDuration
+    );
+    vaultController = await VaultController.deploy(
+      cvx.address,
+      cvxLocker.address,
+      epochDepositDuration,
+      cvxLockDuration
     );
     cvxRewardPool = await CvxRewardPool.deploy(
       cvx.address,
@@ -114,9 +126,14 @@ describe('LockedCvxVault', () => {
       const CVX = await vaultController.CVX();
       const EPOCH_DEPOSIT_DURATION =
         await vaultController.EPOCH_DEPOSIT_DURATION();
+      const CVX_LOCK_DURATION = await vaultController.CVX_LOCK_DURATION();
+      const expectedCvxLockDuration = (await cvxLocker.lockDuration()).add(
+        EPOCH_DEPOSIT_DURATION
+      );
 
       expect(CVX).to.equal(cvx.address);
       expect(EPOCH_DEPOSIT_DURATION).to.equal(epochDepositDuration);
+      expect(CVX_LOCK_DURATION).to.equal(expectedCvxLockDuration);
     });
   });
 
@@ -132,11 +149,131 @@ describe('LockedCvxVault', () => {
 
       await increaseBlockTimestamp(Number(EPOCH_DEPOSIT_DURATION.toString()));
 
-      const secondExpectedEpoch = firstExpectedEpoch.add(EPOCH_DEPOSIT_DURATION);
+      const secondExpectedEpoch = firstExpectedEpoch.add(
+        EPOCH_DEPOSIT_DURATION
+      );
       const secondCurrentEpoch = await vaultController.getCurrentEpoch();
 
       expect(firstCurrentEpoch).to.equal(firstExpectedEpoch);
       expect(secondCurrentEpoch).to.equal(secondExpectedEpoch);
+    });
+  });
+
+  describe('createLockedCvxVault', () => {
+    it('Should create a new LockedCvxVault instance', async () => {
+      const currentEpoch = await vaultController.getCurrentEpoch();
+      const vaultBeforeCreate = await vaultController.lockedCvxVaultsByEpoch(
+        currentEpoch
+      );
+      const events = await callAndReturnEvents(
+        vaultController.createLockedCvxVault,
+        [currentEpoch]
+      );
+      const createdVaultEvent = events[events.length - 1];
+      const vaultAfterCreate = await vaultController.lockedCvxVaultsByEpoch(
+        currentEpoch
+      );
+      const expectedDepositDeadline = currentEpoch.add(
+        await vaultController.EPOCH_DEPOSIT_DURATION()
+      );
+      const expectedLockExpiry = expectedDepositDeadline.add(
+        await vaultController.CVX_LOCK_DURATION()
+      );
+
+      firstLockedCvxVault = await ethers.getContractAt(
+        'LockedCvxVault',
+        vaultAfterCreate
+      );
+
+      expect(vaultBeforeCreate).to.equal(zeroAddress);
+      expect(createdVaultEvent.eventSignature).to.equal(
+        'CreatedLockedCvxVault(address,uint256,uint256,string,string)'
+      );
+      expect(createdVaultEvent.args.vault)
+        .to.equal(vaultAfterCreate)
+        .to.not.equal(zeroAddress);
+      expect(createdVaultEvent.args.depositDeadline)
+        .to.equal(expectedDepositDeadline)
+        .to.be.gt(currentEpoch);
+      expect(createdVaultEvent.args.lockExpiry)
+        .to.equal(expectedLockExpiry)
+        .to.be.gt(expectedDepositDeadline);
+      expect(createdVaultEvent.args.name)
+        .to.equal(createdVaultEvent.args.symbol)
+        .to.equal(`lockedCVX-${currentEpoch}`);
+    });
+
+    it('Should revert if vault already exists for epoch', async () => {
+      const currentEpoch = await vaultController.getCurrentEpoch();
+      const vault = await vaultController.lockedCvxVaultsByEpoch(currentEpoch);
+
+      expect(vault)
+        .to.equal(firstLockedCvxVault.address)
+        .to.not.equal(zeroAddress);
+      await expect(
+        vaultController.createLockedCvxVault(currentEpoch)
+      ).to.be.revertedWith(`VaultExistsForEpoch(${currentEpoch})`);
+    });
+  });
+
+  describe('deposit', () => {
+    it('Should deposit CVX', async () => {
+      const depositAmount = toBN(1e18);
+      const shareBalanceBefore = await firstLockedCvxVault.balanceOf(
+        admin.address
+      );
+      const totalHoldingsBefore = await firstLockedCvxVault.totalHoldings();
+      const depositAllowance = depositAmount;
+
+      await cvx.approve(vaultController.address, depositAllowance);
+
+      const events = await callAndReturnEvents(vaultController.deposit, [
+        admin.address,
+        depositAmount,
+      ]);
+      const shareBalanceAfter = await firstLockedCvxVault.balanceOf(
+        admin.address
+      );
+      const totalHoldingsAfter = await firstLockedCvxVault.totalHoldings();
+      const depositEvent = events[events.length - 1];
+
+      expect(shareBalanceBefore).to.equal(totalHoldingsBefore).to.equal(0);
+      expect(shareBalanceAfter)
+        .to.equal(totalHoldingsAfter)
+        .to.equal(depositAmount)
+        .to.be.gt(0);
+      expect(depositEvent.eventSignature).to.equal(
+        'Deposited(address,uint256)'
+      );
+      expect(depositEvent.args.to).to.equal(admin.address);
+      expect(depositEvent.args.amount).to.equal(depositAmount);
+    });
+
+    it('Should deposit CVX (N times)', async () => {
+      const depositAmount = toBN(1e18);
+      const iterations = getNumberBetweenRange(1, 10);
+      const totalDeposit = depositAmount.mul(iterations);
+      const shareBalanceBefore = await firstLockedCvxVault.balanceOf(
+        admin.address
+      );
+      const totalHoldingsBefore = await firstLockedCvxVault.totalHoldings();;
+
+      await cvx.approve(vaultController.address, totalDeposit);
+      await Promise.map(
+        [...Array(iterations).keys()],
+        async () => await vaultController.deposit(admin.address, depositAmount)
+      );
+
+      const shareBalanceAfter = await firstLockedCvxVault.balanceOf(
+        admin.address
+      );
+      const totalHoldingsAfter = await firstLockedCvxVault.totalHoldings();
+
+      expect(shareBalanceBefore).to.equal(totalHoldingsBefore);
+      expect(shareBalanceAfter)
+        .to.equal(totalHoldingsAfter)
+        .to.equal(shareBalanceBefore.add(totalDeposit))
+        .to.be.gt(0);
     });
   });
 });
