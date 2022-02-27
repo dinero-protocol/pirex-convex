@@ -8,7 +8,7 @@ import {
 } from './helpers';
 import { BigNumber } from 'ethers';
 import {
-  Cvx,
+  ConvexToken,
   Crv,
   Booster,
   RewardFactory,
@@ -26,7 +26,7 @@ describe('PirexCvx', () => {
   let cvxLockerLockDuration: BigNumber;
 
   // Mocked Convex contracts
-  let cvx: Cvx;
+  let cvx: ConvexToken;
   let crv: Crv;
 
   // Seemingly invalid errors thrown for typechain types but they are correct
@@ -59,7 +59,7 @@ describe('PirexCvx', () => {
     const PirexCvx = await ethers.getContractFactory('PirexCvx');
 
     // Mocked Convex contracts
-    const Cvx = await ethers.getContractFactory('Cvx');
+    const Cvx = await ethers.getContractFactory('ConvexToken');
     const Crv = await ethers.getContractFactory('Crv');
     const CvxCrvToken = await ethers.getContractFactory('cvxCrvToken');
     const CurveVoterProxy = await ethers.getContractFactory('CurveVoterProxy');
@@ -73,10 +73,10 @@ describe('PirexCvx', () => {
     const CvxStakingProxy = await ethers.getContractFactory('CvxStakingProxy');
 
     // Mocked Convex contracts
-    cvx = await Cvx.deploy();
+    curveVoterProxy = await CurveVoterProxy.deploy();
+    cvx = await Cvx.deploy(curveVoterProxy.address);
     crv = await Crv.deploy();
     cvxCrvToken = await CvxCrvToken.deploy();
-    curveVoterProxy = await CurveVoterProxy.deploy();
     booster = await Booster.deploy(curveVoterProxy.address, cvx.address);
     rewardFactory = await RewardFactory.deploy(booster.address);
     baseRewardPool = await BaseRewardPool.deploy(
