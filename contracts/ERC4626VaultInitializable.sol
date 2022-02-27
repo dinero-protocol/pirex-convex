@@ -20,6 +20,7 @@ import {FixedPointMathLib} from "./lib/FixedPointMathLib.sol";
 
 /// @title Modifications
 /// @author kphed [REDACTED]
+/// - Use an init function instead of constructor
 /// - Use OZ implementations until after we review Solmate
 ///     - Use OpenZeppelin ERC20 implementation
 ///     - Use SafeERC20
