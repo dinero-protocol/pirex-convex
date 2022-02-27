@@ -1,6 +1,6 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { BigNumber } from "ethers";
-import { ethers } from "hardhat";
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { BigNumber } from 'ethers';
+import { ethers } from 'hardhat';
 
 export const callAndReturnEvent = async (
   fn: any,
@@ -11,10 +11,16 @@ export const callAndReturnEvent = async (
   return events[events.length - 1];
 }
 
+export async function callAndReturnEvents(fn: any, fnArgs: any): Promise<any> {
+  const { events } = await (await fn(...fnArgs)).wait();
+
+  return events;
+}
+
 export async function increaseBlockTimestamp(time: number) {
   // Fast forward 1 rewards duration so that balance is reflected
-  await ethers.provider.send("evm_increaseTime", [time]);
-  await ethers.provider.send("evm_mine", []);
+  await ethers.provider.send('evm_increaseTime', [time]);
+  await ethers.provider.send('evm_mine', []);
 }
 
 // This method prevents the overflow error when calling toNumber() directly on large #s
@@ -30,12 +36,18 @@ export const impersonateAddressAndReturnSigner = async (
   networkAdmin: SignerWithAddress,
   address: string
 ) => {
-  await ethers.provider.send("hardhat_impersonateAccount", [address]);
+  await ethers.provider.send('hardhat_impersonateAccount', [address]);
   const account = await ethers.getSigner(address);
   await networkAdmin.sendTransaction({
     to: address,
-    value: ethers.utils.parseEther("100"),
+    value: ethers.utils.parseEther('100'),
   });
 
   return account;
 };
+
+// Min must be 1 or greater
+export const getNumberBetweenRange: (min: number, max: number) => number = (
+  min: number,
+  max: number
+) => Math.floor(Math.random() * max) + (min > 0 ? min : 1);
