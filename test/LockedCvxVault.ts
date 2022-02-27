@@ -83,7 +83,7 @@ describe('LockedCvxVault', () => {
       initialEpochDepositDuration
     );
     depositDeadline = (await vaultController.getCurrentEpoch()).add(
-      await vaultController.epochDepositDuration()
+      await vaultController.EPOCH_DEPOSIT_DURATION()
     );
     cvxCrvToken = await CvxCrvToken.deploy();
     booster = await Booster.deploy(curveVoterProxy.address, cvx.address);
@@ -178,8 +178,6 @@ describe('LockedCvxVault', () => {
       const cvxLockerApprovalEvent = events[4];
       const cvxLockerTransferEvent = events[5];
       const cvxLockerAllowanceUpdateEvent = events[6];
-
-      console.log(events);
 
       expect(shareBalanceBefore).to.equal(totalHoldingsBefore).to.equal(0);
       expect(shareBalanceAfter)
@@ -285,7 +283,7 @@ describe('LockedCvxVault', () => {
     it('Should revert if depositing after deadline', async () => {
       const DEPOSIT_DEADLINE = await lockedCvxVault.DEPOSIT_DEADLINE();
       const epochDepositDuration = Number(
-        (await vaultController.epochDepositDuration()).toString()
+        (await vaultController.EPOCH_DEPOSIT_DURATION()).toString()
       );
       const depositAmount = toBN(1e18);
 
