@@ -2,7 +2,12 @@ import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { Promise } from 'bluebird';
-import { increaseBlockTimestamp, toBN, callAndReturnEvents, getNumberBetweenRange } from './helpers';
+import {
+  increaseBlockTimestamp,
+  toBN,
+  callAndReturnEvents,
+  getNumberBetweenRange,
+} from './helpers';
 import {
   ConvexToken,
   Crv,
@@ -37,6 +42,7 @@ describe('VaultController', () => {
   let cvxRewardPool: CvxRewardPool;
   let cvxStakingProxy: CvxStakingProxy;
   let cvxLockDuration: BigNumber;
+  let firstVaultEpoch: BigNumber;
   let firstLockedCvxVault: LockedCvxVault;
 
   const epochDepositDuration = toBN(1209600); // 2 weeks in seconds
@@ -180,6 +186,7 @@ describe('VaultController', () => {
         await vaultController.CVX_LOCK_DURATION()
       );
 
+      firstVaultEpoch = currentEpoch;
       firstLockedCvxVault = await ethers.getContractAt(
         'LockedCvxVault',
         vaultAfterCreate
@@ -236,6 +243,7 @@ describe('VaultController', () => {
       );
       const totalHoldingsAfter = await firstLockedCvxVault.totalHoldings();
       const depositEvent = events[events.length - 1];
+      const currentEpoch = await vaultController.getCurrentEpoch();
 
       expect(shareBalanceBefore).to.equal(totalHoldingsBefore).to.equal(0);
       expect(shareBalanceAfter)
@@ -243,10 +251,13 @@ describe('VaultController', () => {
         .to.equal(depositAmount)
         .to.be.gt(0);
       expect(depositEvent.eventSignature).to.equal(
-        'Deposited(address,uint256)'
+        'Deposited(uint256,address,uint256)'
       );
-      expect(depositEvent.args.to).to.equal(admin.address);
-      expect(depositEvent.args.amount).to.equal(depositAmount);
+      expect(depositEvent.args.epoch).to.equal(currentEpoch).to.be.gt(0);
+      expect(depositEvent.args.to)
+        .to.equal(admin.address)
+        .to.not.equal(zeroAddress);
+      expect(depositEvent.args.amount).to.equal(depositAmount).to.be.gt(0);
     });
 
     it('Should deposit CVX (N times)', async () => {
@@ -256,7 +267,7 @@ describe('VaultController', () => {
       const shareBalanceBefore = await firstLockedCvxVault.balanceOf(
         admin.address
       );
-      const totalHoldingsBefore = await firstLockedCvxVault.totalHoldings();;
+      const totalHoldingsBefore = await firstLockedCvxVault.totalHoldings();
 
       await cvx.approve(vaultController.address, totalDeposit);
       await Promise.map(
@@ -274,6 +285,53 @@ describe('VaultController', () => {
         .to.equal(totalHoldingsAfter)
         .to.equal(shareBalanceBefore.add(totalDeposit))
         .to.be.gt(0);
+    });
+  });
+
+  describe('withdraw', () => {
+    it('Should revert if withdrawing before vault lock expiry', async () => {
+      const withdrawAmount = toBN(1e18);
+
+      await firstLockedCvxVault.approve(
+        vaultController.address,
+        withdrawAmount
+      );
+
+      await expect(
+        vaultController.withdraw(firstVaultEpoch, admin.address, withdrawAmount)
+      ).to.be.revertedWith('BeforeLockExpiry');
+    });
+
+    it('Should withdraw if after vault lock expiry', async () => {
+      const lockExpiry = await firstLockedCvxVault.lockExpiry();
+      const { timestamp: timestampBefore } = await ethers.provider.getBlock(
+        'latest'
+      );
+      const timestampIncreaseAmount = Number(
+        lockExpiry.sub(timestampBefore).add(1).toString()
+      );
+
+      await increaseBlockTimestamp(timestampIncreaseAmount);
+
+      const { timestamp: timestampAfter } = await ethers.provider.getBlock(
+        'latest'
+      );
+      const withdrawAmount = toBN(1e18);
+      const events = await callAndReturnEvents(vaultController.withdraw, [
+        firstVaultEpoch,
+        admin.address,
+        withdrawAmount,
+      ]);
+      const withdrawEvent = events[events.length - 1];
+
+      expect(lockExpiry.lt(timestampBefore)).to.equal(false);
+      expect(lockExpiry.lt(timestampAfter)).to.equal(true);
+      expect(withdrawEvent.eventSignature).to.equal(
+        'Withdrew(uint256,address,uint256)'
+      );
+      expect(withdrawEvent.args.epoch).to.equal(firstVaultEpoch);
+      expect(withdrawEvent.args.to).to.equal(admin.address);
+      expect(withdrawEvent.args.amount).to.equal(withdrawAmount);
     });
   });
 });
