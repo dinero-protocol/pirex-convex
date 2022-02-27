@@ -28,11 +28,13 @@ contract VaultController is Ownable {
         string name,
         string symbol
     );
-    event Deposited(address to, uint256 amount);
+    event Deposited(uint256 epoch, address to, uint256 amount);
+    event Withdrew(uint256 epoch, address to, uint256 amount);
 
     error ZeroAddress();
     error ZeroAmount();
     error VaultExistsForEpoch(uint256 epoch);
+    error InvalidVaultEpoch(uint256 epoch);
 
     constructor(
         ERC20 _CVX,
@@ -118,10 +120,40 @@ contract VaultController is Ownable {
             v = LockedCvxVault(_createLockedCvxVault(currentEpoch));
         }
 
+        // Transfer vault underlying and approve amount to be deposited
         CVX.safeTransferFrom(msg.sender, address(this), amount);
         CVX.safeIncreaseAllowance(address(v), amount);
         v.deposit(to, amount);
 
-        emit Deposited(to, amount);
+        emit Deposited(currentEpoch, to, amount);
+    }
+
+    /**
+        @notice Withdraw CVX
+        @param  epoch   uint256  Locked CVX epoch
+        @param  to      address  Address receiving vault underlying
+        @param  amount  uint256  CVX amount
+    */
+    function withdraw(
+        uint256 epoch,
+        address to,
+        uint256 amount
+    ) external {
+        if (to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+
+        address vAddr = lockedCvxVaultsByEpoch[epoch];
+        if (vAddr == address(0)) revert InvalidVaultEpoch(epoch);
+
+        // Transfer vault shares and approve amount to be burned
+        ERC20(vAddr).safeTransferFrom(msg.sender, address(this), amount);
+        ERC20(vAddr).safeIncreaseAllowance(vAddr, amount);
+
+        // Unlock CVX and withdraw
+        LockedCvxVault v = LockedCvxVault(vAddr);
+        v.unlockCvx();
+        v.withdraw(to, amount);
+
+        emit Withdrew(epoch, to, amount);
     }
 }
