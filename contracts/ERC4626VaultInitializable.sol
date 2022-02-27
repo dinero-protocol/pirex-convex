@@ -13,19 +13,24 @@ pragma solidity 0.8.12;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {ERC20PresetMinterPauserUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/presets/ERC20PresetMinterPauserUpgradeable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {FixedPointMathLib} from "./lib/FixedPointMathLib.sol";
-import {SafeTransferLib} from "./lib/SafeTransferLib.sol";
 
 /// @title Yield Bearing Vault
 /// @author joeysantoro, Transmissions11 and JetJadeja
 
-/// @title Minimal Proxy Modifications
+/// @title Modifications
 /// @author kphed 🦋
+/// - Make initializable
+/// - Use OZ implementations until after we review Solmate
+///     - Use OpenZeppelin ERC20 implementation
+///     - Use SafeERC20
+/// - Add beforeDeposit hook
 contract ERC4626VaultInitializable is
     Initializable,
     ERC20PresetMinterPauserUpgradeable
 {
-    using SafeTransferLib for ERC20;
+    using SafeERC20 for ERC20;
     using FixedPointMathLib for uint256;
 
     /*///////////////////////////////////////////////////////////////
@@ -96,6 +101,8 @@ contract ERC4626VaultInitializable is
 
         emit Deposit(msg.sender, to, underlyingAmount);
 
+        beforeDeposit(underlyingAmount);
+
         // Transfer in underlying tokens from the user.
         // This will revert if the user does not have the amount specified.
         underlying.safeTransferFrom(
@@ -151,6 +158,8 @@ contract ERC4626VaultInitializable is
 
         underlying.safeTransfer(to, underlyingAmount);
     }
+
+    function beforeDeposit(uint256 underlyingAmount) internal virtual {}
 
     function beforeWithdraw(uint256 underlyingAmount) internal virtual {}
 
