@@ -323,12 +323,6 @@ describe('LockedCvxVault', () => {
   });
 
   describe('unlockCvx and withdraw', () => {
-    it('unlockCvx: Should revert if no unlockable CVX', async () => {
-      await expect(lockedCvxVault.unlockCvx()).to.be.revertedWith(
-        'no exp locks'
-      );
-    });
-
     it('withdraw: Should revert if underlying amount is zero', async () => {
       const invalidWithdrawAmount = 0;
 
