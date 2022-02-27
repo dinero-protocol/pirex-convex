@@ -44,8 +44,9 @@ describe('LockedCvxVault', () => {
   let cvxLocker: CvxLocker;
   let cvxRewardPool: CvxRewardPool;
   let cvxStakingProxy: CvxStakingProxy;
+  let cvxLockDuration: BigNumber;
 
-  const initialEpochDepositDuration = 1209600; // 2 weeks in seconds
+  const epochDepositDuration = toBN(1209600); // 2 weeks in seconds
   const underlyingTokenNameSymbol = 'lockedCVX';
   const initialCvxBalanceForAdmin = toBN(100e18);
   const crvAddr = '0xd533a949740bb3306d119cc777fa900ba034cd52';
@@ -78,13 +79,6 @@ describe('LockedCvxVault', () => {
     curveVoterProxy = await CurveVoterProxy.deploy();
     cvx = await Cvx.deploy(curveVoterProxy.address);
     crv = await Crv.deploy();
-    vaultController = await VaultController.deploy(
-      cvx.address,
-      initialEpochDepositDuration
-    );
-    depositDeadline = (await vaultController.getCurrentEpoch()).add(
-      await vaultController.EPOCH_DEPOSIT_DURATION()
-    );
     cvxCrvToken = await CvxCrvToken.deploy();
     booster = await Booster.deploy(curveVoterProxy.address, cvx.address);
     rewardFactory = await RewardFactory.deploy(booster.address);
@@ -99,6 +93,18 @@ describe('LockedCvxVault', () => {
       cvx.address,
       cvxCrvToken.address,
       baseRewardPool.address
+    );
+    cvxLockDuration = (await cvxLocker.lockDuration()).add(
+      epochDepositDuration
+    );
+    vaultController = await VaultController.deploy(
+      cvx.address,
+      cvxLocker.address,
+      epochDepositDuration,
+      cvxLockDuration
+    );
+    depositDeadline = (await vaultController.getCurrentEpoch()).add(
+      await vaultController.EPOCH_DEPOSIT_DURATION()
     );
     lockExpiry = (await cvxLocker.lockDuration()).add(depositDeadline);
     lockedCvxVault = await LockedCvxVault.deploy();
