@@ -25,15 +25,13 @@ contract VaultController is Ownable {
         address vault,
         uint256 depositDeadline,
         uint256 lockExpiry,
-        string name,
-        string symbol
+        string tokenId
     );
     event Deposited(uint256 epoch, address to, uint256 amount);
     event Withdrew(uint256 epoch, address to, uint256 amount);
 
     error ZeroAddress();
     error ZeroAmount();
-    error VaultExistsForEpoch(uint256 epoch);
     error InvalidVaultEpoch(uint256 epoch);
 
     constructor(
@@ -67,16 +65,16 @@ contract VaultController is Ownable {
     }
 
     /**
-        @notice Deploy a LockedCvxVault instance for an epoch
-        @param   epoch  uint256  Epoch without a LockedCvxVault instance
+        @notice Deploy and/or return the address for a LockedCvxVault
+        @param   epoch  uint256  Epoch
         @return  vault  address  LockedCvxVault address
      */
-    function _createLockedCvxVault(uint256 epoch)
+    function _createOrReturnLockedCvxVault(uint256 epoch)
         internal
         returns (address vault)
     {
         if (lockedCvxVaultsByEpoch[epoch] != address(0))
-            revert VaultExistsForEpoch(epoch);
+            return lockedCvxVaultsByEpoch[epoch];
 
         LockedCvxVault v = LockedCvxVault(
             Clones.clone(LOCKED_CVX_VAULT_IMPLEMENTATION)
@@ -93,13 +91,7 @@ contract VaultController is Ownable {
         vault = address(v);
         lockedCvxVaultsByEpoch[epoch] = vault;
 
-        emit CreatedLockedCvxVault(
-            vault,
-            depositDeadline,
-            lockExpiry,
-            tokenId,
-            tokenId
-        );
+        emit CreatedLockedCvxVault(vault, depositDeadline, lockExpiry, tokenId);
 
         return vault;
     }
@@ -114,11 +106,7 @@ contract VaultController is Ownable {
         if (amount == 0) revert ZeroAmount();
 
         uint256 currentEpoch = getCurrentEpoch();
-        LockedCvxVault v = LockedCvxVault(lockedCvxVaultsByEpoch[currentEpoch]);
-
-        if (address(v) == address(0)) {
-            v = LockedCvxVault(_createLockedCvxVault(currentEpoch));
-        }
+        LockedCvxVault v = LockedCvxVault(_createOrReturnLockedCvxVault(currentEpoch));
 
         // Transfer vault underlying and approve amount to be deposited
         CVX.safeTransferFrom(msg.sender, address(this), amount);
