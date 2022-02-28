@@ -131,7 +131,7 @@ describe('LockedCvxVault', () => {
       cvxCrvToken.address
     );
 
-    await lockedCvxVault.init(
+    await lockedCvxVault.initialize(
       vaultController.address,
       depositDeadline,
       lockExpiry,
@@ -152,7 +152,7 @@ describe('LockedCvxVault', () => {
   describe('init', () => {
     it('Should not be callable more than once', async () => {
       await expect(
-        lockedCvxVault.init(
+        lockedCvxVault.initialize(
           vaultController.address,
           depositDeadline,
           lockExpiry,

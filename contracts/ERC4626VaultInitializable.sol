@@ -3,7 +3,7 @@ pragma solidity 0.8.12;
 
 // https://raw.githubusercontent.com/Joeysantoro/solmate/8e29eb81add18f7d7cb8abc1e5f1e30ed38c35b0/src/mixins/yield-erc/ERC20Vault.sol
 
-import {ERC20PresetMinterPauserUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/presets/ERC20PresetMinterPauserUpgradeable.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {FixedPointMathLib} from "./lib/FixedPointMathLib.sol";
@@ -13,12 +13,13 @@ import {FixedPointMathLib} from "./lib/FixedPointMathLib.sol";
 
 /// @title Initializable version of ERC4626Vault
 /// @author kphed [REDACTED]
-/// - Use an initialize function instead of constructor
+/// - Use upgradeable ERC20 contract
+/// - Use an initializer function instead of constructor
 /// - Use OZ implementations until after we review Solmate
 ///     - Use OpenZeppelin ERC20 implementation
 ///     - Use SafeERC20
 /// - Add beforeDeposit hook
-contract ERC4626VaultInitializable is ERC20PresetMinterPauserUpgradeable {
+contract ERC4626VaultInitializable is ERC20Upgradeable {
     using SafeERC20 for ERC20;
     using FixedPointMathLib for uint256;
 
@@ -34,7 +35,6 @@ contract ERC4626VaultInitializable is ERC20PresetMinterPauserUpgradeable {
     uint256 public baseUnit;
 
     /// @notice Initializes a new Vault that accepts a specific underlying token.
-    /// @notice Cannot be called twice due to `initalizer` modifier in `initialize`
     /// @param _underlying The ERC20 compliant token the Vault should accept.
     /// @param _name The name for the vault token.
     /// @param _symbol The symbol for the vault token.
@@ -42,13 +42,13 @@ contract ERC4626VaultInitializable is ERC20PresetMinterPauserUpgradeable {
         ERC20 _underlying,
         string memory _name,
         string memory _symbol
-    ) internal {
+    ) internal initializer {
         require(address(_underlying) != address(0), "Invalid _underlying");
         underlying = _underlying;
 
         require(bytes(_name).length != 0, "Invalid _name");
         require(bytes(_symbol).length != 0, "Invalid _symbol");
-        initialize(_name, _symbol);
+        __ERC20_init_unchained(_name, _symbol);
 
         baseUnit = 10**decimals();
     }

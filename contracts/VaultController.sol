@@ -95,7 +95,7 @@ contract VaultController is Ownable {
             abi.encodePacked("lockedCVX-", epoch.toString())
         );
 
-        v.init(
+        v.initialize(
             address(this),
             depositDeadline,
             lockExpiry,
@@ -133,7 +133,7 @@ contract VaultController is Ownable {
             abi.encodePacked("voteCVX-", epoch.toString())
         );
 
-        v.init(epoch, tokenId, tokenId);
+        v.initialize(epoch, tokenId, tokenId);
 
         vault = address(v);
         voteCvxVaultsByEpoch[epoch] = vault;
@@ -213,14 +213,6 @@ contract VaultController is Ownable {
         v.withdraw(to, amount);
 
         emit Withdrew(epoch, to, amount);
-    }
-
-    /**
-        @notice Get a VoteCvxVault address by epoch
-        @param  epoch   uint256  Epoch
-    */
-    function getVoteCvxVault(uint256 epoch) external view returns (address) {
-        return voteCvxVaultsByEpoch[epoch];
     }
 
     /**
