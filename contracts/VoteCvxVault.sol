@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.12;
 
-import {ERC20PresetMinterPauserUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/presets/ERC20PresetMinterPauserUpgradeable.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract VoteCvxVault is ERC20PresetMinterPauserUpgradeable {
+contract VoteCvxVault is ERC20Upgradeable {
     using SafeERC20 for ERC20;
 
     struct Rewards {
@@ -26,11 +26,11 @@ contract VoteCvxVault is ERC20PresetMinterPauserUpgradeable {
     error EmptyString();
     error AfterMintDeadline(uint256 timestamp);
 
-    function init(
+    function initialize(
         uint256 _mintDeadline,
         string memory _name,
         string memory _symbol
-    ) external {
+    ) external initializer {
         owner = msg.sender;
 
         if (_mintDeadline == 0) revert ZeroAmount();
@@ -38,7 +38,7 @@ contract VoteCvxVault is ERC20PresetMinterPauserUpgradeable {
 
         if (bytes(_name).length == 0) revert EmptyString();
         if (bytes(_symbol).length == 0) revert EmptyString();
-        initialize(_name, _symbol);
+        __ERC20_init_unchained(_name, _symbol);
     }
 
     modifier onlyOwner() {
@@ -46,7 +46,7 @@ contract VoteCvxVault is ERC20PresetMinterPauserUpgradeable {
         _;
     }
 
-    function mint(address to, uint256 amount) public override onlyOwner {
+    function mint(address to, uint256 amount) external onlyOwner {
         if (mintDeadline < block.timestamp)
             revert AfterMintDeadline(block.timestamp);
         _mint(to, amount);

@@ -52,7 +52,7 @@ contract LockedCvxVault is ERC4626VaultInitializable {
         @param  _name             string      Token name
         @param  _symbol           string      Token symbol
      */
-    function init(
+    function initialize(
         address _vaultController,
         uint256 _depositDeadline,
         uint256 _lockExpiry,
