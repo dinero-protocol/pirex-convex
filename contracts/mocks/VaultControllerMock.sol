@@ -3,8 +3,6 @@ pragma solidity 0.8.12;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {VaultController} from "../VaultController.sol";
-import {ICvxLocker} from "../interfaces/ICvxLocker.sol";
-import {IVotiumMultiMerkleStash} from "../interfaces/IVotiumMultiMerkleStash.sol";
 
 contract VaultControllerMock is VaultController {
     address public returnedLockedCvxVault;
@@ -12,8 +10,8 @@ contract VaultControllerMock is VaultController {
 
     constructor(
         ERC20 _CVX,
-        ICvxLocker _CVX_LOCKER,
-        IVotiumMultiMerkleStash _VOTIUM_MULTI_MERKLE_STASH,
+        address _CVX_LOCKER,
+        address _VOTIUM_MULTI_MERKLE_STASH,
         uint256 _EPOCH_DEPOSIT_DURATION,
         uint256 _CVX_LOCK_DURATION
     )
@@ -42,6 +40,9 @@ contract VaultControllerMock is VaultController {
         returnedVoteCvxVault = _createOrReturnVoteCvxVault(epoch);
     }
 
+    /**
+        @notice Restricted to VaultController to ensure reward added on VoteCvxVault
+    */
     function mintVoteCvx(address to, uint256 amount) external {
         _mintVoteCvx(to, amount);
     }

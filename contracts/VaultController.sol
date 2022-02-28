@@ -9,16 +9,14 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {LockedCvxVault} from "./LockedCvxVault.sol";
 import {VoteCvxVault} from "./VoteCvxVault.sol";
-import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
-import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 
 contract VaultController is Ownable {
     using SafeERC20 for ERC20;
     using Strings for uint256;
 
     ERC20 public immutable CVX;
-    ICvxLocker public immutable CVX_LOCKER;
-    IVotiumMultiMerkleStash public immutable VOTIUM_MULTI_MERKLE_STASH;
+    address public immutable CVX_LOCKER;
+    address public immutable VOTIUM_MULTI_MERKLE_STASH;
     uint256 public immutable EPOCH_DEPOSIT_DURATION;
     uint256 public immutable CVX_LOCK_DURATION;
     address public immutable LOCKED_CVX_VAULT_IMPLEMENTATION;
@@ -43,19 +41,18 @@ contract VaultController is Ownable {
 
     constructor(
         ERC20 _CVX,
-        ICvxLocker _CVX_LOCKER,
-        IVotiumMultiMerkleStash _VOTIUM_MULTI_MERKLE_STASH,
+        address _CVX_LOCKER,
+        address _VOTIUM_MULTI_MERKLE_STASH,
         uint256 _EPOCH_DEPOSIT_DURATION,
         uint256 _CVX_LOCK_DURATION
     ) {
         if (address(_CVX) == address(0)) revert ZeroAddress();
         CVX = _CVX;
 
-        if (address(_CVX_LOCKER) == address(0)) revert ZeroAddress();
+        if (_CVX_LOCKER == address(0)) revert ZeroAddress();
         CVX_LOCKER = _CVX_LOCKER;
 
-        if (address(_VOTIUM_MULTI_MERKLE_STASH) == address(0))
-            revert ZeroAddress();
+        if (_VOTIUM_MULTI_MERKLE_STASH == address(0)) revert ZeroAddress();
         VOTIUM_MULTI_MERKLE_STASH = _VOTIUM_MULTI_MERKLE_STASH;
 
         if (_EPOCH_DEPOSIT_DURATION == 0) revert ZeroAmount();
@@ -99,7 +96,7 @@ contract VaultController is Ownable {
         );
 
         v.init(
-            this,
+            address(this),
             depositDeadline,
             lockExpiry,
             CVX_LOCKER,
@@ -224,5 +221,35 @@ contract VaultController is Ownable {
     */
     function getVoteCvxVault(uint256 epoch) external view returns (address) {
         return voteCvxVaultsByEpoch[epoch];
+    }
+
+    /**
+        @notice Claim Votium reward
+        @param  epoch        uint256    Epoch
+        @param  token        address    Reward token address
+        @param  index        uint256    Merkle tree node index
+        @param  amount       uint256    Reward token amount
+        @param  merkleProof  bytes32[]  Merkle proof
+    */
+    function claimVotiumReward(
+        uint256 epoch,
+        address token,
+        uint256 index,
+        uint256 amount,
+        bytes32[] calldata merkleProof
+    ) external {
+        if (lockedCvxVaultsByEpoch[epoch] == address(0))
+            revert InvalidVaultEpoch(epoch);
+        LockedCvxVault lockV = LockedCvxVault(lockedCvxVaultsByEpoch[epoch]);
+
+        // This method must be called in the same epoch that bribes are distributed
+        // Handled by protocol operators but may be incentivized later
+        address voteVAddr = voteCvxVaultsByEpoch[getCurrentEpoch()];
+
+        // Claim and transfer reward to VoteCVXVault
+        lockV.claimVotiumReward(voteVAddr, token, index, amount, merkleProof);
+
+        // Add reward so that vault can track and distribute rewards
+        VoteCvxVault(voteVAddr).addReward(token);
     }
 }
