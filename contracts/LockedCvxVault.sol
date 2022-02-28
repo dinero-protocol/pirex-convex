@@ -56,7 +56,7 @@ contract LockedCvxVault is ERC4626VaultInitializable {
         if (address(_cvxLocker) == address(0)) revert ZeroAddress();
         cvxLocker = _cvxLocker;
 
-        _init(_underlying, _name, _symbol);
+        _initialize(_underlying, _name, _symbol);
     }
 
     /**
