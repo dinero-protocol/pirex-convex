@@ -33,7 +33,7 @@ contract VaultController is Ownable {
     );
     event CreatedVoteCvxVault(address vault, string tokenId);
     event Deposited(uint256 epoch, address to, uint256 amount);
-    event Withdrew(uint256 epoch, address to, uint256 amount);
+    event Redeemed(uint256 epoch, address to, uint256 amount);
 
     error ZeroAddress();
     error ZeroAmount();
@@ -187,12 +187,12 @@ contract VaultController is Ownable {
     }
 
     /**
-        @notice Withdraw CVX
+        @notice Redeem CVX
         @param  epoch   uint256  Locked CVX epoch
         @param  to      address  Address receiving vault underlying
-        @param  amount  uint256  CVX amount
+        @param  amount  uint256  Share amount
     */
-    function withdraw(
+    function redeem(
         uint256 epoch,
         address to,
         uint256 amount
@@ -203,16 +203,16 @@ contract VaultController is Ownable {
         address vAddr = lockedCvxVaultsByEpoch[epoch];
         if (vAddr == address(0)) revert InvalidVaultEpoch(epoch);
 
-        // Transfer vault shares and approve amount to be burned
+        // Transfer vault shares to self and approve amount to be burned
         ERC20(vAddr).safeTransferFrom(msg.sender, address(this), amount);
         ERC20(vAddr).safeIncreaseAllowance(vAddr, amount);
 
-        // Unlock CVX and withdraw
+        // Unlock CVX and redeem against shares
         LockedCvxVault v = LockedCvxVault(vAddr);
         v.unlockCvx();
-        v.withdraw(to, amount);
+        v.redeem(to, amount);
 
-        emit Withdrew(epoch, to, amount);
+        emit Redeemed(epoch, to, amount);
     }
 
     /**

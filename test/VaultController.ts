@@ -412,21 +412,21 @@ describe('VaultController', () => {
     });
   });
 
-  describe('withdraw', () => {
-    it('Should revert if withdrawing before vault lock expiry', async () => {
-      const withdrawAmount = toBN(1e18);
+  describe('redeem', () => {
+    it('Should revert if redeeming before vault lock expiry', async () => {
+      const redeemAmount = toBN(1e18);
 
       await firstLockedCvxVault.approve(
         vaultController.address,
-        withdrawAmount
+        redeemAmount
       );
 
       await expect(
-        vaultController.withdraw(firstVaultEpoch, admin.address, withdrawAmount)
+        vaultController.redeem(firstVaultEpoch, admin.address, redeemAmount)
       ).to.be.revertedWith('BeforeLockExpiry');
     });
 
-    it('Should withdraw if after vault lock expiry', async () => {
+    it('Should redeem if after vault lock expiry', async () => {
       const lockExpiry = await firstLockedCvxVault.lockExpiry();
       const { timestamp: timestampBefore } = await ethers.provider.getBlock(
         'latest'
@@ -440,22 +440,22 @@ describe('VaultController', () => {
       const { timestamp: timestampAfter } = await ethers.provider.getBlock(
         'latest'
       );
-      const withdrawAmount = toBN(1e18);
-      const events = await callAndReturnEvents(vaultController.withdraw, [
+      const redeemAmount = toBN(1e18);
+      const events = await callAndReturnEvents(vaultController.redeem, [
         firstVaultEpoch,
         admin.address,
-        withdrawAmount,
+        redeemAmount,
       ]);
-      const withdrawEvent = events[events.length - 1];
+      const redeemEvent = events[events.length - 1];
 
       expect(lockExpiry.lt(timestampBefore)).to.equal(false);
       expect(lockExpiry.lt(timestampAfter)).to.equal(true);
-      expect(withdrawEvent.eventSignature).to.equal(
-        'Withdrew(uint256,address,uint256)'
+      expect(redeemEvent.eventSignature).to.equal(
+        'Redeemed(uint256,address,uint256)'
       );
-      expect(withdrawEvent.args.epoch).to.equal(firstVaultEpoch);
-      expect(withdrawEvent.args.to).to.equal(admin.address);
-      expect(withdrawEvent.args.amount).to.equal(withdrawAmount);
+      expect(redeemEvent.args.epoch).to.equal(firstVaultEpoch);
+      expect(redeemEvent.args.to).to.equal(admin.address);
+      expect(redeemEvent.args.amount).to.equal(redeemAmount);
     });
   });
 });
