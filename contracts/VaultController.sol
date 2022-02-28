@@ -7,6 +7,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {LockedCvxVault} from "./LockedCvxVault.sol";
+import {VoteCvxVault} from "./VoteCvxVault.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 
 contract VaultController is Ownable {
@@ -18,8 +19,10 @@ contract VaultController is Ownable {
     uint256 public immutable EPOCH_DEPOSIT_DURATION;
     uint256 public immutable CVX_LOCK_DURATION;
     address public immutable LOCKED_CVX_VAULT_IMPLEMENTATION;
+    address public immutable VOTE_CVX_VAULT_IMPLEMENTATION;
 
     mapping(uint256 => address) public lockedCvxVaultsByEpoch;
+    mapping(uint256 => address) public voteCvxVaultsByEpoch;
 
     event CreatedLockedCvxVault(
         address vault,
@@ -27,6 +30,7 @@ contract VaultController is Ownable {
         uint256 lockExpiry,
         string tokenId
     );
+    event CreatedVoteCvxVault(address vault, string tokenId);
     event Deposited(uint256 epoch, address to, uint256 amount);
     event Withdrew(uint256 epoch, address to, uint256 amount);
 
@@ -53,6 +57,7 @@ contract VaultController is Ownable {
         CVX_LOCK_DURATION = _CVX_LOCK_DURATION;
 
         LOCKED_CVX_VAULT_IMPLEMENTATION = address(new LockedCvxVault());
+        VOTE_CVX_VAULT_IMPLEMENTATION = address(new VoteCvxVault());
     }
 
     /**
@@ -79,7 +84,6 @@ contract VaultController is Ownable {
         LockedCvxVault v = LockedCvxVault(
             Clones.clone(LOCKED_CVX_VAULT_IMPLEMENTATION)
         );
-
         uint256 depositDeadline = epoch + EPOCH_DEPOSIT_DURATION;
         uint256 lockExpiry = depositDeadline + CVX_LOCK_DURATION;
         string memory tokenId = string(
@@ -97,6 +101,48 @@ contract VaultController is Ownable {
     }
 
     /**
+        @notice Deploy and/or return the address for a VoteCvxVault
+        @param   epoch  uint256  Epoch
+        @return  vault  address  VoteCvxVault address
+     */
+    function _createOrReturnVoteCvxVault(uint256 epoch)
+        internal
+        returns (address vault)
+    {
+        if (voteCvxVaultsByEpoch[epoch] != address(0))
+            return voteCvxVaultsByEpoch[epoch];
+
+        VoteCvxVault v = VoteCvxVault(
+            Clones.clone(VOTE_CVX_VAULT_IMPLEMENTATION)
+        );
+        string memory tokenId = string(
+            abi.encodePacked("voteCVX-", epoch.toString())
+        );
+
+        v.init(tokenId, tokenId);
+
+        vault = address(v);
+        voteCvxVaultsByEpoch[epoch] = vault;
+
+        emit CreatedVoteCvxVault(vault, tokenId);
+
+        return vault;
+    }
+
+    function _mintVoteCvx(address to, uint256 amount) internal {
+        uint256 startingEpoch = getCurrentEpoch() + EPOCH_DEPOSIT_DURATION;
+
+        unchecked {
+            for (uint8 i; i < 8; ++i) {
+                uint256 epoch = startingEpoch + (i * EPOCH_DEPOSIT_DURATION);
+
+                VoteCvxVault v = VoteCvxVault(_createOrReturnVoteCvxVault(epoch));
+                v.mint(to, amount);
+            }
+        }
+    }
+
+    /**
         @notice Deposit CVX
         @param  to      address  Address receiving vault shares
         @param  amount  uint256  CVX amount
@@ -106,12 +152,16 @@ contract VaultController is Ownable {
         if (amount == 0) revert ZeroAmount();
 
         uint256 currentEpoch = getCurrentEpoch();
-        LockedCvxVault v = LockedCvxVault(_createOrReturnLockedCvxVault(currentEpoch));
+        LockedCvxVault v = LockedCvxVault(
+            _createOrReturnLockedCvxVault(currentEpoch)
+        );
 
         // Transfer vault underlying and approve amount to be deposited
         CVX.safeTransferFrom(msg.sender, address(this), amount);
         CVX.safeIncreaseAllowance(address(v), amount);
         v.deposit(to, amount);
+
+        _mintVoteCvx(to, amount);
 
         emit Deposited(currentEpoch, to, amount);
     }
