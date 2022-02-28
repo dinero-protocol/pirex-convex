@@ -10,7 +10,7 @@ contract VoteCvxVault is ERC20PresetMinterPauserUpgradeable {
 
     address public owner;
 
-    function _init(string memory _name, string memory _symbol) external {
+    function init(string memory _name, string memory _symbol) external {
         owner = msg.sender;
 
         require(bytes(_name).length != 0, "Invalid _name");

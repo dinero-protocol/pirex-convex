@@ -6,6 +6,9 @@ import {ICvxLocker} from "../interfaces/ICvxLocker.sol";
 import {VaultController} from "../VaultController.sol";
 
 contract VaultControllerMock is VaultController {
+    address public returnedLockedCvxVault;
+    address public returnedVoteCvxVault;
+
     constructor(
         ERC20 _CVX,
         ICvxLocker _CVX_LOCKER,
@@ -20,10 +23,23 @@ contract VaultControllerMock is VaultController {
         )
     {}
 
-    function createLockedCvxVault(uint256 epoch)
-        external
-        returns (address vault)
-    {
-        return _createLockedCvxVault(epoch);
+    function resetReturnedLockedCvxVault() external {
+        returnedLockedCvxVault = address(0);
+    }
+
+    function resetReturnedVoteCvxVault() external {
+        returnedVoteCvxVault = address(0);
+    }
+
+    function createOrReturnLockedCvxVault(uint256 epoch) external {
+        returnedLockedCvxVault = _createOrReturnLockedCvxVault(epoch);
+    }
+
+    function createOrReturnVoteCvxVault(uint256 epoch) external {
+        returnedVoteCvxVault = _createOrReturnVoteCvxVault(epoch);
+    }
+
+    function mintVoteCvx(address to, uint256 amount) external {
+        _mintVoteCvx(to, amount);
     }
 }
