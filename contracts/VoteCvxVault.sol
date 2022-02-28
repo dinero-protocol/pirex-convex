@@ -8,12 +8,21 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract VoteCvxVault is ERC20PresetMinterPauserUpgradeable {
     using SafeERC20 for ERC20;
 
+    struct Rewards {
+        address token;
+        uint256 amount;
+    }
+
     address public owner;
     uint256 public mintDeadline;
+    Rewards[] public rewards;
+    mapping(address => uint256) rewardIndexes;
 
-    event Mint(address indexed to, uint256 amount);
+    event Minted(address indexed to, uint256 amount);
+    event AddedReward(address token, uint256 amount);
 
     error ZeroAmount();
+    error ZeroAddress();
     error EmptyString();
     error AfterMintDeadline(uint256 timestamp);
 
@@ -42,6 +51,32 @@ contract VoteCvxVault is ERC20PresetMinterPauserUpgradeable {
             revert AfterMintDeadline(block.timestamp);
         _mint(to, amount);
 
-        emit Mint(to, amount);
+        emit Minted(to, amount);
+    }
+
+    /**
+        @notice Add a reward based on token balance
+        @notice Restricted to owner (VaultController) to prevent random tokens
+        @param  token  address  Reward token address
+     */
+    function addReward(address token) external onlyOwner {
+        if (token == address(0)) revert ZeroAddress();
+
+        uint256 rewardIndex = rewardIndexes[token];
+        uint256 balance = ERC20(token).balanceOf(address(this));
+
+        // Add reward token if it doesn't exist
+        if (rewards.length == 0 || (rewardIndex == 0 && rewards[rewardIndex].token == address(0))) {
+            rewards.push(Rewards({token: token, amount: balance}));            
+            rewardIndexes[token] = rewards.length - 1;
+        } else {
+            // Reward updates are necessary if Votium updates its claims with missing/additional rewards
+            rewards[rewardIndex] = Rewards({
+                token: token,
+                amount: balance
+            });
+        }
+
+        emit AddedReward(token, balance);
     }
 }
