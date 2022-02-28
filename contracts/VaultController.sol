@@ -119,7 +119,7 @@ contract VaultController is Ownable {
             abi.encodePacked("voteCVX-", epoch.toString())
         );
 
-        v.init(tokenId, tokenId);
+        v.init(epoch, tokenId, tokenId);
 
         vault = address(v);
         voteCvxVaultsByEpoch[epoch] = vault;
@@ -160,7 +160,6 @@ contract VaultController is Ownable {
         CVX.safeTransferFrom(msg.sender, address(this), amount);
         CVX.safeIncreaseAllowance(address(v), amount);
         v.deposit(to, amount);
-
         _mintVoteCvx(to, amount);
 
         emit Deposited(currentEpoch, to, amount);

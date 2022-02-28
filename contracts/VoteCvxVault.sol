@@ -9,12 +9,26 @@ contract VoteCvxVault is ERC20PresetMinterPauserUpgradeable {
     using SafeERC20 for ERC20;
 
     address public owner;
+    uint256 public mintDeadline;
 
-    function init(string memory _name, string memory _symbol) external {
+    event Mint(address indexed to, uint256 amount);
+
+    error ZeroAmount();
+    error EmptyString();
+    error AfterMintDeadline(uint256 timestamp);
+
+    function init(
+        uint256 _mintDeadline,
+        string memory _name,
+        string memory _symbol
+    ) external {
         owner = msg.sender;
 
-        require(bytes(_name).length != 0, "Invalid _name");
-        require(bytes(_symbol).length != 0, "Invalid _symbol");
+        if (_mintDeadline == 0) revert ZeroAmount();
+        mintDeadline = _mintDeadline;
+
+        if (bytes(_name).length == 0) revert EmptyString();
+        if (bytes(_symbol).length == 0) revert EmptyString();
         initialize(_name, _symbol);
     }
 
@@ -23,9 +37,9 @@ contract VoteCvxVault is ERC20PresetMinterPauserUpgradeable {
         _;
     }
 
-    event Mint(address indexed to, uint256 amount);
-
     function mint(address to, uint256 amount) public override onlyOwner {
+        if (mintDeadline < block.timestamp)
+            revert AfterMintDeadline(block.timestamp);
         _mint(to, amount);
 
         emit Mint(to, amount);
