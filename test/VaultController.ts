@@ -46,6 +46,7 @@ describe('VaultController', () => {
   let firstVaultEpoch: BigNumber;
   let firstLockedCvxVault: LockedCvxVault;
   let firstVoteCvxVault: VoteCvxVault;
+  let votiumMultiMerkleStash: any;
 
   const epochDepositDuration = toBN(1209600); // 2 weeks in seconds
   const initialCvxBalanceForAdmin = toBN(100e18);
@@ -75,6 +76,9 @@ describe('VaultController', () => {
     const CvxLocker = await ethers.getContractFactory('CvxLocker');
     const CvxRewardPool = await ethers.getContractFactory('CvxRewardPool');
     const CvxStakingProxy = await ethers.getContractFactory('CvxStakingProxy');
+    const VotiumMultiMerkleStash: any = await ethers.getContractFactory(
+      'MultiMerkleStash'
+    );
 
     // Mocked Convex contracts
     curveVoterProxy = await CurveVoterProxy.deploy();
@@ -98,9 +102,11 @@ describe('VaultController', () => {
     cvxLockDuration = (await cvxLocker.lockDuration()).add(
       epochDepositDuration
     );
+    votiumMultiMerkleStash = await VotiumMultiMerkleStash.deploy();
     vaultController = await VaultController.deploy(
       cvx.address,
       cvxLocker.address,
+      votiumMultiMerkleStash.address,
       epochDepositDuration,
       cvxLockDuration
     );

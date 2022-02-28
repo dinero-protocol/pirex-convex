@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
+import "hardhat/console.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -9,6 +10,7 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {LockedCvxVault} from "./LockedCvxVault.sol";
 import {VoteCvxVault} from "./VoteCvxVault.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
+import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 
 contract VaultController is Ownable {
     using SafeERC20 for ERC20;
@@ -16,6 +18,7 @@ contract VaultController is Ownable {
 
     ERC20 public immutable CVX;
     ICvxLocker public immutable CVX_LOCKER;
+    IVotiumMultiMerkleStash public immutable VOTIUM_MULTI_MERKLE_STASH;
     uint256 public immutable EPOCH_DEPOSIT_DURATION;
     uint256 public immutable CVX_LOCK_DURATION;
     address public immutable LOCKED_CVX_VAULT_IMPLEMENTATION;
@@ -41,6 +44,7 @@ contract VaultController is Ownable {
     constructor(
         ERC20 _CVX,
         ICvxLocker _CVX_LOCKER,
+        IVotiumMultiMerkleStash _VOTIUM_MULTI_MERKLE_STASH,
         uint256 _EPOCH_DEPOSIT_DURATION,
         uint256 _CVX_LOCK_DURATION
     ) {
@@ -49,6 +53,10 @@ contract VaultController is Ownable {
 
         if (address(_CVX_LOCKER) == address(0)) revert ZeroAddress();
         CVX_LOCKER = _CVX_LOCKER;
+
+        if (address(_VOTIUM_MULTI_MERKLE_STASH) == address(0))
+            revert ZeroAddress();
+        VOTIUM_MULTI_MERKLE_STASH = _VOTIUM_MULTI_MERKLE_STASH;
 
         if (_EPOCH_DEPOSIT_DURATION == 0) revert ZeroAmount();
         EPOCH_DEPOSIT_DURATION = _EPOCH_DEPOSIT_DURATION;
@@ -90,7 +98,16 @@ contract VaultController is Ownable {
             abi.encodePacked("lockedCVX-", epoch.toString())
         );
 
-        v.init(depositDeadline, lockExpiry, CVX_LOCKER, CVX, tokenId, tokenId);
+        v.init(
+            this,
+            depositDeadline,
+            lockExpiry,
+            CVX_LOCKER,
+            VOTIUM_MULTI_MERKLE_STASH,
+            CVX,
+            tokenId,
+            tokenId
+        );
 
         vault = address(v);
         lockedCvxVaultsByEpoch[epoch] = vault;
@@ -129,14 +146,21 @@ contract VaultController is Ownable {
         return vault;
     }
 
+    /**
+        @notice Mint voteCVX for 8 upcoming epochs
+        @param  to      address  Account receiving voteCVX
+        @param  amount  uint256  Amount voteCVX to mint
+    */
     function _mintVoteCvx(address to, uint256 amount) internal {
         uint256 startingEpoch = getCurrentEpoch() + EPOCH_DEPOSIT_DURATION;
 
         unchecked {
             for (uint8 i; i < 8; ++i) {
                 uint256 epoch = startingEpoch + (i * EPOCH_DEPOSIT_DURATION);
+                VoteCvxVault v = VoteCvxVault(
+                    _createOrReturnVoteCvxVault(epoch)
+                );
 
-                VoteCvxVault v = VoteCvxVault(_createOrReturnVoteCvxVault(epoch));
                 v.mint(to, amount);
             }
         }
@@ -192,5 +216,13 @@ contract VaultController is Ownable {
         v.withdraw(to, amount);
 
         emit Withdrew(epoch, to, amount);
+    }
+
+    /**
+        @notice Get a VoteCvxVault address by epoch
+        @param  epoch   uint256  Epoch
+    */
+    function getVoteCvxVault(uint256 epoch) external view returns (address) {
+        return voteCvxVaultsByEpoch[epoch];
     }
 }

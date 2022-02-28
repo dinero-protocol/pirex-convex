@@ -45,6 +45,7 @@ describe('LockedCvxVault', () => {
   let cvxRewardPool: CvxRewardPool;
   let cvxStakingProxy: CvxStakingProxy;
   let cvxLockDuration: BigNumber;
+  let votiumMultiMerkleStash: any;
 
   const epochDepositDuration = toBN(1209600); // 2 weeks in seconds
   const underlyingTokenNameSymbol = 'lockedCVX';
@@ -74,6 +75,9 @@ describe('LockedCvxVault', () => {
     const CvxLocker = await ethers.getContractFactory('CvxLocker');
     const CvxRewardPool = await ethers.getContractFactory('CvxRewardPool');
     const CvxStakingProxy = await ethers.getContractFactory('CvxStakingProxy');
+    const VotiumMultiMerkleStash: any = await ethers.getContractFactory(
+      'MultiMerkleStash'
+    );
 
     // Mocked Convex contracts
     curveVoterProxy = await CurveVoterProxy.deploy();
@@ -97,9 +101,11 @@ describe('LockedCvxVault', () => {
     cvxLockDuration = (await cvxLocker.lockDuration()).add(
       epochDepositDuration
     );
+    votiumMultiMerkleStash = await VotiumMultiMerkleStash.deploy();
     vaultController = await VaultController.deploy(
       cvx.address,
       cvxLocker.address,
+      votiumMultiMerkleStash.address,
       epochDepositDuration,
       cvxLockDuration
     );
@@ -126,9 +132,11 @@ describe('LockedCvxVault', () => {
     );
 
     await lockedCvxVault.init(
+      vaultController.address,
       depositDeadline,
       lockExpiry,
       cvxLocker.address,
+      votiumMultiMerkleStash.address,
       cvx.address,
       underlyingTokenNameSymbol,
       underlyingTokenNameSymbol
@@ -145,9 +153,11 @@ describe('LockedCvxVault', () => {
     it('Should not be callable more than once', async () => {
       await expect(
         lockedCvxVault.init(
+          vaultController.address,
           depositDeadline,
           lockExpiry,
           cvxLocker.address,
+          votiumMultiMerkleStash.address,
           cvx.address,
           underlyingTokenNameSymbol,
           underlyingTokenNameSymbol
@@ -156,8 +166,9 @@ describe('LockedCvxVault', () => {
     });
 
     it('Should set up contract state', async () => {
-      const depositDeadline = await lockedCvxVault.depositDeadline();
-      const lockExpiry = await lockedCvxVault.lockExpiry();
+      const _vaultController = await lockedCvxVault.vaultController();
+      const _depositDeadline = await lockedCvxVault.depositDeadline();
+      const _lockExpiry = await lockedCvxVault.lockExpiry();
       const cvxLockerAddr = await lockedCvxVault.cvxLocker();
       const underlying = await lockedCvxVault.underlying();
       const baseUnit = await lockedCvxVault.baseUnit();
@@ -167,12 +178,20 @@ describe('LockedCvxVault', () => {
         await cvx.decimals()
       );
 
-      expect(depositDeadline).to.equal(depositDeadline);
-      expect(lockExpiry).to.equal(lockExpiry);
-      expect(cvxLockerAddr).to.equal(cvxLocker.address);
-      expect(underlying).to.equal(cvx.address);
-      expect(baseUnit).to.equal(expectedBaseUnit);
-      expect(name).to.equal(symbol).to.equal(underlyingTokenNameSymbol);
+      expect(_vaultController)
+        .to.equal(vaultController.address)
+        .to.not.equal(zeroAddress);
+      expect(_depositDeadline).to.equal(depositDeadline).to.be.gt(0);
+      expect(_lockExpiry).to.equal(lockExpiry).to.be.gt(0);
+      expect(cvxLockerAddr)
+        .to.equal(cvxLocker.address)
+        .to.not.equal(zeroAddress);
+      expect(underlying).to.equal(cvx.address).to.not.equal(zeroAddress);
+      expect(baseUnit).to.equal(expectedBaseUnit).to.be.gt(0);
+      expect(name)
+        .to.equal(symbol)
+        .to.equal(underlyingTokenNameSymbol)
+        .to.not.equal('');
     });
   });
 
