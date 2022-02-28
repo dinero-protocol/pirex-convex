@@ -165,14 +165,14 @@ describe('VaultController', () => {
     });
   });
 
-  describe('createLockedCvxVault', () => {
+  describe('createOrReturnLockedCvxVault', () => {
     it('Should create a new LockedCvxVault instance', async () => {
       const currentEpoch = await vaultController.getCurrentEpoch();
       const vaultBeforeCreate = await vaultController.lockedCvxVaultsByEpoch(
         currentEpoch
       );
       const events = await callAndReturnEvents(
-        vaultController.createLockedCvxVault,
+        vaultController.createOrReturnLockedCvxVault,
         [currentEpoch]
       );
       const createdVaultEvent = events[events.length - 1];
@@ -194,7 +194,7 @@ describe('VaultController', () => {
 
       expect(vaultBeforeCreate).to.equal(zeroAddress);
       expect(createdVaultEvent.eventSignature).to.equal(
-        'CreatedLockedCvxVault(address,uint256,uint256,string,string)'
+        'CreatedLockedCvxVault(address,uint256,uint256,string)'
       );
       expect(createdVaultEvent.args.vault)
         .to.equal(vaultAfterCreate)
@@ -205,21 +205,9 @@ describe('VaultController', () => {
       expect(createdVaultEvent.args.lockExpiry)
         .to.equal(expectedLockExpiry)
         .to.be.gt(expectedDepositDeadline);
-      expect(createdVaultEvent.args.name)
-        .to.equal(createdVaultEvent.args.symbol)
-        .to.equal(`lockedCVX-${currentEpoch}`);
-    });
-
-    it('Should revert if vault already exists for epoch', async () => {
-      const currentEpoch = await vaultController.getCurrentEpoch();
-      const vault = await vaultController.lockedCvxVaultsByEpoch(currentEpoch);
-
-      expect(vault)
-        .to.equal(firstLockedCvxVault.address)
-        .to.not.equal(zeroAddress);
-      await expect(
-        vaultController.createLockedCvxVault(currentEpoch)
-      ).to.be.revertedWith(`VaultExistsForEpoch(${currentEpoch})`);
+      expect(createdVaultEvent.args.tokenId)
+        .to.equal(`lockedCVX-${currentEpoch}`)
+        .to.not.equal(`lockedCVX-${0}`);
     });
   });
 
