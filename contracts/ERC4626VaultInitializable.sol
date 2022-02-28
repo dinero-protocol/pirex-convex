@@ -11,9 +11,9 @@ import {FixedPointMathLib} from "./lib/FixedPointMathLib.sol";
 /// @title Yield Bearing Vault
 /// @author joeysantoro, Transmissions11 and JetJadeja
 
-/// @title Modifications
+/// @title Initializable version of ERC4626Vault
 /// @author kphed [REDACTED]
-/// - Use an init function instead of constructor
+/// - Use an initialize function instead of constructor
 /// - Use OZ implementations until after we review Solmate
 ///     - Use OpenZeppelin ERC20 implementation
 ///     - Use SafeERC20
@@ -34,10 +34,11 @@ contract ERC4626VaultInitializable is ERC20PresetMinterPauserUpgradeable {
     uint256 public baseUnit;
 
     /// @notice Initializes a new Vault that accepts a specific underlying token.
+    /// @notice Cannot be called twice due to `initalizer` modifier in `initialize`
     /// @param _underlying The ERC20 compliant token the Vault should accept.
     /// @param _name The name for the vault token.
     /// @param _symbol The symbol for the vault token.
-    function _init(
+    function _initialize(
         ERC20 _underlying,
         string memory _name,
         string memory _symbol
