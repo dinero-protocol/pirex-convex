@@ -5,14 +5,18 @@ import "hardhat/console.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC4626VaultInitializable} from "./ERC4626VaultInitializable.sol";
+import {VaultController} from "./VaultController.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
+import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 
 contract LockedCvxVault is ERC4626VaultInitializable {
     using SafeERC20 for ERC20;
 
+    VaultController public vaultController;
     uint256 public depositDeadline;
     uint256 public lockExpiry;
     ICvxLocker public cvxLocker;
+    IVotiumMultiMerkleStash public votiumMultiMerkleStash;
 
     event UnlockCvx(uint256 amount);
     event LockCvx(uint256 amount);
@@ -27,11 +31,13 @@ contract LockedCvxVault is ERC4626VaultInitializable {
 
     error ZeroAddress();
     error ZeroAmount();
+    error BeforeDepositDeadline(uint256 timestamp);
     error AfterDepositDeadline(uint256 timestamp);
     error BeforeLockExpiry(uint256 timestamp);
 
     /**
         @notice Initializes the contract
+        @param  _vaultController  address     VaultController
         @param  _depositDeadline  uint256     Deposit deadline
         @param  _lockExpiry       uint256     Lock expiry for CVX (17 weeks after deposit deadline)
         @param  _cvxLocker        ICvxLocker  Deposit deadline
@@ -40,13 +46,18 @@ contract LockedCvxVault is ERC4626VaultInitializable {
         @param  _symbol           string      Token symbol
      */
     function init(
+        VaultController _vaultController,
         uint256 _depositDeadline,
         uint256 _lockExpiry,
         ICvxLocker _cvxLocker,
+        IVotiumMultiMerkleStash _votiumMultiMerkleStash,
         ERC20 _underlying,
         string memory _name,
         string memory _symbol
     ) external {
+        if (address(_vaultController) == address(0)) revert ZeroAddress();
+        vaultController = _vaultController;
+
         if (_depositDeadline == 0) revert ZeroAmount();
         depositDeadline = _depositDeadline;
 
@@ -55,6 +66,10 @@ contract LockedCvxVault is ERC4626VaultInitializable {
 
         if (address(_cvxLocker) == address(0)) revert ZeroAddress();
         cvxLocker = _cvxLocker;
+
+        if (address(_votiumMultiMerkleStash) == address(0))
+            revert ZeroAddress();
+        votiumMultiMerkleStash = _votiumMultiMerkleStash;
 
         _initialize(_underlying, _name, _symbol);
     }
