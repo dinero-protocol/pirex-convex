@@ -227,7 +227,7 @@ describe('VaultController', () => {
       expect(existingVault).to.equal(firstLockedCvxVault.address);
       await expect(
         vaultController.createLockedCvxVault(firstVaultEpoch)
-      ).to.be.revertedWith('VaultAlreadyExists()');
+      ).to.be.revertedWith('AlreadyExists()');
     });
   });
 
@@ -272,7 +272,7 @@ describe('VaultController', () => {
       expect(existingVault).to.equal(firstVoteCvxVault.address);
       await expect(
         vaultController.createVoteCvxVault(firstVaultEpoch)
-      ).to.be.revertedWith('VaultAlreadyExists()');
+      ).to.be.revertedWith('AlreadyExists()');
     });
   });
 
@@ -298,12 +298,19 @@ describe('VaultController', () => {
           return vaultController.voteCvxVaultsByEpoch(voteEpoch);
         }
       );
+      const expectedVotiumRewardClaimer =
+        await vaultController.votiumRewardClaimerByLockedCvxVault(
+          expectedLockedCvxVault
+        );
 
       expect(setUpEvent.eventSignature).to.equal(
-        'SetUpVaults(address,address[8])'
+        'SetUpVaults(address,address[8],address)'
       );
       expect(setUpEvent.args.lockedCvxVault).to.equal(expectedLockedCvxVault);
       expect(setUpEvent.args.voteCvxVaults).to.deep.equal(actualVoteCvxVaults);
+      expect(setUpEvent.args.votiumRewardClaimer).to.equal(
+        expectedVotiumRewardClaimer
+      );
     });
   });
 
@@ -482,17 +489,17 @@ describe('VaultController', () => {
 
       await vaultController.mintVoteCvx(voteEpoch, admin.address, mintAmount);
 
-      const balances: BigNumber[] = await Promise.map(
-        voteCvxVaults,
-        async () =>
-          (
-            await ethers.getContractAt(
-              'VoteCvxVault',
-              await vaultController.voteCvxVaultsByEpoch(voteEpoch)
-            )
-          ).balanceOf(admin.address)
+      const balances: BigNumber[] = await Promise.map(voteCvxVaults, async () =>
+        (
+          await ethers.getContractAt(
+            'VoteCvxVault',
+            await vaultController.voteCvxVaultsByEpoch(voteEpoch)
+          )
+        ).balanceOf(admin.address)
       );
-      const expectedBalances = [...Array(balances.length).keys()].map(() => mintAmount);
+      const expectedBalances = [...Array(balances.length).keys()].map(
+        () => mintAmount
+      );
 
       expect(balances).to.deep.equal(expectedBalances);
       // expect(balanceAfter).to.equal(expectedBalanceAfter).to.be.gt(0);
