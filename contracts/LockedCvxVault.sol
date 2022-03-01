@@ -2,11 +2,10 @@
 pragma solidity 0.8.12;
 
 import "hardhat/console.sol";
+import {ERC4626VaultInitializable} from "./ERC4626VaultInitializable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ERC4626VaultInitializable} from "./ERC4626VaultInitializable.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
-import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 import {IVotiumAddressRegistry} from "./interfaces/IVotiumAddressRegistry.sol";
 
 contract LockedCvxVault is ERC4626VaultInitializable {
@@ -16,7 +15,6 @@ contract LockedCvxVault is ERC4626VaultInitializable {
     uint256 public depositDeadline;
     uint256 public lockExpiry;
     ICvxLocker public cvxLocker;
-    IVotiumMultiMerkleStash public votiumMultiMerkleStash;
     IVotiumAddressRegistry public votiumAddressRegistry;
     address public votiumRewardClaimer;
 
@@ -26,6 +24,7 @@ contract LockedCvxVault is ERC4626VaultInitializable {
         uint256 _depositDeadline,
         uint256 _lockExpiry,
         address _cvxLocker,
+        address _votiumAddressRegistry,
         ERC20 _underlying,
         string _name,
         string _symbol
@@ -45,7 +44,6 @@ contract LockedCvxVault is ERC4626VaultInitializable {
         @param  _depositDeadline         uint256     Deposit deadline
         @param  _lockExpiry              uint256     Lock expiry for CVX (17 weeks after deposit deadline)
         @param  _cvxLocker               ICvxLocker  Deposit deadline
-        @param  _votiumMultiMerkleStash  address     VotiumMultiMerkleStash address
         @param  _votiumAddressRegistry   address     VotiumAddressRegistry address
         @param  _underlying              ERC20       Underlying asset
         @param  _name                    string      Token name
@@ -56,7 +54,6 @@ contract LockedCvxVault is ERC4626VaultInitializable {
         uint256 _depositDeadline,
         uint256 _lockExpiry,
         address _cvxLocker,
-        address _votiumMultiMerkleStash,
         address _votiumAddressRegistry,
         ERC20 _underlying,
         string memory _name,
@@ -74,11 +71,6 @@ contract LockedCvxVault is ERC4626VaultInitializable {
         if (_cvxLocker == address(0)) revert ZeroAddress();
         cvxLocker = ICvxLocker(_cvxLocker);
 
-        if (_votiumMultiMerkleStash == address(0)) revert ZeroAddress();
-        votiumMultiMerkleStash = IVotiumMultiMerkleStash(
-            _votiumMultiMerkleStash
-        );
-
         if (_votiumAddressRegistry == address(0)) revert ZeroAddress();
         votiumAddressRegistry = IVotiumAddressRegistry(_votiumAddressRegistry);
 
@@ -88,6 +80,7 @@ contract LockedCvxVault is ERC4626VaultInitializable {
             _depositDeadline,
             _lockExpiry,
             _cvxLocker,
+            _votiumAddressRegistry,
             _underlying,
             _name,
             _symbol
