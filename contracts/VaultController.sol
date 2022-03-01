@@ -119,7 +119,6 @@ contract VaultController is Ownable {
             depositDeadline,
             lockExpiry,
             CVX_LOCKER,
-            VOTIUM_MULTI_MERKLE_STASH,
             VOTIUM_ADDRESS_REGISTRY,
             CVX,
             tokenId,

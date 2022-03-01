@@ -142,7 +142,6 @@ describe('LockedCvxVault', () => {
       depositDeadline,
       lockExpiry,
       cvxLocker.address,
-      votiumMultiMerkleStash.address,
       votiumAddressRegistry.address,
       cvx.address,
       underlyingTokenNameSymbol,
@@ -164,7 +163,6 @@ describe('LockedCvxVault', () => {
           depositDeadline,
           lockExpiry,
           cvxLocker.address,
-          votiumMultiMerkleStash.address,
           votiumAddressRegistry.address,
           cvx.address,
           underlyingTokenNameSymbol,
@@ -472,4 +470,10 @@ describe('LockedCvxVault', () => {
       ).to.be.revertedWith('ERC20: transfer to the zero address');
     });
   });
+
+  describe('forwardVotiumRewards', () => {
+    it('Should revert if not VaultController', async () => {
+      await expect(lockedCvxVault.forwardVotiumRewards(admin.address)).to.be.revertedWith('NotVaultController()')
+    })
+  })
 });
