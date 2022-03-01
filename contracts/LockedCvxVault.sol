@@ -18,8 +18,6 @@ contract LockedCvxVault is ERC4626VaultInitializable {
     IVotiumAddressRegistry public votiumAddressRegistry;
     address public votiumRewardClaimer;
 
-    event UnlockCvx(uint256 amount);
-    event LockCvx(uint256 amount);
     event Inititalized(
         uint256 _depositDeadline,
         uint256 _lockExpiry,
@@ -29,6 +27,8 @@ contract LockedCvxVault is ERC4626VaultInitializable {
         string _name,
         string _symbol
     );
+    event UnlockCvx(uint256 amount);
+    event LockCvx(uint256 amount);
     event SetVotiumRewardClaimer(address _votiumRewardClaimer);
 
     error ZeroAddress();
@@ -39,11 +39,11 @@ contract LockedCvxVault is ERC4626VaultInitializable {
     error NotVaultController();
 
     /**
-        @notice Initializes the contract
+        @notice Initializes the contract - reverts if called more than once
         @param  _vaultController         address     VaultController
         @param  _depositDeadline         uint256     Deposit deadline
         @param  _lockExpiry              uint256     Lock expiry for CVX (17 weeks after deposit deadline)
-        @param  _cvxLocker               ICvxLocker  Deposit deadline
+        @param  _cvxLocker               address     CvxLocker address
         @param  _votiumAddressRegistry   address     VotiumAddressRegistry address
         @param  _underlying              ERC20       Underlying asset
         @param  _name                    string      Token name
