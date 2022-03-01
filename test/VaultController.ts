@@ -465,4 +465,52 @@ describe('VaultController', () => {
       expect(redeemEvent.args.amount).to.equal(redeemAmount);
     });
   });
+
+  describe('mintVoteCvx', () => {
+    it('Should mint voteCVX', async () => {
+      const EPOCH_DEPOSIT_DURATION =
+        await vaultController.EPOCH_DEPOSIT_DURATION();
+      const currentEpoch = await vaultController.getCurrentEpoch();
+      const voteEpoch = currentEpoch.add(EPOCH_DEPOSIT_DURATION);
+      const mintAmount = toBN(1e18);
+      const events = await callAndReturnEvents(vaultController.setUpVaults, [
+        currentEpoch,
+      ]);
+      const {
+        args: { voteCvxVaults },
+      } = events[events.length - 1];
+
+      await vaultController.mintVoteCvx(voteEpoch, admin.address, mintAmount);
+
+      const balances: BigNumber[] = await Promise.map(
+        voteCvxVaults,
+        async () =>
+          (
+            await ethers.getContractAt(
+              'VoteCvxVault',
+              await vaultController.voteCvxVaultsByEpoch(voteEpoch)
+            )
+          ).balanceOf(admin.address)
+      );
+      const expectedBalances = [...Array(balances.length).keys()].map(() => mintAmount);
+
+      expect(balances).to.deep.equal(expectedBalances);
+      // expect(balanceAfter).to.equal(expectedBalanceAfter).to.be.gt(0);
+    });
+
+    it('Should revert if minting voteCVX with an invalid VoteCvxVault', async () => {
+      const EPOCH_DEPOSIT_DURATION =
+        await vaultController.EPOCH_DEPOSIT_DURATION();
+      const invalidEpoch = (await vaultController.getCurrentEpoch()).add(
+        EPOCH_DEPOSIT_DURATION.mul(100)
+      );
+      const mintAmount = toBN(1e18);
+
+      await expect(
+        vaultController.mintVoteCvx(invalidEpoch, admin.address, mintAmount)
+      ).to.be.revertedWith(
+        'Transaction reverted: function call to a non-contract account'
+      );
+    });
+  });
 });
