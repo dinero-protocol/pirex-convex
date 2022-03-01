@@ -192,6 +192,9 @@ contract VaultController is Ownable {
         address vAddr = address(v);
         votiumRewardClaimerByLockedCvxVault[lockedCvxVault] = vAddr;
 
+        // Forwards LockedCvxVault rewards to fresh VotiumRewardClaimer
+        LockedCvxVault(lockedCvxVault).forwardVotiumRewards(vAddr);
+
         emit CreatedVotiumRewardClaimer(vAddr, lockedCvxVault, voteCvxVaults);
 
         return vAddr;
@@ -212,14 +215,12 @@ contract VaultController is Ownable {
             address votiumRewardClaimer
         )
     {
-        bool isNew;
-        lockedCvxVault = lockedCvxVaultsByEpoch[epoch];
+        if (epoch == 0) revert InvalidVaultEpoch(epoch);
 
         // Create a LockedCvxVault for the epoch if it doesn't exist
-        if (lockedCvxVault == address(0)) {
-            isNew = true;
-            lockedCvxVault = _createLockedCvxVault(epoch);
-        }
+        lockedCvxVault = lockedCvxVaultsByEpoch[epoch] == address(0)
+            ? _createLockedCvxVault(epoch)
+            : lockedCvxVaultsByEpoch[epoch];
 
         // Use the next epoch as a starting point for VoteCvxVaults since
         // voting doesn't start until after LockedCvxVault deposit deadline
@@ -237,20 +238,13 @@ contract VaultController is Ownable {
 
         votiumRewardClaimer = votiumRewardClaimerByLockedCvxVault[
             lockedCvxVault
-        ];
-
-        // Only set up LockedCvxVault's claimer if it is new
-        if (isNew) {
-            votiumRewardClaimer = _createVotiumRewardClaimer(
+        ] == address(0)
+            ? _createVotiumRewardClaimer(
                 lockedCvxVault,
                 voteCvxVaults,
                 voteEpochs
-            );
-
-            LockedCvxVault(lockedCvxVault).forwardVotiumRewards(
-                votiumRewardClaimer
-            );
-        }
+            )
+            : votiumRewardClaimerByLockedCvxVault[lockedCvxVault];
 
         emit SetUpVaults(lockedCvxVault, voteCvxVaults, votiumRewardClaimer);
     }
@@ -266,8 +260,10 @@ contract VaultController is Ownable {
         address to,
         uint256 amount
     ) internal {
-        if (startingVoteEpoch == getCurrentEpoch())
+        if (startingVoteEpoch < getCurrentEpoch() + EPOCH_DEPOSIT_DURATION)
             revert InvalidMintVoteCvxEpoch(startingVoteEpoch);
+        if (to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
 
         unchecked {
             for (uint8 i; i < 8; ++i) {
@@ -294,7 +290,10 @@ contract VaultController is Ownable {
 
         // Transfer vault underlying and approve amount to be deposited
         CVX.safeTransferFrom(msg.sender, address(this), amount);
+
+        // Validates zero address
         CVX.safeIncreaseAllowance(address(v), amount);
+
         v.deposit(to, amount);
         _mintVoteCvx(currentEpoch + EPOCH_DEPOSIT_DURATION, to, amount);
 
@@ -312,6 +311,7 @@ contract VaultController is Ownable {
         address to,
         uint256 amount
     ) external {
+        if (epoch == 0) revert InvalidVaultEpoch(epoch);
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 

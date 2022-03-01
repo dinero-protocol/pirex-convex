@@ -383,6 +383,14 @@ describe('VaultController', () => {
         .to.deep.equal(expectedVoteCvxVaults)
         .to.deep.equal(eventVoteCvxVaults);
     });
+
+    it('Should revert if epoch is zero', async () => {
+      const invalidEpoch = 0;
+
+      await expect(
+        vaultController.setUpVaults(invalidEpoch)
+      ).to.be.revertedWith(`InvalidVaultEpoch(${invalidEpoch})`);
+    });
   });
 
   describe('deposit', () => {
@@ -542,6 +550,26 @@ describe('VaultController', () => {
       expect(redeemEvent.args.to).to.equal(admin.address);
       expect(redeemEvent.args.amount).to.equal(redeemAmount);
     });
+
+    it('Should revert if epoch is zero', async () => {
+      const invalidEpoch = 0;
+      const to = admin.address;
+      const amount = toBN(1e18);
+
+      await expect(
+        vaultController.redeem(invalidEpoch, to, amount)
+      ).to.be.revertedWith(`InvalidVaultEpoch(${invalidEpoch})`);
+    });
+
+    it('Should revert if epoch is invalid', async () => {
+      const invalidEpoch = (await vaultController.getCurrentEpoch()).add(await vaultController.EPOCH_DEPOSIT_DURATION()).mul(2);
+      const to = admin.address;
+      const amount = toBN(1e18);
+
+      await expect(
+        vaultController.redeem(invalidEpoch, to, amount)
+      ).to.be.revertedWith(`InvalidVaultEpoch(${invalidEpoch})`);
+    });
   });
 
   describe('mintVoteCvx', () => {
@@ -589,6 +617,43 @@ describe('VaultController', () => {
       ).to.be.revertedWith(
         'Transaction reverted: function call to a non-contract account'
       );
+    });
+
+    it('Should revert if startingVoteEpoch is less than the next epoch', async () => {
+      const nextEpoch = (await vaultController.getCurrentEpoch()).add(
+        await vaultController.EPOCH_DEPOSIT_DURATION()
+      );
+      const invalidEpoch = nextEpoch.sub(1);
+      const to = admin.address;
+      const mintAmount = toBN(1e18);
+
+      await expect(
+        vaultController.mintVoteCvx(invalidEpoch, to, mintAmount)
+      ).to.be.revertedWith(`InvalidMintVoteCvxEpoch(${invalidEpoch})`);
+    });
+
+    it('Should revert if zero address', async () => {
+      const nextEpoch = (await vaultController.getCurrentEpoch()).add(
+        await vaultController.EPOCH_DEPOSIT_DURATION()
+      );
+      const invalidTo = zeroAddress;
+      const mintAmount = toBN(1e18);
+
+      await expect(
+        vaultController.mintVoteCvx(nextEpoch, invalidTo, mintAmount)
+      ).to.be.revertedWith('ZeroAddress()');
+    });
+
+    it('Should revert if zero amount', async () => {
+      const nextEpoch = (await vaultController.getCurrentEpoch()).add(
+        await vaultController.EPOCH_DEPOSIT_DURATION()
+      );
+      const to = admin.address;
+      const invalidAmount = toBN(0);
+
+      await expect(
+        vaultController.mintVoteCvx(nextEpoch, to, invalidAmount)
+      ).to.be.revertedWith('ZeroAmount()');
     });
   });
 });
