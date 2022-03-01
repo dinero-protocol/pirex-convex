@@ -5,8 +5,6 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {VaultController} from "../VaultController.sol";
 
 contract VaultControllerMock is VaultController {
-    address public returnedVoteCvxVault;
-
     constructor(
         ERC20 _CVX,
         address _CVX_LOCKER,
@@ -23,16 +21,12 @@ contract VaultControllerMock is VaultController {
         )
     {}
 
-    function resetReturnedVoteCvxVault() external {
-        returnedVoteCvxVault = address(0);
-    }
-
     function createLockedCvxVault(uint256 epoch) external {
         _createLockedCvxVault(epoch);
     }
 
-    function createOrReturnVoteCvxVault(uint256 epoch) external {
-        returnedVoteCvxVault = _createOrReturnVoteCvxVault(epoch);
+    function createVoteCvxVault(uint256 epoch) external {
+        _createVoteCvxVault(epoch);
     }
 
     /**

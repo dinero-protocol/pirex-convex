@@ -114,16 +114,16 @@ contract VaultController is Ownable {
     }
 
     /**
-        @notice Deploy and/or return the address for a VoteCvxVault
+        @notice Create a VoteCvxVault
         @param   epoch  uint256  Epoch
         @return  vault  address  VoteCvxVault address
      */
-    function _createOrReturnVoteCvxVault(uint256 epoch)
+    function _createVoteCvxVault(uint256 epoch)
         internal
         returns (address vault)
     {
         if (voteCvxVaultsByEpoch[epoch] != address(0))
-            return voteCvxVaultsByEpoch[epoch];
+            revert VaultAlreadyExists();
 
         VoteCvxVault v = VoteCvxVault(
             Clones.clone(VOTE_CVX_VAULT_IMPLEMENTATION)
@@ -138,8 +138,6 @@ contract VaultController is Ownable {
         voteCvxVaultsByEpoch[epoch] = vault;
 
         emit CreatedVoteCvxVault(vault, tokenId);
-
-        return vault;
     }
 
     /**
@@ -154,7 +152,7 @@ contract VaultController is Ownable {
             for (uint8 i; i < 8; ++i) {
                 uint256 epoch = startingEpoch + (i * EPOCH_DEPOSIT_DURATION);
                 VoteCvxVault v = VoteCvxVault(
-                    _createOrReturnVoteCvxVault(epoch)
+                    _createVoteCvxVault(epoch)
                 );
 
                 v.mint(to, amount);
