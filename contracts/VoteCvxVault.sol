@@ -59,7 +59,7 @@ contract VoteCvxVault is ERC20Upgradeable {
         @notice Restricted to owner (VaultController) to prevent random tokens
         @param  token  address  Reward token address
      */
-    function addReward(address token) external onlyOwner {
+    function addReward(address token) external {
         if (token == address(0)) revert ZeroAddress();
 
         uint256 rewardIndex = rewardIndexes[token];
