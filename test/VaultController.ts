@@ -173,14 +173,14 @@ describe('VaultController', () => {
     });
   });
 
-  describe('createOrReturnLockedCvxVault', () => {
+  describe('createLockedCvxVault', () => {
     it('Should create a new LockedCvxVault instance', async () => {
       const currentEpoch = await vaultController.getCurrentEpoch();
       const vaultBeforeCreate = await vaultController.lockedCvxVaultsByEpoch(
         currentEpoch
       );
       const events = await callAndReturnEvents(
-        vaultController.createOrReturnLockedCvxVault,
+        vaultController.createLockedCvxVault,
         [currentEpoch]
       );
       const createdVaultEvent = events[events.length - 1];
@@ -219,26 +219,15 @@ describe('VaultController', () => {
         .to.not.equal(`lockedCVX-${0}`);
     });
 
-    it('Should return the vault address if it exists', async () => {
-      const currentEpoch = await vaultController.getCurrentEpoch();
+    it('Should revert if a vault already exists for the epoch', async () => {
+      const existingVault = await vaultController.lockedCvxVaultsByEpoch(
+        firstVaultEpoch
+      );
 
-      // Set to zero address to test if existing vault address is set later
-      await vaultController.resetReturnedLockedCvxVault();
-
-      const returnedLockedCvxVaultBefore =
-        await vaultController.returnedLockedCvxVault();
-
-      await vaultController.createOrReturnLockedCvxVault(currentEpoch);
-
-      const returnedLockedCvxVaultAfter =
-        await vaultController.returnedLockedCvxVault();
-
-      expect(returnedLockedCvxVaultBefore)
-        .to.equal(zeroAddress)
-        .to.not.equal(returnedLockedCvxVaultAfter);
-      expect(returnedLockedCvxVaultAfter)
-        .to.equal(firstLockedCvxVault.address)
-        .to.not.equal(zeroAddress);
+      expect(existingVault).to.equal(firstLockedCvxVault.address);
+      await expect(
+        vaultController.createLockedCvxVault(firstVaultEpoch)
+      ).to.be.revertedWith('VaultAlreadyExists()');
     });
   });
 
@@ -416,10 +405,7 @@ describe('VaultController', () => {
     it('Should revert if redeeming before vault lock expiry', async () => {
       const redeemAmount = toBN(1e18);
 
-      await firstLockedCvxVault.approve(
-        vaultController.address,
-        redeemAmount
-      );
+      await firstLockedCvxVault.approve(vaultController.address, redeemAmount);
 
       await expect(
         vaultController.redeem(firstVaultEpoch, admin.address, redeemAmount)
