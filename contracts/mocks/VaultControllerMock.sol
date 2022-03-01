@@ -9,6 +9,7 @@ contract VaultControllerMock is VaultController {
         ERC20 _CVX,
         address _CVX_LOCKER,
         address _VOTIUM_MULTI_MERKLE_STASH,
+        address _VOTIUM_ADDRESS_REGISTRY,
         uint256 _EPOCH_DEPOSIT_DURATION,
         uint256 _CVX_LOCK_DURATION
     )
@@ -16,6 +17,7 @@ contract VaultControllerMock is VaultController {
             _CVX,
             _CVX_LOCKER,
             _VOTIUM_MULTI_MERKLE_STASH,
+            _VOTIUM_ADDRESS_REGISTRY,
             _EPOCH_DEPOSIT_DURATION,
             _CVX_LOCK_DURATION
         )

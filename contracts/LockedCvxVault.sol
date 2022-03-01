@@ -7,6 +7,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ERC4626VaultInitializable} from "./ERC4626VaultInitializable.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
+import {IVotiumAddressRegistry} from "./interfaces/IVotiumAddressRegistry.sol";
 
 contract LockedCvxVault is ERC4626VaultInitializable {
     using SafeERC20 for ERC20;
@@ -16,24 +17,20 @@ contract LockedCvxVault is ERC4626VaultInitializable {
     uint256 public lockExpiry;
     ICvxLocker public cvxLocker;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
+    IVotiumAddressRegistry public votiumAddressRegistry;
+    address public votiumRewardClaimer;
 
     event UnlockCvx(uint256 amount);
     event LockCvx(uint256 amount);
     event Inititalized(
         uint256 _depositDeadline,
         uint256 _lockExpiry,
-        ICvxLocker _cvxLocker,
+        address _cvxLocker,
         ERC20 _underlying,
         string _name,
         string _symbol
     );
-    event ClaimedVotiumReward(
-        address indexed voteCvxVault,
-        address indexed token,
-        uint256 index,
-        uint256 amount,
-        bytes32[] merkleProof
-    );
+    event SetVotiumRewardClaimer(address _votiumRewardClaimer);
 
     error ZeroAddress();
     error ZeroAmount();
@@ -44,13 +41,15 @@ contract LockedCvxVault is ERC4626VaultInitializable {
 
     /**
         @notice Initializes the contract
-        @param  _vaultController  address     VaultController
-        @param  _depositDeadline  uint256     Deposit deadline
-        @param  _lockExpiry       uint256     Lock expiry for CVX (17 weeks after deposit deadline)
-        @param  _cvxLocker        ICvxLocker  Deposit deadline
-        @param  _underlying       ERC20       Underlying asset
-        @param  _name             string      Token name
-        @param  _symbol           string      Token symbol
+        @param  _vaultController         address     VaultController
+        @param  _depositDeadline         uint256     Deposit deadline
+        @param  _lockExpiry              uint256     Lock expiry for CVX (17 weeks after deposit deadline)
+        @param  _cvxLocker               ICvxLocker  Deposit deadline
+        @param  _votiumMultiMerkleStash  address     VotiumMultiMerkleStash address
+        @param  _votiumAddressRegistry   address     VotiumAddressRegistry address
+        @param  _underlying              ERC20       Underlying asset
+        @param  _name                    string      Token name
+        @param  _symbol                  string      Token symbol
      */
     function initialize(
         address _vaultController,
@@ -58,6 +57,7 @@ contract LockedCvxVault is ERC4626VaultInitializable {
         uint256 _lockExpiry,
         address _cvxLocker,
         address _votiumMultiMerkleStash,
+        address _votiumAddressRegistry,
         ERC20 _underlying,
         string memory _name,
         string memory _symbol
@@ -79,7 +79,19 @@ contract LockedCvxVault is ERC4626VaultInitializable {
             _votiumMultiMerkleStash
         );
 
+        if (_votiumAddressRegistry == address(0)) revert ZeroAddress();
+        votiumAddressRegistry = IVotiumAddressRegistry(_votiumAddressRegistry);
+
         _initialize(_underlying, _name, _symbol);
+
+        emit Inititalized(
+            _depositDeadline,
+            _lockExpiry,
+            _cvxLocker,
+            _underlying,
+            _name,
+            _symbol
+        );
     }
 
     modifier onlyVaultController() {
@@ -137,53 +149,18 @@ contract LockedCvxVault is ERC4626VaultInitializable {
     }
 
     /**
-        @notice Claim Votium reward
-        @notice Restricted to VaultController to ensure reward added on VoteCvxVault
-        @param  voteCvxVault  address    VoteCVXVault address
-        @param  token         address    Reward token address
-        @param  index         uint256    Merkle tree node index
-        @param  amount        uint256    Reward token amount
-        @param  merkleProof   bytes32[]  Merkle proof
+        @notice Forward Votium rewards
+        @param  _votiumRewardClaimer  address  VotiumRewardClaimer address
      */
-    function claimVotiumReward(
-        address voteCvxVault,
-        address token,
-        uint256 index,
-        uint256 amount,
-        bytes32[] calldata merkleProof
-    ) external onlyVaultController {
-        // Claims must be after deposit deadline
-        if (depositDeadline > block.timestamp)
-            revert BeforeDepositDeadline(block.timestamp);
+    function forwardVotiumRewards(address _votiumRewardClaimer)
+        external
+        onlyVaultController
+    {
+        if (_votiumRewardClaimer == address(0)) revert ZeroAddress();
+        votiumRewardClaimer = _votiumRewardClaimer;
 
-        if (voteCvxVault == address(0)) revert ZeroAddress();
+        votiumAddressRegistry.setRegistry(_votiumRewardClaimer);
 
-        ERC20 t = ERC20(token);
-
-        // Handles tokens with fees and when CVX is a reward (don't want to transfer unlocked balance)
-        uint256 balanceBeforeClaim = t.balanceOf(address(this));
-
-        // Validates token, index, amount, and merkleProof
-        votiumMultiMerkleStash.claim(
-            token,
-            index,
-            address(this),
-            amount,
-            merkleProof
-        );
-
-        // Transfer rewards to VoteCvxVault, which can be claimed by vault shareholders
-        t.safeTransfer(
-            voteCvxVault,
-            t.balanceOf(address(this)) - balanceBeforeClaim
-        );
-
-        emit ClaimedVotiumReward(
-            voteCvxVault,
-            token,
-            index,
-            amount,
-            merkleProof
-        );
+        emit SetVotiumRewardClaimer(_votiumRewardClaimer);
     }
 }

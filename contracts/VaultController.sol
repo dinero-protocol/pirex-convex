@@ -18,6 +18,7 @@ contract VaultController is Ownable {
     ERC20 public immutable CVX;
     address public immutable CVX_LOCKER;
     address public immutable VOTIUM_MULTI_MERKLE_STASH;
+    address public immutable VOTIUM_ADDRESS_REGISTRY;
     uint256 public immutable EPOCH_DEPOSIT_DURATION;
     uint256 public immutable CVX_LOCK_DURATION;
     address public immutable LOCKED_CVX_VAULT_IMPLEMENTATION;
@@ -58,6 +59,7 @@ contract VaultController is Ownable {
         ERC20 _CVX,
         address _CVX_LOCKER,
         address _VOTIUM_MULTI_MERKLE_STASH,
+        address _VOTIUM_ADDRESS_REGISTRY,
         uint256 _EPOCH_DEPOSIT_DURATION,
         uint256 _CVX_LOCK_DURATION
     ) {
@@ -69,6 +71,9 @@ contract VaultController is Ownable {
 
         if (_VOTIUM_MULTI_MERKLE_STASH == address(0)) revert ZeroAddress();
         VOTIUM_MULTI_MERKLE_STASH = _VOTIUM_MULTI_MERKLE_STASH;
+
+        if (_VOTIUM_ADDRESS_REGISTRY == address(0)) revert ZeroAddress();
+        VOTIUM_ADDRESS_REGISTRY = _VOTIUM_ADDRESS_REGISTRY;
 
         if (_EPOCH_DEPOSIT_DURATION == 0) revert ZeroAmount();
         EPOCH_DEPOSIT_DURATION = _EPOCH_DEPOSIT_DURATION;
@@ -115,6 +120,7 @@ contract VaultController is Ownable {
             lockExpiry,
             CVX_LOCKER,
             VOTIUM_MULTI_MERKLE_STASH,
+            VOTIUM_ADDRESS_REGISTRY,
             CVX,
             tokenId,
             tokenId
@@ -207,10 +213,14 @@ contract VaultController is Ownable {
             address votiumRewardClaimer
         )
     {
+        bool isNew;
+        lockedCvxVault = lockedCvxVaultsByEpoch[epoch];
+
         // Create a LockedCvxVault for the epoch if it doesn't exist
-        lockedCvxVault = lockedCvxVaultsByEpoch[epoch] == address(0)
-            ? _createLockedCvxVault(epoch)
-            : lockedCvxVaultsByEpoch[epoch];
+        if (lockedCvxVault == address(0)) {
+            isNew = true;
+            lockedCvxVault = _createLockedCvxVault(epoch);
+        }
 
         // Use the next epoch as a starting point for VoteCvxVaults since
         // voting doesn't start until after LockedCvxVault deposit deadline
@@ -228,9 +238,20 @@ contract VaultController is Ownable {
 
         votiumRewardClaimer = votiumRewardClaimerByLockedCvxVault[
             lockedCvxVault
-        ] == address(0)
-            ? _createVotiumRewardClaimer(lockedCvxVault, voteCvxVaults, voteEpochs)
-            : votiumRewardClaimerByLockedCvxVault[lockedCvxVault];
+        ];
+
+        // Only set up LockedCvxVault's claimer if it is new
+        if (isNew) {
+            votiumRewardClaimer = _createVotiumRewardClaimer(
+                lockedCvxVault,
+                voteCvxVaults,
+                voteEpochs
+            );
+
+            LockedCvxVault(lockedCvxVault).forwardVotiumRewards(
+                votiumRewardClaimer
+            );
+        }
 
         emit SetUpVaults(lockedCvxVault, voteCvxVaults, votiumRewardClaimer);
     }

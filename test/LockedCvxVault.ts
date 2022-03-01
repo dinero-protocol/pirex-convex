@@ -46,6 +46,7 @@ describe('LockedCvxVault', () => {
   let cvxStakingProxy: CvxStakingProxy;
   let cvxLockDuration: BigNumber;
   let votiumMultiMerkleStash: any;
+  let votiumAddressRegistry: any;
 
   const epochDepositDuration = toBN(1209600); // 2 weeks in seconds
   const underlyingTokenNameSymbol = 'lockedCVX';
@@ -78,6 +79,9 @@ describe('LockedCvxVault', () => {
     const VotiumMultiMerkleStash: any = await ethers.getContractFactory(
       'MultiMerkleStash'
     );
+    const VotiumAddressRegistry: any = await ethers.getContractFactory(
+      'AddressRegistry'
+    );
 
     // Mocked Convex contracts
     curveVoterProxy = await CurveVoterProxy.deploy();
@@ -102,10 +106,12 @@ describe('LockedCvxVault', () => {
       epochDepositDuration
     );
     votiumMultiMerkleStash = await VotiumMultiMerkleStash.deploy();
+    votiumAddressRegistry = await VotiumAddressRegistry.deploy();
     vaultController = await VaultController.deploy(
       cvx.address,
       cvxLocker.address,
       votiumMultiMerkleStash.address,
+      votiumAddressRegistry.address,
       epochDepositDuration,
       cvxLockDuration
     );
@@ -137,6 +143,7 @@ describe('LockedCvxVault', () => {
       lockExpiry,
       cvxLocker.address,
       votiumMultiMerkleStash.address,
+      votiumAddressRegistry.address,
       cvx.address,
       underlyingTokenNameSymbol,
       underlyingTokenNameSymbol
@@ -158,6 +165,7 @@ describe('LockedCvxVault', () => {
           lockExpiry,
           cvxLocker.address,
           votiumMultiMerkleStash.address,
+          votiumAddressRegistry.address,
           cvx.address,
           underlyingTokenNameSymbol,
           underlyingTokenNameSymbol
@@ -421,9 +429,7 @@ describe('LockedCvxVault', () => {
       const totalHoldingsAfter = await lockedCvxVault.totalHoldings();
 
       expect(lockExpiry.lt(timestamp)).to.equal(true);
-      expect(shareBalanceAfter).to.equal(
-        shareBalanceBefore.sub(redeemAmount)
-      );
+      expect(shareBalanceAfter).to.equal(shareBalanceBefore.sub(redeemAmount));
       expect(totalHoldingsAfter).to.equal(
         totalHoldingsBefore.sub(redeemAmount)
       );

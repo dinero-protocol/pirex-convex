@@ -47,6 +47,7 @@ describe('VaultController', () => {
   let firstLockedCvxVault: LockedCvxVault;
   let firstVoteCvxVault: VoteCvxVault;
   let votiumMultiMerkleStash: any;
+  let votiumAddressRegistry: any;
 
   const epochDepositDuration = toBN(1209600); // 2 weeks in seconds
   const initialCvxBalanceForAdmin = toBN(100e18);
@@ -79,6 +80,9 @@ describe('VaultController', () => {
     const VotiumMultiMerkleStash: any = await ethers.getContractFactory(
       'MultiMerkleStash'
     );
+    const VotiumAddressRegistry: any = await ethers.getContractFactory(
+      'AddressRegistry'
+    );
 
     // Mocked Convex contracts
     curveVoterProxy = await CurveVoterProxy.deploy();
@@ -103,10 +107,12 @@ describe('VaultController', () => {
       epochDepositDuration
     );
     votiumMultiMerkleStash = await VotiumMultiMerkleStash.deploy();
+    votiumAddressRegistry = await VotiumAddressRegistry.deploy();
     vaultController = await VaultController.deploy(
       cvx.address,
       cvxLocker.address,
       votiumMultiMerkleStash.address,
+      votiumAddressRegistry.address,
       epochDepositDuration,
       cvxLockDuration
     );
@@ -302,15 +308,80 @@ describe('VaultController', () => {
         await vaultController.votiumRewardClaimerByLockedCvxVault(
           expectedLockedCvxVault
         );
+      const votiumRewardClaimerOnLockedCvxVault = await (
+        await ethers.getContractAt(
+          'LockedCvxVault',
+          setUpEvent.args.lockedCvxVault
+        )
+      ).votiumRewardClaimer();
+      const votiumRewardClaimerOnVotiumAddressRegistry = (
+        await votiumAddressRegistry.registry(setUpEvent.args.lockedCvxVault)
+      ).to;
 
       expect(setUpEvent.eventSignature).to.equal(
         'SetUpVaults(address,address[8],address)'
       );
       expect(setUpEvent.args.lockedCvxVault).to.equal(expectedLockedCvxVault);
       expect(setUpEvent.args.voteCvxVaults).to.deep.equal(actualVoteCvxVaults);
-      expect(setUpEvent.args.votiumRewardClaimer).to.equal(
-        expectedVotiumRewardClaimer
+      expect(setUpEvent.args.votiumRewardClaimer)
+        .to.equal(expectedVotiumRewardClaimer)
+        .to.equal(votiumRewardClaimerOnLockedCvxVault)
+        .to.equal(votiumRewardClaimerOnVotiumAddressRegistry);
+    });
+
+    it('Should not create new vaults if they exist', async () => {
+      const currentEpoch = await vaultController.getCurrentEpoch();
+      const existingLockedCvxVault =
+        await vaultController.lockedCvxVaultsByEpoch(currentEpoch);
+      const existingVotiumRewardClaimer =
+        await vaultController.votiumRewardClaimerByLockedCvxVault(
+          existingLockedCvxVault
+        );
+      const EPOCH_DEPOSIT_DURATION =
+        await vaultController.EPOCH_DEPOSIT_DURATION();
+      const existingVoteCvxVaultEpochs = [...Array(8).keys()].map((_, idx) =>
+        currentEpoch
+          .add(EPOCH_DEPOSIT_DURATION)
+          .add(EPOCH_DEPOSIT_DURATION.mul(idx))
       );
+      const existingVoteCvxVaults = await Promise.map(
+        existingVoteCvxVaultEpochs,
+        async (voteEpoch) => {
+          return vaultController.voteCvxVaultsByEpoch(voteEpoch);
+        }
+      );
+      const events = await callAndReturnEvents(vaultController.setUpVaults, [
+        currentEpoch,
+      ]);
+      const {
+        args: {
+          lockedCvxVault: eventLockedCvxVault,
+          voteCvxVaults: eventVoteCvxVaults,
+          votiumRewardClaimer: eventVotiumRewardClaimer,
+        },
+      } = events[events.length - 1];
+      const expectedLockedCvxVault =
+        await vaultController.lockedCvxVaultsByEpoch(currentEpoch);
+      const expectedVotiumRewardClaimer =
+        await vaultController.votiumRewardClaimerByLockedCvxVault(
+          expectedLockedCvxVault
+        );
+      const expectedVoteCvxVaults = await Promise.map(
+        existingVoteCvxVaultEpochs,
+        async (voteEpoch) => {
+          return vaultController.voteCvxVaultsByEpoch(voteEpoch);
+        }
+      );
+
+      expect(existingLockedCvxVault)
+        .to.equal(expectedLockedCvxVault)
+        .to.equal(eventLockedCvxVault);
+      expect(existingVotiumRewardClaimer)
+        .to.equal(expectedVotiumRewardClaimer)
+        .to.equal(eventVotiumRewardClaimer);
+      expect(existingVoteCvxVaults)
+        .to.deep.equal(expectedVoteCvxVaults)
+        .to.deep.equal(eventVoteCvxVaults);
     });
   });
 
