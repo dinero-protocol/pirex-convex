@@ -16,13 +16,15 @@ contract VoteCvxVault is ERC20Upgradeable {
     address public owner;
     uint256 public mintDeadline;
     Rewards[] public rewards;
-    mapping(address => uint256) rewardIndexes;
+    mapping(address => uint256) rewardIndexesByToken;
 
+    event Initialized(uint256 _mintDeadline, string _name, string _symbol);
     event Minted(address indexed to, uint256 amount);
     event AddedReward(address token, uint256 amount);
 
     error ZeroAmount();
     error ZeroAddress();
+    error ZeroBalance();
     error EmptyString();
     error AfterMintDeadline(uint256 timestamp);
 
@@ -39,6 +41,8 @@ contract VoteCvxVault is ERC20Upgradeable {
         if (bytes(_name).length == 0) revert EmptyString();
         if (bytes(_symbol).length == 0) revert EmptyString();
         __ERC20_init_unchained(_name, _symbol);
+
+        emit Initialized(_mintDeadline, _name, _symbol);
     }
 
     modifier onlyOwner() {
@@ -49,6 +53,8 @@ contract VoteCvxVault is ERC20Upgradeable {
     function mint(address to, uint256 amount) external onlyOwner {
         if (mintDeadline < block.timestamp)
             revert AfterMintDeadline(block.timestamp);
+
+        // Validates that `to` is not zero address
         _mint(to, amount);
 
         emit Minted(to, amount);
@@ -62,19 +68,22 @@ contract VoteCvxVault is ERC20Upgradeable {
     function addReward(address token) external {
         if (token == address(0)) revert ZeroAddress();
 
-        uint256 rewardIndex = rewardIndexes[token];
+        uint256 rewardIndex = rewardIndexesByToken[token];
+
+        // Store balance - revert if zero
         uint256 balance = ERC20(token).balanceOf(address(this));
+        if (balance == 0) revert ZeroBalance();
 
         // Add reward token if it doesn't exist
-        if (rewards.length == 0 || (rewardIndex == 0 && rewards[rewardIndex].token == address(0))) {
-            rewards.push(Rewards({token: token, amount: balance}));            
-            rewardIndexes[token] = rewards.length - 1;
+        if (
+            rewards.length == 0 ||
+            (rewardIndex == 0 && rewards[rewardIndex].token == address(0))
+        ) {
+            rewards.push(Rewards({token: token, amount: balance}));
+            rewardIndexesByToken[token] = rewards.length - 1;
         } else {
             // Reward updates are necessary if Votium updates its claims with missing/additional rewards
-            rewards[rewardIndex] = Rewards({
-                token: token,
-                amount: balance
-            });
+            rewards[rewardIndex] = Rewards({token: token, amount: balance});
         }
 
         emit AddedReward(token, balance);
