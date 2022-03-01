@@ -32,6 +32,7 @@ contract VaultController is Ownable {
         string tokenId
     );
     event CreatedVoteCvxVault(address vault, string tokenId);
+    event SetUpVaults(address lockedCvxVault, address[8] voteCvxVaults);
     event Deposited(uint256 epoch, address to, uint256 amount);
     event Redeemed(uint256 epoch, address to, uint256 amount);
 
@@ -39,6 +40,7 @@ contract VaultController is Ownable {
     error ZeroAmount();
     error InvalidVaultEpoch(uint256 epoch);
     error VaultAlreadyExists();
+    error InvalidMintVoteCvxEpoch(uint256 epoch);
 
     constructor(
         ERC20 _CVX,
@@ -77,17 +79,14 @@ contract VaultController is Ownable {
 
     /**
         @notice Create a LockedCvxVault
-        @param   epoch  uint256  Epoch
-        @return  vault  address  LockedCvxVault address
+        @param   epoch    uint256         Epoch
+        @return  address  LockedCvxVault address
      */
-    function _createLockedCvxVault(uint256 epoch)
-        internal
-        returns (address vault)
-    {
+    function _createLockedCvxVault(uint256 epoch) internal returns (address) {
         if (lockedCvxVaultsByEpoch[epoch] != address(0))
             revert VaultAlreadyExists();
 
-        LockedCvxVault v = LockedCvxVault(
+        LockedCvxVault vault = LockedCvxVault(
             Clones.clone(LOCKED_CVX_VAULT_IMPLEMENTATION)
         );
         uint256 depositDeadline = epoch + EPOCH_DEPOSIT_DURATION;
@@ -96,7 +95,7 @@ contract VaultController is Ownable {
             abi.encodePacked("lockedCVX-", epoch.toString())
         );
 
-        v.initialize(
+        vault.initialize(
             address(this),
             depositDeadline,
             lockExpiry,
@@ -107,55 +106,98 @@ contract VaultController is Ownable {
             tokenId
         );
 
-        vault = address(v);
-        lockedCvxVaultsByEpoch[epoch] = vault;
+        address vaultAddr = address(vault);
+        lockedCvxVaultsByEpoch[epoch] = vaultAddr;
 
-        emit CreatedLockedCvxVault(vault, depositDeadline, lockExpiry, tokenId);
+        emit CreatedLockedCvxVault(
+            vaultAddr,
+            depositDeadline,
+            lockExpiry,
+            tokenId
+        );
+
+        return vaultAddr;
     }
 
     /**
         @notice Create a VoteCvxVault
-        @param   epoch  uint256  Epoch
-        @return  vault  address  VoteCvxVault address
+        @param   epoch    uint256       Epoch
+        @return  address  VoteCvxVault address
      */
-    function _createVoteCvxVault(uint256 epoch)
-        internal
-        returns (address vault)
-    {
+    function _createVoteCvxVault(uint256 epoch) internal returns (address) {
         if (voteCvxVaultsByEpoch[epoch] != address(0))
             revert VaultAlreadyExists();
 
-        VoteCvxVault v = VoteCvxVault(
+        VoteCvxVault vault = VoteCvxVault(
             Clones.clone(VOTE_CVX_VAULT_IMPLEMENTATION)
         );
         string memory tokenId = string(
             abi.encodePacked("voteCVX-", epoch.toString())
         );
 
-        v.initialize(epoch, tokenId, tokenId);
+        vault.initialize(epoch, tokenId, tokenId);
 
-        vault = address(v);
-        voteCvxVaultsByEpoch[epoch] = vault;
+        address vaultAddr = address(vault);
+        voteCvxVaultsByEpoch[epoch] = vaultAddr;
 
-        emit CreatedVoteCvxVault(vault, tokenId);
+        emit CreatedVoteCvxVault(vaultAddr, tokenId);
+
+        return vaultAddr;
     }
 
     /**
-        @notice Mint voteCVX for 8 upcoming epochs
-        @param  to      address  Account receiving voteCVX
-        @param  amount  uint256  Amount voteCVX to mint
+        @notice Set up vaults for an epoch
+        @param   epoch           uint256     Epoch
+        @return  lockedCvxVault  address     LockedCvxVault instance
+        @return  voteCvxVaults   address[8]  VoteCvxVault instances
     */
-    function _mintVoteCvx(address to, uint256 amount) internal {
-        uint256 startingEpoch = getCurrentEpoch() + EPOCH_DEPOSIT_DURATION;
+    function setUpVaults(uint256 epoch)
+        external
+        returns (address lockedCvxVault, address[8] memory voteCvxVaults)
+    {
+        // Create a LockedCvxVault for the epoch if it doesn't exist
+        lockedCvxVault = lockedCvxVaultsByEpoch[epoch] == address(0)
+            ? _createLockedCvxVault(epoch)
+            : lockedCvxVaultsByEpoch[epoch];
+
+        // Use the next epoch as a starting point for VoteCvxVaults since
+        // voting doesn't start until after LockedCvxVault deposit deadline
+        uint256 startingVoteEpoch = epoch + EPOCH_DEPOSIT_DURATION;
+
+        // Create a VoteCvxVault for each Convex voting round (8 total per lock)
+        for (uint8 i; i < 8; ++i) {
+            uint256 voteEpoch = startingVoteEpoch +
+                (i * EPOCH_DEPOSIT_DURATION);
+
+            voteCvxVaults[i] = voteCvxVaultsByEpoch[voteEpoch] == address(0)
+                ? _createVoteCvxVault(voteEpoch)
+                : voteCvxVaultsByEpoch[voteEpoch];
+        }
+
+        emit SetUpVaults(lockedCvxVault, voteCvxVaults);
+    }
+
+    /**
+        @notice Mint voteCVX for Convex voting rounds
+        @param  startingVoteEpoch  uint256  Epoch to start minting voteCVX
+        @param  to                 address  Account receiving voteCVX
+        @param  amount             uint256  Amount voteCVX to mint
+    */
+    function _mintVoteCvx(
+        uint256 startingVoteEpoch,
+        address to,
+        uint256 amount
+    ) internal {
+        if (startingVoteEpoch == getCurrentEpoch())
+            revert InvalidMintVoteCvxEpoch(startingVoteEpoch);
 
         unchecked {
             for (uint8 i; i < 8; ++i) {
-                uint256 epoch = startingEpoch + (i * EPOCH_DEPOSIT_DURATION);
-                VoteCvxVault v = VoteCvxVault(
-                    _createVoteCvxVault(epoch)
-                );
-
-                v.mint(to, amount);
+                VoteCvxVault(
+                    voteCvxVaultsByEpoch[
+                        startingVoteEpoch + (i * EPOCH_DEPOSIT_DURATION)
+                    ]
+                ).mint(to, amount);
             }
         }
     }
@@ -176,7 +218,7 @@ contract VaultController is Ownable {
         CVX.safeTransferFrom(msg.sender, address(this), amount);
         CVX.safeIncreaseAllowance(address(v), amount);
         v.deposit(to, amount);
-        _mintVoteCvx(to, amount);
+        _mintVoteCvx(currentEpoch + EPOCH_DEPOSIT_DURATION, to, amount);
 
         emit Deposited(currentEpoch, to, amount);
     }
