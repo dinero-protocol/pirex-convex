@@ -38,6 +38,7 @@ contract VaultController is Ownable {
     error ZeroAddress();
     error ZeroAmount();
     error InvalidVaultEpoch(uint256 epoch);
+    error VaultAlreadyExists();
 
     constructor(
         ERC20 _CVX,
@@ -75,16 +76,16 @@ contract VaultController is Ownable {
     }
 
     /**
-        @notice Deploy and/or return the address for a LockedCvxVault
+        @notice Create a LockedCvxVault
         @param   epoch  uint256  Epoch
         @return  vault  address  LockedCvxVault address
      */
-    function _createOrReturnLockedCvxVault(uint256 epoch)
+    function _createLockedCvxVault(uint256 epoch)
         internal
         returns (address vault)
     {
         if (lockedCvxVaultsByEpoch[epoch] != address(0))
-            return lockedCvxVaultsByEpoch[epoch];
+            revert VaultAlreadyExists();
 
         LockedCvxVault v = LockedCvxVault(
             Clones.clone(LOCKED_CVX_VAULT_IMPLEMENTATION)
@@ -110,8 +111,6 @@ contract VaultController is Ownable {
         lockedCvxVaultsByEpoch[epoch] = vault;
 
         emit CreatedLockedCvxVault(vault, depositDeadline, lockExpiry, tokenId);
-
-        return vault;
     }
 
     /**
@@ -173,9 +172,7 @@ contract VaultController is Ownable {
         if (amount == 0) revert ZeroAmount();
 
         uint256 currentEpoch = getCurrentEpoch();
-        LockedCvxVault v = LockedCvxVault(
-            _createOrReturnLockedCvxVault(currentEpoch)
-        );
+        LockedCvxVault v = LockedCvxVault(lockedCvxVaultsByEpoch[currentEpoch]);
 
         // Transfer vault underlying and approve amount to be deposited
         CVX.safeTransferFrom(msg.sender, address(this), amount);
