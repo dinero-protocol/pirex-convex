@@ -25,7 +25,6 @@ import { BigNumber } from 'ethers';
 
 describe('VaultController', () => {
   let admin: SignerWithAddress;
-  let notAdmin: SignerWithAddress;
   let vaultController: VaultControllerMock;
 
   // Mocked Convex contracts
@@ -58,7 +57,7 @@ describe('VaultController', () => {
   const zeroAddress = '0x0000000000000000000000000000000000000000';
 
   before(async () => {
-    [admin, notAdmin] = await ethers.getSigners();
+    [admin] = await ethers.getSigners();
 
     const VaultController = await ethers.getContractFactory(
       'VaultControllerMock'

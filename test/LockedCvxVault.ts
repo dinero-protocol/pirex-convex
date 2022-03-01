@@ -24,7 +24,6 @@ import {
 
 describe('LockedCvxVault', () => {
   let admin: SignerWithAddress;
-  let notAdmin: SignerWithAddress;
   let vaultController: VaultController;
   let lockedCvxVault: LockedCvxVault;
   let depositDeadline: BigNumber;
@@ -58,7 +57,7 @@ describe('LockedCvxVault', () => {
   const zeroAddress = '0x0000000000000000000000000000000000000000';
 
   before(async () => {
-    [admin, notAdmin] = await ethers.getSigners();
+    [admin] = await ethers.getSigners();
 
     const VaultController = await ethers.getContractFactory('VaultController');
     const LockedCvxVault = await ethers.getContractFactory('LockedCvxVault');
