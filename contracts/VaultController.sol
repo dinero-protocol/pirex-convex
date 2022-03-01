@@ -113,6 +113,8 @@ contract VaultController is Ownable {
         string memory tokenId = string(
             abi.encodePacked("lockedCVX-", epoch.toString())
         );
+        address vaultAddr = address(vault);
+        lockedCvxVaultsByEpoch[epoch] = vaultAddr;
 
         vault.initialize(
             address(this),
@@ -124,9 +126,6 @@ contract VaultController is Ownable {
             tokenId,
             tokenId
         );
-
-        address vaultAddr = address(vault);
-        lockedCvxVaultsByEpoch[epoch] = vaultAddr;
 
         emit CreatedLockedCvxVault(
             vaultAddr,
@@ -152,11 +151,10 @@ contract VaultController is Ownable {
         string memory tokenId = string(
             abi.encodePacked("voteCVX-", epoch.toString())
         );
-
-        vault.initialize(epoch, tokenId, tokenId);
-
         address vaultAddr = address(vault);
         voteCvxVaultsByEpoch[epoch] = vaultAddr;
+
+        vault.initialize(epoch, tokenId, tokenId);
 
         emit CreatedVoteCvxVault(vaultAddr, tokenId);
 
@@ -180,6 +178,8 @@ contract VaultController is Ownable {
         VotiumRewardClaimer v = VotiumRewardClaimer(
             Clones.clone(VOTIUM_REWARD_CLAIMER_IMPLEMENTATION)
         );
+        address vAddr = address(v);
+        votiumRewardClaimerByLockedCvxVault[lockedCvxVault] = vAddr;
 
         v.initialize(
             address(this),
@@ -188,9 +188,6 @@ contract VaultController is Ownable {
             voteCvxVaults,
             voteEpochs
         );
-
-        address vAddr = address(v);
-        votiumRewardClaimerByLockedCvxVault[lockedCvxVault] = vAddr;
 
         // Forwards LockedCvxVault rewards to fresh VotiumRewardClaimer
         LockedCvxVault(lockedCvxVault).forwardVotiumRewards(vAddr);
@@ -318,12 +315,13 @@ contract VaultController is Ownable {
         address vAddr = lockedCvxVaultsByEpoch[epoch];
         if (vAddr == address(0)) revert InvalidVaultEpoch(epoch);
 
+        LockedCvxVault v = LockedCvxVault(vAddr);
+
         // Transfer vault shares to self and approve amount to be burned
         ERC20(vAddr).safeTransferFrom(msg.sender, address(this), amount);
         ERC20(vAddr).safeIncreaseAllowance(vAddr, amount);
 
         // Unlock CVX and redeem against shares
-        LockedCvxVault v = LockedCvxVault(vAddr);
         v.unlockCvx();
         v.redeem(to, amount);
 
