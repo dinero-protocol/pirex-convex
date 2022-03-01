@@ -231,14 +231,14 @@ describe('VaultController', () => {
     });
   });
 
-  describe('createOrReturnVoteCvxVault', () => {
+  describe('createVoteCvxVault', () => {
     it('Should create a new VoteCvxVault instance', async () => {
       const currentEpoch = await vaultController.getCurrentEpoch();
       const vaultBeforeCreate = await vaultController.voteCvxVaultsByEpoch(
         currentEpoch
       );
       const events = await callAndReturnEvents(
-        vaultController.createOrReturnVoteCvxVault,
+        vaultController.createVoteCvxVault,
         [currentEpoch]
       );
       const createdVaultEvent = events[events.length - 1];
@@ -264,25 +264,46 @@ describe('VaultController', () => {
         .to.not.equal(`voteCVX-${0}`);
     });
 
-    it('Should return the vault address if it exists', async () => {
+    it('Should revert if a vault already exists for the epoch', async () => {
+      const existingVault = await vaultController.voteCvxVaultsByEpoch(
+        firstVaultEpoch
+      );
+
+      expect(existingVault).to.equal(firstVoteCvxVault.address);
+      await expect(
+        vaultController.createVoteCvxVault(firstVaultEpoch)
+      ).to.be.revertedWith('VaultAlreadyExists()');
+    });
+  });
+
+  describe('setUpVaults', () => {
+    it('Should set up vaults for an epoch', async () => {
       const currentEpoch = await vaultController.getCurrentEpoch();
+      const EPOCH_DEPOSIT_DURATION =
+        await vaultController.EPOCH_DEPOSIT_DURATION();
+      const expectedLockedCvxVault =
+        await vaultController.lockedCvxVaultsByEpoch(currentEpoch);
+      const expectedVoteCvxVaultEpochs = [...Array(8).keys()].map((_, idx) =>
+        currentEpoch
+          .add(EPOCH_DEPOSIT_DURATION)
+          .add(EPOCH_DEPOSIT_DURATION.mul(idx))
+      );
+      const events = await callAndReturnEvents(vaultController.setUpVaults, [
+        currentEpoch,
+      ]);
+      const setUpEvent = events[events.length - 1];
+      const actualVoteCvxVaults = await Promise.map(
+        expectedVoteCvxVaultEpochs,
+        async (voteEpoch) => {
+          return vaultController.voteCvxVaultsByEpoch(voteEpoch);
+        }
+      );
 
-      await vaultController.resetReturnedVoteCvxVault();
-
-      const returnedVoteCvxVaultBefore =
-        await vaultController.returnedVoteCvxVault();
-
-      await vaultController.createOrReturnVoteCvxVault(currentEpoch);
-
-      const returnedVoteCvxVaultAfter =
-        await vaultController.returnedVoteCvxVault();
-
-      expect(returnedVoteCvxVaultBefore)
-        .to.equal(zeroAddress)
-        .to.not.equal(returnedVoteCvxVaultAfter);
-      expect(returnedVoteCvxVaultAfter)
-        .to.equal(firstVoteCvxVault.address)
-        .to.not.equal(zeroAddress);
+      expect(setUpEvent.eventSignature).to.equal(
+        'SetUpVaults(address,address[8])'
+      );
+      expect(setUpEvent.args.lockedCvxVault).to.equal(expectedLockedCvxVault);
+      expect(setUpEvent.args.voteCvxVaults).to.deep.equal(actualVoteCvxVaults);
     });
   });
 

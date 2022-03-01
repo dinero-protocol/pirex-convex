@@ -29,10 +29,7 @@ contract VaultControllerMock is VaultController {
         _createVoteCvxVault(epoch);
     }
 
-    /**
-        @notice Restricted to VaultController to ensure reward added on VoteCvxVault
-    */
-    function mintVoteCvx(address to, uint256 amount) external {
-        _mintVoteCvx(to, amount);
+    function mintVoteCvx(uint256 startingVoteEpoch, address to, uint256 amount) external {
+        _mintVoteCvx(startingVoteEpoch, to, amount);
     }
 }
