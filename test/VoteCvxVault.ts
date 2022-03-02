@@ -1,12 +1,10 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { Promise } from 'bluebird';
 import {
   increaseBlockTimestamp,
   toBN,
   callAndReturnEvents,
-  getNumberBetweenRange,
 } from './helpers';
 import { ConvexToken, CurveVoterProxy, VoteCvxVault } from '../typechain-types';
 
