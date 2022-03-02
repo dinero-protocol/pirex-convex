@@ -140,6 +140,41 @@ describe('TriCvxVault', () => {
     });
   });
 
+  describe('setRewardClaimer', () => {
+    it('Should set rewardClaimer', async () => {
+      const rewardClaimerBefore = await triCvxVault.rewardClaimer();
+      const events = await callAndReturnEvents(
+        triCvxVault.connect(vaultControllerSigner).setRewardClaimer,
+        [admin.address]
+      );
+      const setEvent = events[events.length - 1];
+      const rewardClaimerAfter = await triCvxVault.rewardClaimer();
+
+      expect(rewardClaimerBefore).to.equal(zeroAddress);
+      expect(setEvent.eventSignature).to.equal('SetRewardClaimer(address)');
+      expect(setEvent.args._rewardClaimer)
+        .to.equal(rewardClaimerAfter)
+        .to.equal(admin.address)
+        .to.not.equal(zeroAddress);
+    });
+
+    it('Should revert if not vaultController', async () => {
+      await expect(
+        triCvxVault.setRewardClaimer(admin.address)
+      ).to.be.revertedWith('NotVaultController()');
+    });
+
+    it('Should revert if zero address', async () => {
+      const invalidRewardClaimer = zeroAddress;
+
+      await expect(
+        triCvxVault
+          .connect(vaultControllerSigner)
+          .setRewardClaimer(invalidRewardClaimer)
+      ).to.be.revertedWith('ZeroAddress()');
+    });
+  });
+
   describe('mint', () => {
     it('Should mint tokens', async () => {
       const to = admin.address;

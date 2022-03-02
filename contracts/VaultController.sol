@@ -189,6 +189,12 @@ contract VaultController is Ownable {
         // Forwards LockedCvxVault rewards to fresh VotiumRewardClaimer
         LockedCvxVault(lockedCvxVault).forwardVotiumRewards(vAddr);
 
+        unchecked {
+            for (uint8 i; i < 8; ++i) {
+                TriCvxVault(triCvxVaults[i]).setRewardClaimer(vAddr);
+            }
+        }
+
         emit CreatedVotiumRewardClaimer(vAddr, lockedCvxVault, triCvxVaults);
 
         return vAddr;

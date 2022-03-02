@@ -16,11 +16,13 @@ contract TriCvxVault is ERC1155Upgradeable {
     uint256 public immutable REWARD_CVX = 2;
 
     address public vaultController;
+    address public rewardClaimer;
     uint256 public mintDeadline;
     Rewards[] public rewards;
     mapping(address => uint256) rewardIndexesByToken;
 
     event Initialized(address _vaulController, uint256 _mintDeadline);
+    event SetRewardClaimer(address _rewardClaimer);
     event Minted(address indexed to, uint256 amount);
     event AddedReward(address token, uint256 amount);
 
@@ -30,6 +32,7 @@ contract TriCvxVault is ERC1155Upgradeable {
     error EmptyString();
     error AfterMintDeadline(uint256 timestamp);
     error NotVaultController();
+    error NotRewardClaimer();
 
     function initialize(address _vaultController, uint256 _mintDeadline)
         external
@@ -47,6 +50,25 @@ contract TriCvxVault is ERC1155Upgradeable {
     modifier onlyVaultController() {
         if (msg.sender != vaultController) revert NotVaultController();
         _;
+    }
+
+    modifier onlyRewardClaimer() {
+        if (msg.sender != rewardClaimer) revert NotRewardClaimer();
+        _;
+    }
+
+    /**
+        @notice Set reward claimer
+        @param  _rewardClaimer  address  Reward claimer
+     */
+    function setRewardClaimer(address _rewardClaimer)
+        external
+        onlyVaultController
+    {
+        if (_rewardClaimer == address(0)) revert ZeroAddress();
+        rewardClaimer = _rewardClaimer;
+
+        emit SetRewardClaimer(_rewardClaimer);
     }
 
     /**
@@ -76,10 +98,10 @@ contract TriCvxVault is ERC1155Upgradeable {
 
     /**
         @notice Add a reward based on token balance
-        @notice Restricted to owner (VaultController) to prevent random tokens
+        @notice Restricted to rewardClaimer to prevent random tokens
         @param  token  address  Reward token address
      */
-    function addReward(address token) external {
+    function addReward(address token) external onlyRewardClaimer {
         if (token == address(0)) revert ZeroAddress();
 
         uint256 rewardIndex = rewardIndexesByToken[token];
