@@ -2,8 +2,11 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber } from "ethers";
 import { ethers } from "hardhat";
 
-export async function callAndReturnEvent(fn: any, fnArgs: any): Promise<any> {
-  const { events } = await (await fn.apply(null, fnArgs)).wait();
+export const callAndReturnEvent = async (
+  fn: any,
+  fnArgs: any[]
+): Promise<any> => {
+  const { events } = await (await fn(...fnArgs)).wait();
 
   return events[events.length - 1];
 }
