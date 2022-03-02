@@ -151,7 +151,7 @@ contract VaultController is Ownable {
         address vaultAddr = address(vault);
         triCvxVaultsByEpoch[epoch] = vaultAddr;
 
-        vault.initialize(epoch);
+        vault.initialize(address(this), epoch);
 
         emit CreatedTriCvxVault(vaultAddr, epoch);
 

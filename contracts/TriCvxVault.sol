@@ -15,12 +15,12 @@ contract TriCvxVault is ERC1155Upgradeable {
     uint256 public immutable BRIBE_CVX = 1;
     uint256 public immutable REWARD_CVX = 2;
 
-    address public owner;
+    address public vaultController;
     uint256 public mintDeadline;
     Rewards[] public rewards;
     mapping(address => uint256) rewardIndexesByToken;
 
-    event Initialized(uint256 _mintDeadline);
+    event Initialized(address _vaulController, uint256 _mintDeadline);
     event Minted(address indexed to, uint256 amount);
     event AddedReward(address token, uint256 amount);
 
@@ -29,18 +29,23 @@ contract TriCvxVault is ERC1155Upgradeable {
     error ZeroBalance();
     error EmptyString();
     error AfterMintDeadline(uint256 timestamp);
+    error NotVaultController();
 
-    function initialize(uint256 _mintDeadline) external initializer {
-        owner = msg.sender;
+    function initialize(address _vaultController, uint256 _mintDeadline)
+        external
+        initializer
+    {
+        if (_vaultController == address(0)) revert ZeroAddress();
+        vaultController = _vaultController;
 
         if (_mintDeadline == 0) revert ZeroAmount();
         mintDeadline = _mintDeadline;
 
-        emit Initialized(_mintDeadline);
+        emit Initialized(_vaultController, _mintDeadline);
     }
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Caller is not the owner");
+    modifier onlyVaultController() {
+        if (msg.sender != vaultController) revert NotVaultController();
         _;
     }
 
@@ -49,7 +54,7 @@ contract TriCvxVault is ERC1155Upgradeable {
         @param  to      address  Recipient
         @param  amount  uint256  Amount
      */
-     function mint(address to, uint256 amount) external onlyOwner {
+    function mint(address to, uint256 amount) external onlyVaultController {
         if (mintDeadline < block.timestamp)
             revert AfterMintDeadline(block.timestamp);
         if (amount == 0) revert ZeroAmount();

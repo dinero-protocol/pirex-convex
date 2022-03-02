@@ -9,7 +9,7 @@ export const callAndReturnEvent = async (
   const { events } = await (await fn(...fnArgs)).wait();
 
   return events[events.length - 1];
-}
+};
 
 export async function callAndReturnEvents(fn: any, fnArgs: any): Promise<any> {
   const { events } = await (await fn(...fnArgs)).wait();
