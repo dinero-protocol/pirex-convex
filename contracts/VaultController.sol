@@ -17,6 +17,7 @@ contract VaultController is Ownable {
 
     ERC20 public immutable CVX;
     address public immutable CVX_LOCKER;
+    address public immutable CVX_DELEGATE_REGISTRY;
     address public immutable VOTIUM_MULTI_MERKLE_STASH;
     address public immutable VOTIUM_ADDRESS_REGISTRY;
     uint256 public immutable EPOCH_DEPOSIT_DURATION;
@@ -58,6 +59,7 @@ contract VaultController is Ownable {
     constructor(
         ERC20 _CVX,
         address _CVX_LOCKER,
+        address _CVX_DELEGATE_REGISTRY,
         address _VOTIUM_MULTI_MERKLE_STASH,
         address _VOTIUM_ADDRESS_REGISTRY,
         uint256 _EPOCH_DEPOSIT_DURATION,
@@ -68,6 +70,9 @@ contract VaultController is Ownable {
 
         if (_CVX_LOCKER == address(0)) revert ZeroAddress();
         CVX_LOCKER = _CVX_LOCKER;
+
+        if (_CVX_DELEGATE_REGISTRY == address(0)) revert ZeroAddress();
+        CVX_DELEGATE_REGISTRY = _CVX_DELEGATE_REGISTRY;
 
         if (_VOTIUM_MULTI_MERKLE_STASH == address(0)) revert ZeroAddress();
         VOTIUM_MULTI_MERKLE_STASH = _VOTIUM_MULTI_MERKLE_STASH;
@@ -121,6 +126,7 @@ contract VaultController is Ownable {
             depositDeadline,
             lockExpiry,
             CVX_LOCKER,
+            CVX_DELEGATE_REGISTRY,
             VOTIUM_ADDRESS_REGISTRY,
             CVX,
             tokenId,

@@ -8,6 +8,7 @@ import {
   toBN,
   getNumberBetweenRange,
   increaseBlockTimestamp,
+  impersonateAddressAndReturnSigner,
 } from './helpers';
 import {
   ConvexToken,
@@ -19,12 +20,14 @@ import {
   CvxStakingProxy,
   LockedCvxVault,
   CurveVoterProxy,
-  VaultController,
+  VaultControllerMock,
+  DelegateRegistry,
 } from '../typechain-types';
 
 describe('LockedCvxVault', () => {
   let admin: SignerWithAddress;
-  let vaultController: VaultController;
+  let vaultControllerSigner: SignerWithAddress;
+  let vaultController: VaultControllerMock;
   let lockedCvxVault: LockedCvxVault;
   let depositDeadline: BigNumber;
   let lockExpiry: BigNumber;
@@ -46,6 +49,7 @@ describe('LockedCvxVault', () => {
   let cvxLockDuration: BigNumber;
   let votiumMultiMerkleStash: any;
   let votiumAddressRegistry: any;
+  let convexDelegateRegistry: DelegateRegistry;
 
   const epochDepositDuration = toBN(1209600); // 2 weeks in seconds
   const underlyingTokenNameSymbol = 'lockedCVX';
@@ -59,7 +63,7 @@ describe('LockedCvxVault', () => {
   before(async () => {
     [admin] = await ethers.getSigners();
 
-    const VaultController = await ethers.getContractFactory('VaultController');
+    const VaultController = await ethers.getContractFactory('VaultControllerMock');
     const LockedCvxVault = await ethers.getContractFactory('LockedCvxVault');
 
     // Mocked Convex contracts
@@ -80,6 +84,9 @@ describe('LockedCvxVault', () => {
     );
     const VotiumAddressRegistry: any = await ethers.getContractFactory(
       'AddressRegistry'
+    );
+    const ConvexDelegateRegistry = await ethers.getContractFactory(
+      'DelegateRegistry'
     );
 
     // Mocked Convex contracts
@@ -106,9 +113,11 @@ describe('LockedCvxVault', () => {
     );
     votiumMultiMerkleStash = await VotiumMultiMerkleStash.deploy();
     votiumAddressRegistry = await VotiumAddressRegistry.deploy();
+    convexDelegateRegistry = await ConvexDelegateRegistry.deploy();
     vaultController = await VaultController.deploy(
       cvx.address,
       cvxLocker.address,
+      convexDelegateRegistry.address,
       votiumMultiMerkleStash.address,
       votiumAddressRegistry.address,
       epochDepositDuration,
@@ -136,11 +145,17 @@ describe('LockedCvxVault', () => {
       cvxCrvToken.address
     );
 
+    vaultControllerSigner = await impersonateAddressAndReturnSigner(
+      admin,
+      vaultController.address
+    );
+
     await lockedCvxVault.initialize(
       vaultController.address,
       depositDeadline,
       lockExpiry,
       cvxLocker.address,
+      convexDelegateRegistry.address,
       votiumAddressRegistry.address,
       cvx.address,
       underlyingTokenNameSymbol,
@@ -162,6 +177,7 @@ describe('LockedCvxVault', () => {
           depositDeadline,
           lockExpiry,
           cvxLocker.address,
+          convexDelegateRegistry.address,
           votiumAddressRegistry.address,
           cvx.address,
           underlyingTokenNameSymbol,
@@ -472,7 +488,53 @@ describe('LockedCvxVault', () => {
 
   describe('forwardVotiumRewards', () => {
     it('Should revert if not VaultController', async () => {
-      await expect(lockedCvxVault.forwardVotiumRewards(admin.address)).to.be.revertedWith('NotVaultController()')
-    })
-  })
+      await expect(
+        lockedCvxVault.forwardVotiumRewards(admin.address)
+      ).to.be.revertedWith('NotVaultController()');
+    });
+  });
+
+  describe('setVoteDelegate', () => {
+    it('Should revert if not VaultController', async () => {
+      const voteDelegate = admin.address;
+
+      await expect(
+        lockedCvxVault.setVoteDelegate(voteDelegate)
+      ).to.be.revertedWith('NotVaultController()');
+    });
+
+    it('Should set a vote delegate', async () => {
+      const voteDelegateBefore = await lockedCvxVault.voteDelegate();
+      const voteDelegate = admin.address;
+      const events = await callAndReturnEvents(
+        lockedCvxVault.connect(vaultControllerSigner).setVoteDelegate,
+        [voteDelegate]
+      );
+      const setEvent = events[events.length - 1];
+      const voteDelegateAfter = await lockedCvxVault.voteDelegate();
+
+      expect(voteDelegateBefore).to.equal(zeroAddress);
+      expect(voteDelegateAfter)
+        .to.equal(voteDelegate)
+        .to.equal(setEvent.args._voteDelegate);
+      expect(setEvent.eventSignature).to.equal('SetVoteDelegate(address)');
+    });
+
+    it('Should be able to change the vote delegate', async () => {
+      const voteDelegateBefore = await lockedCvxVault.voteDelegate();
+      const voteDelegate = vaultController.address;
+      const events = await callAndReturnEvents(
+        lockedCvxVault.connect(vaultControllerSigner).setVoteDelegate,
+        [voteDelegate]
+      );
+      const setEvent = events[events.length - 1];
+      const voteDelegateAfter = await lockedCvxVault.voteDelegate();
+
+      expect(voteDelegateBefore).to.equal(admin.address);
+      expect(voteDelegateAfter)
+        .to.equal(voteDelegate)
+        .to.equal(setEvent.args._voteDelegate);
+      expect(setEvent.eventSignature).to.equal('SetVoteDelegate(address)');
+    });
+  });
 });
