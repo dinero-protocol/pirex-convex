@@ -20,6 +20,7 @@ import {
   VaultControllerMock,
   LockedCvxVault,
   TriCvxVault,
+  VotiumRewardClaimer,
 } from '../typechain-types';
 import { BigNumber } from 'ethers';
 
@@ -45,6 +46,7 @@ describe('VaultController', () => {
   let firstVaultEpoch: BigNumber;
   let firstLockedCvxVault: LockedCvxVault;
   let firstTriCvxVault: TriCvxVault;
+  let firstVotiumRewardClaimer: VotiumRewardClaimer;
   let votiumMultiMerkleStash: any;
   let votiumAddressRegistry: any;
 
@@ -362,11 +364,28 @@ describe('VaultController', () => {
         await vaultController.votiumRewardClaimerByLockedCvxVault(
           expectedLockedCvxVault
         );
+
+      firstVotiumRewardClaimer = await ethers.getContractAt(
+        'VotiumRewardClaimer',
+        expectedVotiumRewardClaimer
+      );
+
       const expectedTriCvxVaults = await Promise.map(
         existingTriCvxVaultEpochs,
         async (tokenEpoch) => {
           return vaultController.triCvxVaultsByEpoch(tokenEpoch);
         }
+      );
+      const rewardClaimers = await Promise.map(
+        eventTriCvxVaults,
+        async (triCvxVault: string) => {
+          return (
+            await ethers.getContractAt('TriCvxVault', triCvxVault)
+          ).rewardClaimer();
+        }
+      );
+      const expectedRewardClaimers = [...Array(8).keys()].map(
+        () => firstVotiumRewardClaimer.address
       );
 
       expect(existingLockedCvxVault)
@@ -374,10 +393,12 @@ describe('VaultController', () => {
         .to.equal(eventLockedCvxVault);
       expect(existingVotiumRewardClaimer)
         .to.equal(expectedVotiumRewardClaimer)
+        .to.equal(firstVotiumRewardClaimer.address)
         .to.equal(eventVotiumRewardClaimer);
       expect(existingTriCvxVaults)
         .to.deep.equal(expectedTriCvxVaults)
         .to.deep.equal(eventTriCvxVaults);
+      expect(rewardClaimers).to.deep.equal(expectedRewardClaimers);
     });
 
     it('Should revert if epoch is zero', async () => {
@@ -386,6 +407,30 @@ describe('VaultController', () => {
       await expect(
         vaultController.setUpVaults(invalidEpoch)
       ).to.be.revertedWith(`InvalidVaultEpoch(${invalidEpoch})`);
+    });
+  });
+
+  describe('createVotiumRewardClaimer', () => {
+    it('Should revert if a vault already exists for the epoch', async () => {
+      const lockedCvxVault = firstLockedCvxVault.address;
+      const triCvxVaults = [...Array(8).keys()].map(
+        () => firstTriCvxVault.address
+      );
+      const currentEpoch = await vaultController.getCurrentEpoch();
+      const tokenEpochs = [...Array(8).keys()].map(() => currentEpoch);
+      const existingVault =
+        await vaultController.votiumRewardClaimerByLockedCvxVault(
+          firstLockedCvxVault.address
+        );
+
+      expect(existingVault).to.equal(firstVotiumRewardClaimer.address);
+      await expect(
+        vaultController.createVotiumRewardClaimer(
+          lockedCvxVault,
+          triCvxVaults,
+          tokenEpochs
+        )
+      ).to.be.revertedWith('AlreadyExists()');
     });
   });
 
