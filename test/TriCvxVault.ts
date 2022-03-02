@@ -16,6 +16,7 @@ import {
   Booster,
   RewardFactory,
   CvxLocker,
+  DelegateRegistry
 } from '../typechain-types';
 import { BigNumber } from 'ethers';
 
@@ -36,6 +37,7 @@ describe('TriCvxVault', () => {
   let cvxLockDuration: BigNumber;
   let votiumMultiMerkleStash: any;
   let votiumAddressRegistry: any;
+  let convexDelegateRegistry: DelegateRegistry;
 
   const epochDepositDuration = toBN(1209600); // 2 weeks in seconds
   const initialCvxBalanceForAdmin = toBN(100e18);
@@ -64,6 +66,9 @@ describe('TriCvxVault', () => {
     const VotiumAddressRegistry: any = await ethers.getContractFactory(
       'AddressRegistry'
     );
+    const ConvexDelegateRegistry = await ethers.getContractFactory(
+      'DelegateRegistry'
+    );
 
     curveVoterProxy = await CurveVoterProxy.deploy();
     cvx = await Cvx.deploy(curveVoterProxy.address);
@@ -90,9 +95,11 @@ describe('TriCvxVault', () => {
     );
     votiumMultiMerkleStash = await VotiumMultiMerkleStash.deploy();
     votiumAddressRegistry = await VotiumAddressRegistry.deploy();
+    convexDelegateRegistry = await ConvexDelegateRegistry.deploy();
     vaultController = await VaultController.deploy(
       cvx.address,
       cvxLocker.address,
+      convexDelegateRegistry.address,
       votiumMultiMerkleStash.address,
       votiumAddressRegistry.address,
       epochDepositDuration,

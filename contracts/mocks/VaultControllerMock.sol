@@ -10,6 +10,7 @@ contract VaultControllerMock is VaultController {
     constructor(
         ERC20 _CVX,
         address _CVX_LOCKER,
+        address _CVX_DELEGATE_REGISTRY,
         address _VOTIUM_MULTI_MERKLE_STASH,
         address _VOTIUM_ADDRESS_REGISTRY,
         uint256 _EPOCH_DEPOSIT_DURATION,
@@ -18,6 +19,7 @@ contract VaultControllerMock is VaultController {
         VaultController(
             _CVX,
             _CVX_LOCKER,
+            _CVX_DELEGATE_REGISTRY,
             _VOTIUM_MULTI_MERKLE_STASH,
             _VOTIUM_ADDRESS_REGISTRY,
             _EPOCH_DEPOSIT_DURATION,

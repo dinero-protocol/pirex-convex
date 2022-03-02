@@ -6,17 +6,29 @@ import {ERC4626VaultInitializable} from "./ERC4626VaultInitializable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
+import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
 import {IVotiumAddressRegistry} from "./interfaces/IVotiumAddressRegistry.sol";
+
+interface IConvexDelegateRegistry {
+    function setDelegate(bytes32 id, address delegate) external;
+}
 
 contract LockedCvxVault is ERC4626VaultInitializable {
     using SafeERC20 for ERC20;
 
+    bytes32 public immutable DELEGATION_SPACE = bytes32(bytes("cvx.eth"));
+
+    ICvxLocker public cvxLocker;
+    ICvxDelegateRegistry public cvxDelegateRegistry;
+    IVotiumAddressRegistry public votiumAddressRegistry;
+
     address public vaultController;
     uint256 public depositDeadline;
     uint256 public lockExpiry;
-    ICvxLocker public cvxLocker;
-    IVotiumAddressRegistry public votiumAddressRegistry;
     address public votiumRewardClaimer;
+
+    // Protocol-owned EOA
+    address public voteDelegate;
 
     event Inititalized(
         uint256 _depositDeadline,
@@ -30,6 +42,7 @@ contract LockedCvxVault is ERC4626VaultInitializable {
     event UnlockCvx(uint256 amount);
     event LockCvx(uint256 amount);
     event SetVotiumRewardClaimer(address _votiumRewardClaimer);
+    event SetVoteDelegate(address _voteDelegate);
 
     error ZeroAddress();
     error ZeroAmount();
@@ -44,6 +57,7 @@ contract LockedCvxVault is ERC4626VaultInitializable {
         @param  _depositDeadline         uint256     Deposit deadline
         @param  _lockExpiry              uint256     Lock expiry for CVX (17 weeks after deposit deadline)
         @param  _cvxLocker               address     CvxLocker address
+        @param  _cvxDelegateRegistry     address     CvxDelegateRegistry address
         @param  _votiumAddressRegistry   address     VotiumAddressRegistry address
         @param  _underlying              ERC20       Underlying asset
         @param  _name                    string      Token name
@@ -54,6 +68,7 @@ contract LockedCvxVault is ERC4626VaultInitializable {
         uint256 _depositDeadline,
         uint256 _lockExpiry,
         address _cvxLocker,
+        address _cvxDelegateRegistry,
         address _votiumAddressRegistry,
         ERC20 _underlying,
         string memory _name,
@@ -70,6 +85,9 @@ contract LockedCvxVault is ERC4626VaultInitializable {
 
         if (_cvxLocker == address(0)) revert ZeroAddress();
         cvxLocker = ICvxLocker(_cvxLocker);
+
+        if (_cvxDelegateRegistry == address(0)) revert ZeroAddress();
+        cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
 
         if (_votiumAddressRegistry == address(0)) revert ZeroAddress();
         votiumAddressRegistry = IVotiumAddressRegistry(_votiumAddressRegistry);
@@ -90,16 +108,6 @@ contract LockedCvxVault is ERC4626VaultInitializable {
     modifier onlyVaultController() {
         if (msg.sender != vaultController) revert NotVaultController();
         _;
-    }
-
-    /**
-        @notice Unlocks CVX
-     */
-    function unlockCvx() external {
-        (, uint256 unlockable, , ) = cvxLocker.lockedBalances(address(this));
-        if (unlockable != 0)
-            cvxLocker.processExpiredLocks(false, 0, address(this));
-        emit UnlockCvx(unlockable);
     }
 
     /**
@@ -142,6 +150,16 @@ contract LockedCvxVault is ERC4626VaultInitializable {
     }
 
     /**
+        @notice Unlocks CVX
+     */
+    function unlockCvx() external {
+        (, uint256 unlockable, , ) = cvxLocker.lockedBalances(address(this));
+        if (unlockable != 0)
+            cvxLocker.processExpiredLocks(false, 0, address(this));
+        emit UnlockCvx(unlockable);
+    }
+
+    /**
         @notice Forward Votium rewards
         @param  _votiumRewardClaimer  address  VotiumRewardClaimer address
      */
@@ -155,5 +173,21 @@ contract LockedCvxVault is ERC4626VaultInitializable {
         votiumAddressRegistry.setRegistry(_votiumRewardClaimer);
 
         emit SetVotiumRewardClaimer(_votiumRewardClaimer);
+    }
+
+    /**
+        @notice Set Convex vote delegate
+        @param  _voteDelegate  address  Protocol-owned EOA
+     */
+    function setVoteDelegate(address _voteDelegate)
+        external
+        onlyVaultController
+    {
+        if (_voteDelegate == address(0)) revert ZeroAddress();
+        voteDelegate = _voteDelegate;
+
+        cvxDelegateRegistry.setDelegate(DELEGATION_SPACE, _voteDelegate);
+
+        emit SetVoteDelegate(_voteDelegate);
     }
 }
