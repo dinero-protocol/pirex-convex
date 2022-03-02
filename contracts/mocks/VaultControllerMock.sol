@@ -5,6 +5,8 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {VaultController} from "../VaultController.sol";
 
 contract VaultControllerMock is VaultController {
+    receive() external payable {}
+
     constructor(
         ERC20 _CVX,
         address _CVX_LOCKER,
@@ -31,7 +33,11 @@ contract VaultControllerMock is VaultController {
         _createTriCvxVault(epoch);
     }
 
-    function mintTriCvxTokens(uint256 startingEpoch, address to, uint256 amount) external {
+    function mintTriCvxTokens(
+        uint256 startingEpoch,
+        address to,
+        uint256 amount
+    ) external {
         _mintTriCvxTokens(startingEpoch, to, amount);
     }
 }
