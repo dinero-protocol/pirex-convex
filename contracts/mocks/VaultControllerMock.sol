@@ -27,11 +27,11 @@ contract VaultControllerMock is VaultController {
         _createLockedCvxVault(epoch);
     }
 
-    function createVoteCvxVault(uint256 epoch) external {
-        _createVoteCvxVault(epoch);
+    function createTriCvxVault(uint256 epoch) external {
+        _createTriCvxVault(epoch);
     }
 
-    function mintVoteCvx(uint256 startingVoteEpoch, address to, uint256 amount) external {
-        _mintVoteCvx(startingVoteEpoch, to, amount);
+    function mintTriCvxTokens(uint256 startingEpoch, address to, uint256 amount) external {
+        _mintTriCvxTokens(startingEpoch, to, amount);
     }
 }

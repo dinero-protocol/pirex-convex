@@ -1,24 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.12;
 
-import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract VoteCvxVault is ERC20Upgradeable {
-    using SafeERC20 for ERC20;
-
+contract TriCvxVault is ERC1155Upgradeable {
     struct Rewards {
         address token;
         uint256 amount;
     }
+
+    uint256 public immutable VOTE_CVX = 0;
+    uint256 public immutable BRIBE_CVX = 1;
+    uint256 public immutable REWARD_CVX = 2;
 
     address public owner;
     uint256 public mintDeadline;
     Rewards[] public rewards;
     mapping(address => uint256) rewardIndexesByToken;
 
-    event Initialized(uint256 _mintDeadline, string _name, string _symbol);
+    event Initialized(uint256 _mintDeadline);
     event Minted(address indexed to, uint256 amount);
     event AddedReward(address token, uint256 amount);
 
@@ -28,21 +30,13 @@ contract VoteCvxVault is ERC20Upgradeable {
     error EmptyString();
     error AfterMintDeadline(uint256 timestamp);
 
-    function initialize(
-        uint256 _mintDeadline,
-        string memory _name,
-        string memory _symbol
-    ) external initializer {
+    function initialize(uint256 _mintDeadline) external initializer {
         owner = msg.sender;
 
         if (_mintDeadline == 0) revert ZeroAmount();
         mintDeadline = _mintDeadline;
 
-        if (bytes(_name).length == 0) revert EmptyString();
-        if (bytes(_symbol).length == 0) revert EmptyString();
-        __ERC20_init_unchained(_name, _symbol);
-
-        emit Initialized(_mintDeadline, _name, _symbol);
+        emit Initialized(_mintDeadline);
     }
 
     modifier onlyOwner() {
@@ -50,12 +44,27 @@ contract VoteCvxVault is ERC20Upgradeable {
         _;
     }
 
-    function mint(address to, uint256 amount) external onlyOwner {
+    /**
+        @notice Mint vote, bribe, and reward CVX
+        @param  to      address  Recipient
+        @param  amount  uint256  Amount
+     */
+     function mint(address to, uint256 amount) external onlyOwner {
         if (mintDeadline < block.timestamp)
             revert AfterMintDeadline(block.timestamp);
+        if (amount == 0) revert ZeroAmount();
 
-        // Validates that `to` is not zero address
-        _mint(to, amount);
+        uint256[] memory ids = new uint256[](3);
+        ids[0] = VOTE_CVX;
+        ids[1] = BRIBE_CVX;
+        ids[2] = REWARD_CVX;
+        uint256[] memory amounts = new uint256[](3);
+        amounts[0] = amount;
+        amounts[1] = amount;
+        amounts[2] = amount;
+
+        // Validates `to`, `ids`, and `amounts`
+        _mintBatch(to, ids, amounts, "");
 
         emit Minted(to, amount);
     }

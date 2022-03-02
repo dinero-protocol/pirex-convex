@@ -8,7 +8,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {LockedCvxVault} from "./LockedCvxVault.sol";
-import {VoteCvxVault} from "./VoteCvxVault.sol";
+import {TriCvxVault} from "./TriCvxVault.sol";
 import {VotiumRewardClaimer} from "./VotiumRewardClaimer.sol";
 
 contract VaultController is Ownable {
@@ -22,11 +22,11 @@ contract VaultController is Ownable {
     uint256 public immutable EPOCH_DEPOSIT_DURATION;
     uint256 public immutable CVX_LOCK_DURATION;
     address public immutable LOCKED_CVX_VAULT_IMPLEMENTATION;
-    address public immutable VOTE_CVX_VAULT_IMPLEMENTATION;
+    address public immutable TRI_CVX_VAULT_IMPLEMENTATION;
     address public immutable VOTIUM_REWARD_CLAIMER_IMPLEMENTATION;
 
     mapping(uint256 => address) public lockedCvxVaultsByEpoch;
-    mapping(uint256 => address) public voteCvxVaultsByEpoch;
+    mapping(uint256 => address) public triCvxVaultsByEpoch;
     mapping(address => address) public votiumRewardClaimerByLockedCvxVault;
 
     event CreatedLockedCvxVault(
@@ -35,15 +35,15 @@ contract VaultController is Ownable {
         uint256 lockExpiry,
         string tokenId
     );
-    event CreatedVoteCvxVault(address vault, string tokenId);
+    event CreatedTriCvxVault(address vault, uint256 epoch);
     event CreatedVotiumRewardClaimer(
         address votiumRewardClaimer,
         address lockedCvxVault,
-        address[8] voteCvxVaults
+        address[8] triCvxVaults
     );
     event SetUpVaults(
         address lockedCvxVault,
-        address[8] voteCvxVaults,
+        address[8] triCvxVaults,
         address votiumRewardClaimer
     );
     event Deposited(uint256 epoch, address to, uint256 amount);
@@ -53,7 +53,7 @@ contract VaultController is Ownable {
     error ZeroAmount();
     error InvalidVaultEpoch(uint256 epoch);
     error AlreadyExists();
-    error InvalidMintVoteCvxEpoch(uint256 epoch);
+    error AfterMintDeadline(uint256 epoch);
 
     constructor(
         ERC20 _CVX,
@@ -82,7 +82,7 @@ contract VaultController is Ownable {
         CVX_LOCK_DURATION = _CVX_LOCK_DURATION;
 
         LOCKED_CVX_VAULT_IMPLEMENTATION = address(new LockedCvxVault());
-        VOTE_CVX_VAULT_IMPLEMENTATION = address(new VoteCvxVault());
+        TRI_CVX_VAULT_IMPLEMENTATION = address(new TriCvxVault());
         VOTIUM_REWARD_CLAIMER_IMPLEMENTATION = address(
             new VotiumRewardClaimer()
         );
@@ -138,25 +138,22 @@ contract VaultController is Ownable {
     }
 
     /**
-        @notice Create a VoteCvxVault
+        @notice Create a TriCvxVault
         @param   epoch    uint256       Epoch
-        @return  address  VoteCvxVault address
+        @return  address  TriCvxVault address
      */
-    function _createVoteCvxVault(uint256 epoch) internal returns (address) {
-        if (voteCvxVaultsByEpoch[epoch] != address(0)) revert AlreadyExists();
+    function _createTriCvxVault(uint256 epoch) internal returns (address) {
+        if (triCvxVaultsByEpoch[epoch] != address(0)) revert AlreadyExists();
 
-        VoteCvxVault vault = VoteCvxVault(
-            Clones.clone(VOTE_CVX_VAULT_IMPLEMENTATION)
-        );
-        string memory tokenId = string(
-            abi.encodePacked("voteCVX-", epoch.toString())
+        TriCvxVault vault = TriCvxVault(
+            Clones.clone(TRI_CVX_VAULT_IMPLEMENTATION)
         );
         address vaultAddr = address(vault);
-        voteCvxVaultsByEpoch[epoch] = vaultAddr;
+        triCvxVaultsByEpoch[epoch] = vaultAddr;
 
-        vault.initialize(epoch, tokenId, tokenId);
+        vault.initialize(epoch);
 
-        emit CreatedVoteCvxVault(vaultAddr, tokenId);
+        emit CreatedTriCvxVault(vaultAddr, epoch);
 
         return vaultAddr;
     }
@@ -164,13 +161,13 @@ contract VaultController is Ownable {
     /**
         @notice Create a VotiumRewardClaimer
         @param  lockedCvxVault  address     LockedCvxVault address
-        @param  voteCvxVaults   address[8]  VoteCvxVault addresses
-        @param  voteEpochs      uint256[8]  VoteCvxVault epochs
+        @param  triCvxVaults    address[8]  TriCvxVault addresses
+        @param  tokenEpochs     uint256[8]  TriCvxVault epochs
      */
     function _createVotiumRewardClaimer(
         address lockedCvxVault,
-        address[8] memory voteCvxVaults,
-        uint256[8] memory voteEpochs
+        address[8] memory triCvxVaults,
+        uint256[8] memory tokenEpochs
     ) internal returns (address) {
         if (votiumRewardClaimerByLockedCvxVault[lockedCvxVault] != address(0))
             revert AlreadyExists();
@@ -185,14 +182,14 @@ contract VaultController is Ownable {
             address(this),
             lockedCvxVault,
             VOTIUM_MULTI_MERKLE_STASH,
-            voteCvxVaults,
-            voteEpochs
+            triCvxVaults,
+            tokenEpochs
         );
 
         // Forwards LockedCvxVault rewards to fresh VotiumRewardClaimer
         LockedCvxVault(lockedCvxVault).forwardVotiumRewards(vAddr);
 
-        emit CreatedVotiumRewardClaimer(vAddr, lockedCvxVault, voteCvxVaults);
+        emit CreatedVotiumRewardClaimer(vAddr, lockedCvxVault, triCvxVaults);
 
         return vAddr;
     }
@@ -201,14 +198,14 @@ contract VaultController is Ownable {
         @notice Set up vaults for an epoch
         @param   epoch                uint256     Epoch
         @return  lockedCvxVault       address     LockedCvxVault address
-        @return  voteCvxVaults        address[8]  VoteCvxVault addresses
+        @return  triCvxVaults        address[8]  TriCvxVault addresses
         @return  votiumRewardClaimer  address     VotiumRewardClaimer address
     */
     function setUpVaults(uint256 epoch)
         external
         returns (
             address lockedCvxVault,
-            address[8] memory voteCvxVaults,
+            address[8] memory triCvxVaults,
             address votiumRewardClaimer
         )
     {
@@ -219,18 +216,18 @@ contract VaultController is Ownable {
             ? _createLockedCvxVault(epoch)
             : lockedCvxVaultsByEpoch[epoch];
 
-        // Use the next epoch as a starting point for VoteCvxVaults since
-        // voting doesn't start until after LockedCvxVault deposit deadline
-        uint256 startingVoteEpoch = epoch + EPOCH_DEPOSIT_DURATION;
-        uint256[8] memory voteEpochs;
+        // Use the next epoch as a starting point for TriCvxVaults since voting
+        // and rewards don't start until after the LockedCvxVault deposit deadline
+        uint256 startingEpoch = epoch + EPOCH_DEPOSIT_DURATION;
+        uint256[8] memory tokenEpochs;
 
-        // Create a VoteCvxVault for each Convex voting round (8 total per lock)
+        // Create a TriCvxVault for each Convex voting round (8 total per lock)
         for (uint8 i; i < 8; ++i) {
-            voteEpochs[i] = startingVoteEpoch + (i * EPOCH_DEPOSIT_DURATION);
+            tokenEpochs[i] = startingEpoch + (i * EPOCH_DEPOSIT_DURATION);
 
-            voteCvxVaults[i] = voteCvxVaultsByEpoch[voteEpochs[i]] == address(0)
-                ? _createVoteCvxVault(voteEpochs[i])
-                : voteCvxVaultsByEpoch[voteEpochs[i]];
+            triCvxVaults[i] = triCvxVaultsByEpoch[tokenEpochs[i]] == address(0)
+                ? _createTriCvxVault(tokenEpochs[i])
+                : triCvxVaultsByEpoch[tokenEpochs[i]];
         }
 
         votiumRewardClaimer = votiumRewardClaimerByLockedCvxVault[
@@ -238,35 +235,35 @@ contract VaultController is Ownable {
         ] == address(0)
             ? _createVotiumRewardClaimer(
                 lockedCvxVault,
-                voteCvxVaults,
-                voteEpochs
+                triCvxVaults,
+                tokenEpochs
             )
             : votiumRewardClaimerByLockedCvxVault[lockedCvxVault];
 
-        emit SetUpVaults(lockedCvxVault, voteCvxVaults, votiumRewardClaimer);
+        emit SetUpVaults(lockedCvxVault, triCvxVaults, votiumRewardClaimer);
     }
 
     /**
-        @notice Mint voteCVX for Convex voting rounds
-        @param  startingVoteEpoch  uint256  Epoch to start minting voteCVX
-        @param  to                 address  Account receiving voteCVX
-        @param  amount             uint256  Amount voteCVX to mint
+        @notice Mint vote, bribe, and reward CVX tokens for Convex voting rounds
+        @param  startingEpoch  uint256  Epoch to start minting tokens
+        @param  to                 address  Account receiving tokens
+        @param  amount             uint256  Amount tokens to mint
     */
-    function _mintVoteCvx(
-        uint256 startingVoteEpoch,
+    function _mintTriCvxTokens(
+        uint256 startingEpoch,
         address to,
         uint256 amount
     ) internal {
-        if (startingVoteEpoch < getCurrentEpoch() + EPOCH_DEPOSIT_DURATION)
-            revert InvalidMintVoteCvxEpoch(startingVoteEpoch);
+        if (startingEpoch < getCurrentEpoch() + EPOCH_DEPOSIT_DURATION)
+            revert AfterMintDeadline(startingEpoch);
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
         unchecked {
             for (uint8 i; i < 8; ++i) {
-                VoteCvxVault(
-                    voteCvxVaultsByEpoch[
-                        startingVoteEpoch + (i * EPOCH_DEPOSIT_DURATION)
+                TriCvxVault(
+                    triCvxVaultsByEpoch[
+                        startingEpoch + (i * EPOCH_DEPOSIT_DURATION)
                     ]
                 ).mint(to, amount);
             }
@@ -292,7 +289,7 @@ contract VaultController is Ownable {
         CVX.safeIncreaseAllowance(address(v), amount);
 
         v.deposit(to, amount);
-        _mintVoteCvx(currentEpoch + EPOCH_DEPOSIT_DURATION, to, amount);
+        _mintTriCvxTokens(currentEpoch + EPOCH_DEPOSIT_DURATION, to, amount);
 
         emit Deposited(currentEpoch, to, amount);
     }

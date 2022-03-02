@@ -19,7 +19,7 @@ import {
   CurveVoterProxy,
   VaultControllerMock,
   LockedCvxVault,
-  VoteCvxVault,
+  TriCvxVault,
 } from '../typechain-types';
 import { BigNumber } from 'ethers';
 
@@ -44,7 +44,7 @@ describe('VaultController', () => {
   let cvxLockDuration: BigNumber;
   let firstVaultEpoch: BigNumber;
   let firstLockedCvxVault: LockedCvxVault;
-  let firstVoteCvxVault: VoteCvxVault;
+  let firstTriCvxVault: TriCvxVault;
   let votiumMultiMerkleStash: any;
   let votiumAddressRegistry: any;
 
@@ -236,47 +236,44 @@ describe('VaultController', () => {
     });
   });
 
-  describe('createVoteCvxVault', () => {
-    it('Should create a new VoteCvxVault instance', async () => {
+  describe('createTriCvxVault', () => {
+    it('Should create a new TriCvxVault instance', async () => {
       const currentEpoch = await vaultController.getCurrentEpoch();
-      const vaultBeforeCreate = await vaultController.voteCvxVaultsByEpoch(
+      const vaultBeforeCreate = await vaultController.triCvxVaultsByEpoch(
         currentEpoch
       );
       const events = await callAndReturnEvents(
-        vaultController.createVoteCvxVault,
+        vaultController.createTriCvxVault,
         [currentEpoch]
       );
       const createdVaultEvent = events[events.length - 1];
-      const vaultAfterCreate = await vaultController.voteCvxVaultsByEpoch(
+      const vaultAfterCreate = await vaultController.triCvxVaultsByEpoch(
         currentEpoch
       );
 
-      firstVoteCvxVault = await ethers.getContractAt(
-        'VoteCvxVault',
+      firstTriCvxVault = await ethers.getContractAt(
+        'TriCvxVault',
         vaultAfterCreate
       );
 
       expect(vaultBeforeCreate).to.equal(zeroAddress);
       expect(createdVaultEvent.eventSignature).to.equal(
-        'CreatedVoteCvxVault(address,string)'
+        'CreatedTriCvxVault(address,uint256)'
       );
       expect(createdVaultEvent.args.vault)
         .to.equal(vaultAfterCreate)
-        .to.equal(firstVoteCvxVault.address)
+        .to.equal(firstTriCvxVault.address)
         .to.not.equal(zeroAddress);
-      expect(createdVaultEvent.args.tokenId)
-        .to.equal(`voteCVX-${currentEpoch}`)
-        .to.not.equal(`voteCVX-${0}`);
     });
 
     it('Should revert if a vault already exists for the epoch', async () => {
-      const existingVault = await vaultController.voteCvxVaultsByEpoch(
+      const existingVault = await vaultController.triCvxVaultsByEpoch(
         firstVaultEpoch
       );
 
-      expect(existingVault).to.equal(firstVoteCvxVault.address);
+      expect(existingVault).to.equal(firstTriCvxVault.address);
       await expect(
-        vaultController.createVoteCvxVault(firstVaultEpoch)
+        vaultController.createTriCvxVault(firstVaultEpoch)
       ).to.be.revertedWith('AlreadyExists()');
     });
   });
@@ -288,7 +285,7 @@ describe('VaultController', () => {
         await vaultController.EPOCH_DEPOSIT_DURATION();
       const expectedLockedCvxVault =
         await vaultController.lockedCvxVaultsByEpoch(currentEpoch);
-      const expectedVoteCvxVaultEpochs = [...Array(8).keys()].map((_, idx) =>
+      const expectedTriCvxVaultEpochs = [...Array(8).keys()].map((_, idx) =>
         currentEpoch
           .add(EPOCH_DEPOSIT_DURATION)
           .add(EPOCH_DEPOSIT_DURATION.mul(idx))
@@ -297,10 +294,10 @@ describe('VaultController', () => {
         currentEpoch,
       ]);
       const setUpEvent = events[events.length - 1];
-      const actualVoteCvxVaults = await Promise.map(
-        expectedVoteCvxVaultEpochs,
-        async (voteEpoch) => {
-          return vaultController.voteCvxVaultsByEpoch(voteEpoch);
+      const actualTriCvxVaults = await Promise.map(
+        expectedTriCvxVaultEpochs,
+        async (tokenEpoch) => {
+          return vaultController.triCvxVaultsByEpoch(tokenEpoch);
         }
       );
       const expectedVotiumRewardClaimer =
@@ -321,7 +318,7 @@ describe('VaultController', () => {
         'SetUpVaults(address,address[8],address)'
       );
       expect(setUpEvent.args.lockedCvxVault).to.equal(expectedLockedCvxVault);
-      expect(setUpEvent.args.voteCvxVaults).to.deep.equal(actualVoteCvxVaults);
+      expect(setUpEvent.args.triCvxVaults).to.deep.equal(actualTriCvxVaults);
       expect(setUpEvent.args.votiumRewardClaimer)
         .to.equal(expectedVotiumRewardClaimer)
         .to.equal(votiumRewardClaimerOnLockedCvxVault)
@@ -338,15 +335,15 @@ describe('VaultController', () => {
         );
       const EPOCH_DEPOSIT_DURATION =
         await vaultController.EPOCH_DEPOSIT_DURATION();
-      const existingVoteCvxVaultEpochs = [...Array(8).keys()].map((_, idx) =>
+      const existingTriCvxVaultEpochs = [...Array(8).keys()].map((_, idx) =>
         currentEpoch
           .add(EPOCH_DEPOSIT_DURATION)
           .add(EPOCH_DEPOSIT_DURATION.mul(idx))
       );
-      const existingVoteCvxVaults = await Promise.map(
-        existingVoteCvxVaultEpochs,
-        async (voteEpoch) => {
-          return vaultController.voteCvxVaultsByEpoch(voteEpoch);
+      const existingTriCvxVaults = await Promise.map(
+        existingTriCvxVaultEpochs,
+        async (tokenEpoch) => {
+          return vaultController.triCvxVaultsByEpoch(tokenEpoch);
         }
       );
       const events = await callAndReturnEvents(vaultController.setUpVaults, [
@@ -355,7 +352,7 @@ describe('VaultController', () => {
       const {
         args: {
           lockedCvxVault: eventLockedCvxVault,
-          voteCvxVaults: eventVoteCvxVaults,
+          triCvxVaults: eventTriCvxVaults,
           votiumRewardClaimer: eventVotiumRewardClaimer,
         },
       } = events[events.length - 1];
@@ -365,10 +362,10 @@ describe('VaultController', () => {
         await vaultController.votiumRewardClaimerByLockedCvxVault(
           expectedLockedCvxVault
         );
-      const expectedVoteCvxVaults = await Promise.map(
-        existingVoteCvxVaultEpochs,
-        async (voteEpoch) => {
-          return vaultController.voteCvxVaultsByEpoch(voteEpoch);
+      const expectedTriCvxVaults = await Promise.map(
+        existingTriCvxVaultEpochs,
+        async (tokenEpoch) => {
+          return vaultController.triCvxVaultsByEpoch(tokenEpoch);
         }
       );
 
@@ -378,9 +375,9 @@ describe('VaultController', () => {
       expect(existingVotiumRewardClaimer)
         .to.equal(expectedVotiumRewardClaimer)
         .to.equal(eventVotiumRewardClaimer);
-      expect(existingVoteCvxVaults)
-        .to.deep.equal(expectedVoteCvxVaults)
-        .to.deep.equal(eventVoteCvxVaults);
+      expect(existingTriCvxVaults)
+        .to.deep.equal(expectedTriCvxVaults)
+        .to.deep.equal(eventTriCvxVaults);
     });
 
     it('Should revert if epoch is zero', async () => {
@@ -394,29 +391,57 @@ describe('VaultController', () => {
 
   describe('deposit', () => {
     let EPOCH_DEPOSIT_DURATION: BigNumber;
-    let getVoteCvxVaults: (startingEpoch: BigNumber) => Promise<{
+    let getTriCvxVaults: (startingEpoch: BigNumber) => Promise<{
       vaults: string[];
-      balances: BigNumber[];
+      balances: {
+        voteCvx: BigNumber;
+        bribeCvx: BigNumber;
+        rewardCvx: BigNumber;
+      }[];
     }>;
-    let voteCvxAddresses: string[];
-    let voteCvxDeposits: BigNumber[];
+    let triCvxAddresses: string[];
+    let triCvxDeposits: {
+      voteCvx: BigNumber;
+      bribeCvx: BigNumber;
+      rewardCvx: BigNumber;
+    }[];
 
     before(async () => {
       EPOCH_DEPOSIT_DURATION = await vaultController.EPOCH_DEPOSIT_DURATION();
-      getVoteCvxVaults = async (startingEpoch: BigNumber) =>
+      getTriCvxVaults = async (startingEpoch: BigNumber) =>
         await Promise.reduce(
           [...Array(8).keys()],
-          async (acc: { vaults: string[]; balances: BigNumber[] }, _, i) => {
+          async (
+            acc: {
+              vaults: string[];
+              balances: {
+                voteCvx: BigNumber;
+                bribeCvx: BigNumber;
+                rewardCvx: BigNumber;
+              }[];
+            },
+            _,
+            i
+          ) => {
             const epoch = startingEpoch.add(EPOCH_DEPOSIT_DURATION.mul(i));
-            const v = await vaultController.voteCvxVaultsByEpoch(epoch);
-            const voteCvxVault = await ethers.getContractAt('VoteCvxVault', v);
-            const balance = await voteCvxVault.balanceOf(admin.address);
+            const v = await vaultController.triCvxVaultsByEpoch(epoch);
+            const triCvxVault = await ethers.getContractAt('TriCvxVault', v);
+            const voteCvx = await triCvxVault.balanceOf(admin.address, 0);
+            const bribeCvx = await triCvxVault.balanceOf(admin.address, 1);
+            const rewardCvx = await triCvxVault.balanceOf(admin.address, 2);
             const accVaults = acc.vaults.length ? [...acc.vaults] : [];
             const accBalances = acc.balances.length ? [...acc.balances] : [];
 
             return {
               vaults: [...accVaults, v],
-              balances: [...accBalances, balance],
+              balances: [
+                ...accBalances,
+                {
+                  voteCvx,
+                  bribeCvx,
+                  rewardCvx,
+                },
+              ],
             };
           },
           { vaults: [], balances: [] }
@@ -443,12 +468,16 @@ describe('VaultController', () => {
       const totalHoldingsAfter = await firstLockedCvxVault.totalHoldings();
       const depositEvent = events[events.length - 1];
       const currentEpoch = await vaultController.getCurrentEpoch();
-      const voteCvxStartingEpoch = currentEpoch.add(EPOCH_DEPOSIT_DURATION);
-      const { vaults, balances } = await getVoteCvxVaults(voteCvxStartingEpoch);
+      const triCvxStartingEpoch = currentEpoch.add(EPOCH_DEPOSIT_DURATION);
+      const { vaults, balances } = await getTriCvxVaults(triCvxStartingEpoch);
 
       // Assign to cross-check in arbitrary deposit test
-      voteCvxAddresses = vaults;
-      voteCvxDeposits = [...Array(8).keys()].map(() => depositAmount);
+      triCvxAddresses = vaults;
+      triCvxDeposits = [...Array(8).keys()].map(() => ({
+        voteCvx: depositAmount,
+        bribeCvx: depositAmount,
+        rewardCvx: depositAmount,
+      }));
 
       expect(shareBalanceBefore).to.equal(totalHoldingsBefore).to.equal(0);
       expect(shareBalanceAfter)
@@ -464,8 +493,8 @@ describe('VaultController', () => {
         .to.not.equal(zeroAddress);
       expect(depositEvent.args.amount).to.equal(depositAmount).to.be.gt(0);
       expect(balances.length).to.equal(8).to.equal(vaults.length);
-      expect(balances).to.deep.equal(voteCvxDeposits);
-      expect(voteCvxAddresses).to.not.include(zeroAddress);
+      expect(balances).to.deep.equal(triCvxDeposits);
+      expect(triCvxAddresses).to.not.include(zeroAddress);
     });
 
     it('Should deposit CVX (N times)', async () => {
@@ -487,23 +516,25 @@ describe('VaultController', () => {
         admin.address
       );
       const totalHoldingsAfter = await firstLockedCvxVault.totalHoldings();
-      const voteCvxStartingEpoch = (
-        await vaultController.getCurrentEpoch()
-      ).add(EPOCH_DEPOSIT_DURATION);
-      const { vaults, balances } = await getVoteCvxVaults(voteCvxStartingEpoch);
+      const triCvxStartingEpoch = (await vaultController.getCurrentEpoch()).add(
+        EPOCH_DEPOSIT_DURATION
+      );
+      const { vaults, balances } = await getTriCvxVaults(triCvxStartingEpoch);
 
       // Update deposits and compare against balances (should retain parity)
-      voteCvxDeposits = voteCvxDeposits.map((balance) =>
-        balance.add(totalDeposit)
-      );
+      triCvxDeposits = triCvxDeposits.map((balance) => ({
+        voteCvx: balance.voteCvx.add(totalDeposit),
+        bribeCvx: balance.bribeCvx.add(totalDeposit),
+        rewardCvx: balance.rewardCvx.add(totalDeposit),
+      }));
 
       expect(shareBalanceBefore).to.equal(totalHoldingsBefore);
       expect(shareBalanceAfter)
         .to.equal(totalHoldingsAfter)
         .to.equal(shareBalanceBefore.add(totalDeposit))
         .to.be.gt(0);
-      expect(vaults).to.deep.equal(voteCvxAddresses);
-      expect(balances).to.deep.equal(voteCvxDeposits);
+      expect(vaults).to.deep.equal(triCvxAddresses);
+      expect(balances).to.deep.equal(triCvxDeposits);
     });
   });
 
@@ -561,7 +592,9 @@ describe('VaultController', () => {
     });
 
     it('Should revert if epoch is invalid', async () => {
-      const invalidEpoch = (await vaultController.getCurrentEpoch()).add(await vaultController.EPOCH_DEPOSIT_DURATION()).mul(2);
+      const invalidEpoch = (await vaultController.getCurrentEpoch())
+        .add(await vaultController.EPOCH_DEPOSIT_DURATION())
+        .mul(2);
       const to = admin.address;
       const amount = toBN(1e18);
 
@@ -571,29 +604,33 @@ describe('VaultController', () => {
     });
   });
 
-  describe('mintVoteCvx', () => {
-    it('Should mint voteCVX', async () => {
+  describe('mintTriCvxTokens', () => {
+    it('Should mint vote, bribe, and reward CVX', async () => {
       const EPOCH_DEPOSIT_DURATION =
         await vaultController.EPOCH_DEPOSIT_DURATION();
       const currentEpoch = await vaultController.getCurrentEpoch();
-      const voteEpoch = currentEpoch.add(EPOCH_DEPOSIT_DURATION);
+      const tokenEpoch = currentEpoch.add(EPOCH_DEPOSIT_DURATION);
       const mintAmount = toBN(1e18);
       const events = await callAndReturnEvents(vaultController.setUpVaults, [
         currentEpoch,
       ]);
       const {
-        args: { voteCvxVaults },
+        args: { triCvxVaults },
       } = events[events.length - 1];
 
-      await vaultController.mintVoteCvx(voteEpoch, admin.address, mintAmount);
+      await vaultController.mintTriCvxTokens(
+        tokenEpoch,
+        admin.address,
+        mintAmount
+      );
 
-      const balances: BigNumber[] = await Promise.map(voteCvxVaults, async () =>
+      const balances: BigNumber[] = await Promise.map(triCvxVaults, async () =>
         (
           await ethers.getContractAt(
-            'VoteCvxVault',
-            await vaultController.voteCvxVaultsByEpoch(voteEpoch)
+            'TriCvxVault',
+            await vaultController.triCvxVaultsByEpoch(tokenEpoch)
           )
-        ).balanceOf(admin.address)
+        ).balanceOf(admin.address, 0)
       );
       const expectedBalances = [...Array(balances.length).keys()].map(
         () => mintAmount
@@ -603,7 +640,7 @@ describe('VaultController', () => {
       // expect(balanceAfter).to.equal(expectedBalanceAfter).to.be.gt(0);
     });
 
-    it('Should revert if minting voteCVX with an invalid VoteCvxVault', async () => {
+    it('Should revert if minting vote, bribe, and reward CVX with an invalid TriCvxVault', async () => {
       const EPOCH_DEPOSIT_DURATION =
         await vaultController.EPOCH_DEPOSIT_DURATION();
       const invalidEpoch = (await vaultController.getCurrentEpoch()).add(
@@ -612,13 +649,17 @@ describe('VaultController', () => {
       const mintAmount = toBN(1e18);
 
       await expect(
-        vaultController.mintVoteCvx(invalidEpoch, admin.address, mintAmount)
+        vaultController.mintTriCvxTokens(
+          invalidEpoch,
+          admin.address,
+          mintAmount
+        )
       ).to.be.revertedWith(
         'Transaction reverted: function call to a non-contract account'
       );
     });
 
-    it('Should revert if startingVoteEpoch is less than the next epoch', async () => {
+    it('Should revert if startingEpoch is less than the next epoch', async () => {
       const nextEpoch = (await vaultController.getCurrentEpoch()).add(
         await vaultController.EPOCH_DEPOSIT_DURATION()
       );
@@ -627,8 +668,8 @@ describe('VaultController', () => {
       const mintAmount = toBN(1e18);
 
       await expect(
-        vaultController.mintVoteCvx(invalidEpoch, to, mintAmount)
-      ).to.be.revertedWith(`InvalidMintVoteCvxEpoch(${invalidEpoch})`);
+        vaultController.mintTriCvxTokens(invalidEpoch, to, mintAmount)
+      ).to.be.revertedWith(`AfterMintDeadline(${invalidEpoch})`);
     });
 
     it('Should revert if zero address', async () => {
@@ -639,7 +680,7 @@ describe('VaultController', () => {
       const mintAmount = toBN(1e18);
 
       await expect(
-        vaultController.mintVoteCvx(nextEpoch, invalidTo, mintAmount)
+        vaultController.mintTriCvxTokens(nextEpoch, invalidTo, mintAmount)
       ).to.be.revertedWith('ZeroAddress()');
     });
 
@@ -651,7 +692,7 @@ describe('VaultController', () => {
       const invalidAmount = toBN(0);
 
       await expect(
-        vaultController.mintVoteCvx(nextEpoch, to, invalidAmount)
+        vaultController.mintTriCvxTokens(nextEpoch, to, invalidAmount)
       ).to.be.revertedWith('ZeroAmount()');
     });
   });
