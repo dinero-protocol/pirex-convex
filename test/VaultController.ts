@@ -21,7 +21,7 @@ import {
   LockedCvxVault,
   TriCvxVault,
   VotiumRewardClaimer,
-  DelegateRegistry
+  DelegateRegistry,
 } from '../typechain-types';
 import { BigNumber } from 'ethers';
 
