@@ -16,7 +16,7 @@ import {
   Booster,
   RewardFactory,
   CvxLocker,
-  DelegateRegistry
+  DelegateRegistry,
 } from '../typechain-types';
 import { BigNumber } from 'ethers';
 
@@ -294,6 +294,98 @@ describe('TriCvxVault', () => {
         .to.equal(transferAmount)
         .to.equal(bribe.amount)
         .to.not.equal(0);
+    });
+  });
+
+  describe('redeemBribes', () => {
+    let newTriCvxVault: TriCvxVault;
+
+    before(async () => {
+      const mintDeadline =
+        (await ethers.provider.getBlock('latest')).timestamp + 86400;
+      const mintAmount = toBN(10e18);
+      const transferAmount = toBN(10e18);
+
+      newTriCvxVault = await (
+        await ethers.getContractFactory('TriCvxVault')
+      ).deploy();
+
+      await cvx.transfer(newTriCvxVault.address, transferAmount);
+      await newTriCvxVault.initialize(vaultController.address, mintDeadline);
+      await newTriCvxVault
+        .connect(vaultControllerSigner)
+        .mint(admin.address, mintAmount);
+      await newTriCvxVault
+        .connect(vaultControllerSigner)
+        .setRewardClaimer(admin.address);
+      await newTriCvxVault.addBribe(cvx.address);
+    });
+
+    it('Should revert if before mint deadline', async () => {
+      const { timestamp } = await ethers.provider.getBlock('latest');
+      const mintDeadline = await newTriCvxVault.mintDeadline();
+      const to = admin.address;
+      const redeemAmount = toBN(1e18);
+
+      expect(mintDeadline.gt(timestamp)).to.equal(true);
+      await expect(
+        newTriCvxVault.redeemBribes(to, redeemAmount)
+      ).to.be.revertedWith('BeforeMintDeadline()');
+    });
+
+    it('Should revert if to is zero address', async () => {
+      const mintDeadline = await newTriCvxVault.mintDeadline();
+      const { timestamp } = await ethers.provider.getBlock('latest');
+      const afterMintDeadline = mintDeadline.sub(timestamp).add(1);
+
+      await increaseBlockTimestamp(Number(afterMintDeadline.toString()));
+
+      const invalidTo = zeroAddress;
+      const redeemAmount = toBN(1e18);
+
+      await expect(
+        newTriCvxVault.redeemBribes(invalidTo, redeemAmount)
+      ).to.be.revertedWith('ZeroAddress()');
+    });
+
+    it('Should revert if to is zero amount', async () => {
+      const to = admin.address;
+      const invalidRedeemAmount = 0;
+
+      await expect(
+        newTriCvxVault.redeemBribes(to, invalidRedeemAmount)
+      ).to.be.revertedWith('ZeroAmount()');
+    });
+
+    it('Should redeem bribes', async () => {
+      const from = admin.address;
+      const to = notAdmin.address;
+      const redeemAmount = toBN(1e18);
+      const balanceBefore = await cvx.balanceOf(notAdmin.address);
+      const events = await callAndReturnEvents(newTriCvxVault.redeemBribes, [
+        to,
+        redeemAmount,
+      ]);
+      const redeemEvent = events[events.length - 1];
+      const balanceAfter = await cvx.balanceOf(notAdmin.address);
+      const expectedWithdrawnTokens = [cvx.address];
+      const expectedWithdrawnAmounts = [redeemAmount];
+
+      expect(balanceAfter)
+        .to.equal(balanceBefore.add(redeemAmount))
+        .to.be.gt(0);
+      expect(redeemEvent.eventSignature).to.equal(
+        'Withdraw(address,address,address[],uint256[])'
+      );
+      expect(redeemEvent.args.from).to.equal(from).to.not.equal(zeroAddress);
+      expect(redeemEvent.args.to).to.equal(to).to.not.equal(zeroAddress);
+      expect(redeemEvent.args.withdrawnTokens)
+        .to.deep.equal(expectedWithdrawnTokens)
+        .to.not.deep.equal([]);
+      expect(redeemEvent.args.withdrawnAmounts)
+        .to.deep.equal(expectedWithdrawnAmounts)
+        .to.deep.equal([balanceAfter])
+        .to.not.deep.equal([]);
     });
   });
 });

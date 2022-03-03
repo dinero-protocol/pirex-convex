@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.12;
 
-import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import "hardhat/console.sol";
+import {ERC1155SupplyUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155SupplyUpgradeable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract TriCvxVault is ERC1155Upgradeable {
+contract TriCvxVault is ERC1155SupplyUpgradeable {
+    using SafeERC20 for ERC20;
+
     struct Underlying {
         address token;
         uint256 amount;
@@ -28,12 +31,19 @@ contract TriCvxVault is ERC1155Upgradeable {
     event SetRewardClaimer(address _rewardClaimer);
     event Minted(address indexed to, uint256 amount);
     event AddedBribe(address token, uint256 amount);
+    event Withdraw(
+        address indexed from,
+        address indexed to,
+        address[] withdrawnTokens,
+        uint256[] withdrawnAmounts
+    );
 
     error ZeroAmount();
     error ZeroAddress();
     error ZeroBalance();
     error EmptyString();
-    error AfterMintDeadline(uint256 timestamp);
+    error BeforeMintDeadline();
+    error AfterMintDeadline();
     error NotVaultController();
     error NotRewardClaimer();
 
@@ -80,8 +90,7 @@ contract TriCvxVault is ERC1155Upgradeable {
         @param  amount  uint256  Amount
      */
     function mint(address to, uint256 amount) external onlyVaultController {
-        if (mintDeadline < block.timestamp)
-            revert AfterMintDeadline(block.timestamp);
+        if (mintDeadline < block.timestamp) revert AfterMintDeadline();
         if (amount == 0) revert ZeroAmount();
 
         uint256[] memory ids = new uint256[](3);
@@ -123,5 +132,48 @@ contract TriCvxVault is ERC1155Upgradeable {
         }
 
         emit AddedBribe(token, balance);
+    }
+
+    /** 
+        @notice Redeem bribes
+        @param  to              address  Recipient
+        @param  bribeCvxAmount  uint256  Amount of bribeCVX
+    */
+    function redeemBribes(address to, uint256 bribeCvxAmount)
+        external
+        returns (
+            address[] memory withdrawnTokens,
+            uint256[] memory withdrawnAmounts
+        )
+    {
+        if (mintDeadline > block.timestamp) revert BeforeMintDeadline();
+        if (to == address(0)) revert ZeroAddress();
+        if (bribeCvxAmount == 0) revert ZeroAmount();
+
+        uint256 totalSupplyBeforeBurn = totalSupply(BRIBE_CVX);
+
+        // // Burn the provided amount of shares.
+        // // This will revert if the user does not have enough shares.
+        _burn(msg.sender, BRIBE_CVX, bribeCvxAmount);
+
+        // // Withdraw from strategies if needed and transfer.
+        // beforeWithdraw(underlyingAmount);
+
+        uint256 bLen = bribes.length;
+
+        withdrawnTokens = new address[](bLen);
+        withdrawnAmounts = new uint256[](bLen);
+
+        // Iterate over bribes and transfer to recipient
+        for (uint256 i; i < bLen; ++i) {
+            withdrawnTokens[i] = bribes[i].token;
+            withdrawnAmounts[i] =
+                (bribes[i].amount * bribeCvxAmount) /
+                totalSupplyBeforeBurn;
+
+            ERC20(withdrawnTokens[i]).safeTransfer(to, withdrawnAmounts[i]);
+        }
+
+        emit Withdraw(msg.sender, to, withdrawnTokens, withdrawnAmounts);
     }
 }
