@@ -86,11 +86,11 @@ contract VotiumRewardClaimer is Initializable {
         // Use token balance instead of `amount` to account for tokens with fees
         uint256 balanceAfterClaim = ERC20(token).balanceOf(address(this));
 
-        // Transfer rewards to TriCvxVault, which can be claimed by vault shareholders
+        // Transfer bribes to TriCvxVault, which can be claimed by vault shareholders
         ERC20(token).safeTransfer(address(triCvxVault), balanceAfterClaim);
 
-        // Add reward so that TriCvxVault can track and distribute rewards
-        triCvxVault.addReward(token);
+        // Add bribe to make redemption more efficient
+        triCvxVault.addBribe(token);
 
         emit ClaimedVotiumReward(
             token,
