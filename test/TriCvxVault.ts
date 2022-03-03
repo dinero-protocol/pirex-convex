@@ -251,11 +251,11 @@ describe('TriCvxVault', () => {
     });
   });
 
-  describe('addReward', () => {
+  describe('addBribe', () => {
     it('Should revert if token is zero address', async () => {
       const invalidToken = zeroAddress;
 
-      await expect(triCvxVault.addReward(invalidToken)).to.be.revertedWith(
+      await expect(triCvxVault.addBribe(invalidToken)).to.be.revertedWith(
         'ZeroAddress()'
       );
     });
@@ -265,12 +265,12 @@ describe('TriCvxVault', () => {
       const token = cvx.address;
 
       expect(balance).to.equal(0);
-      await expect(triCvxVault.addReward(token)).to.be.revertedWith(
+      await expect(triCvxVault.addBribe(token)).to.be.revertedWith(
         'ZeroBalance()'
       );
     });
 
-    it('Should add reward if non-zero token balance', async () => {
+    it('Should add bribe if non-zero token balance', async () => {
       const transferAmount = toBN(1e18);
       const balanceBefore = await cvx.balanceOf(triCvxVault.address);
 
@@ -278,21 +278,21 @@ describe('TriCvxVault', () => {
 
       const balanceAfter = await cvx.balanceOf(triCvxVault.address);
       const token = cvx.address;
-      const events = await callAndReturnEvents(triCvxVault.addReward, [token]);
+      const events = await callAndReturnEvents(triCvxVault.addBribe, [token]);
       const addEvent = events[events.length - 1];
-      const reward = await triCvxVault.rewards(0);
+      const bribe = await triCvxVault.bribes(0);
 
       expect(balanceAfter)
         .to.equal(balanceBefore.add(transferAmount))
         .to.not.equal(0);
-      expect(addEvent.eventSignature).to.equal('AddedReward(address,uint256)');
+      expect(addEvent.eventSignature).to.equal('AddedBribe(address,uint256)');
       expect(addEvent.args.token)
         .to.equal(token)
-        .to.equal(reward.token)
+        .to.equal(bribe.token)
         .to.not.equal(zeroAddress);
       expect(addEvent.args.amount)
         .to.equal(transferAmount)
-        .to.equal(reward.amount)
+        .to.equal(bribe.amount)
         .to.not.equal(0);
     });
   });

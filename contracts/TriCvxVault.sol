@@ -6,10 +6,12 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract TriCvxVault is ERC1155Upgradeable {
-    struct Rewards {
+    struct Underlying {
         address token;
         uint256 amount;
     }
+
+    Underlying[] public bribes;
 
     uint256 public immutable VOTE_CVX = 0;
     uint256 public immutable BRIBE_CVX = 1;
@@ -18,13 +20,14 @@ contract TriCvxVault is ERC1155Upgradeable {
     address public vaultController;
     address public rewardClaimer;
     uint256 public mintDeadline;
-    Rewards[] public rewards;
-    mapping(address => uint256) rewardIndexesByToken;
+
+    // Used in the event of a previously-added bribe needing to be updated
+    mapping(address => uint256) bribeIndexByToken;
 
     event Initialized(address _vaulController, uint256 _mintDeadline);
     event SetRewardClaimer(address _rewardClaimer);
     event Minted(address indexed to, uint256 amount);
-    event AddedReward(address token, uint256 amount);
+    event AddedBribe(address token, uint256 amount);
 
     error ZeroAmount();
     error ZeroAddress();
@@ -97,31 +100,28 @@ contract TriCvxVault is ERC1155Upgradeable {
     }
 
     /**
-        @notice Add a reward based on token balance
-        @notice Restricted to rewardClaimer to prevent random tokens
-        @param  token  address  Reward token address
+        @notice Add a bribe
+        @param  token  address  Bribe token address
      */
-    function addReward(address token) external onlyRewardClaimer {
+    function addBribe(address token) external onlyRewardClaimer {
         if (token == address(0)) revert ZeroAddress();
 
-        uint256 rewardIndex = rewardIndexesByToken[token];
-
-        // Store balance - revert if zero
+        uint256 bribeIndex = bribeIndexByToken[token];
         uint256 balance = ERC20(token).balanceOf(address(this));
         if (balance == 0) revert ZeroBalance();
 
-        // Add reward token if it doesn't exist
+        // Add bribe if it doesn't exist
         if (
-            rewards.length == 0 ||
-            (rewardIndex == 0 && rewards[rewardIndex].token == address(0))
+            bribes.length == 0 ||
+            (bribeIndex == 0 && bribes[bribeIndex].amount == 0)
         ) {
-            rewards.push(Rewards({token: token, amount: balance}));
-            rewardIndexesByToken[token] = rewards.length - 1;
+            bribes.push(Underlying({token: token, amount: balance}));
+            bribeIndexByToken[token] = bribes.length - 1;
         } else {
-            // Reward updates are necessary if Votium updates its claims with missing/additional rewards
-            rewards[rewardIndex] = Rewards({token: token, amount: balance});
+            // Update bribe
+            bribes[bribeIndex] = Underlying({token: token, amount: balance});
         }
 
-        emit AddedReward(token, balance);
+        emit AddedBribe(token, balance);
     }
 }
