@@ -31,23 +31,27 @@ contract VaultControllerMock is VaultController {
         _createLockedCvxVault(epoch);
     }
 
-    function createTriCvxVault(uint256 epoch) external {
-        _createTriCvxVault(epoch);
+    function createRewardCvxVault(uint256 epoch) external {
+        _createRewardCvxVault(epoch);
     }
 
     function createVotiumRewardClaimer(
         address lockedCvxVault,
-        address[8] memory triCvxVaults,
+        address[8] memory rewardCvxVaults,
         uint256[8] memory tokenEpochs
     ) external {
-        _createVotiumRewardClaimer(lockedCvxVault, triCvxVaults, tokenEpochs);
+        _createVotiumRewardClaimer(
+            lockedCvxVault,
+            rewardCvxVaults,
+            tokenEpochs
+        );
     }
 
-    function mintTriCvxTokens(
+    function mintRewardCvxTokens(
         uint256 startingEpoch,
         address to,
         uint256 amount
     ) external {
-        _mintTriCvxTokens(startingEpoch, to, amount);
+        _mintRewardCvxTokens(startingEpoch, to, amount);
     }
 }

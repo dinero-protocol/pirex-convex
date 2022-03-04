@@ -2,11 +2,11 @@
 pragma solidity 0.8.12;
 
 import "hardhat/console.sol";
-import {ERC1155SupplyUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155SupplyUpgradeable.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract TriCvxVault is ERC1155SupplyUpgradeable {
+contract RewardCvxVault is ERC20Upgradeable {
     using SafeERC20 for ERC20;
 
     struct Underlying {
@@ -15,10 +15,6 @@ contract TriCvxVault is ERC1155SupplyUpgradeable {
     }
 
     Underlying[] public bribes;
-
-    uint256 public immutable VOTE_CVX = 0;
-    uint256 public immutable BRIBE_CVX = 1;
-    uint256 public immutable REWARD_CVX = 2;
 
     address public vaultController;
     address public rewardClaimer;
@@ -47,15 +43,19 @@ contract TriCvxVault is ERC1155SupplyUpgradeable {
     error NotVaultController();
     error NotRewardClaimer();
 
-    function initialize(address _vaultController, uint256 _mintDeadline)
-        external
-        initializer
-    {
+    function initialize(
+        address _vaultController,
+        uint256 _mintDeadline,
+        string memory _name,
+        string memory _symbol
+    ) external initializer {
         if (_vaultController == address(0)) revert ZeroAddress();
         vaultController = _vaultController;
 
         if (_mintDeadline == 0) revert ZeroAmount();
         mintDeadline = _mintDeadline;
+
+        __ERC20_init_unchained(_name, _symbol);
 
         emit Initialized(_vaultController, _mintDeadline);
     }
@@ -93,17 +93,8 @@ contract TriCvxVault is ERC1155SupplyUpgradeable {
         if (mintDeadline < block.timestamp) revert AfterMintDeadline();
         if (amount == 0) revert ZeroAmount();
 
-        uint256[] memory ids = new uint256[](3);
-        ids[0] = VOTE_CVX;
-        ids[1] = BRIBE_CVX;
-        ids[2] = REWARD_CVX;
-        uint256[] memory amounts = new uint256[](3);
-        amounts[0] = amount;
-        amounts[1] = amount;
-        amounts[2] = amount;
-
-        // Validates `to`, `ids`, and `amounts`
-        _mintBatch(to, ids, amounts, "");
+        // Validates `to`
+        _mint(to, amount);
 
         emit Minted(to, amount);
     }
@@ -136,10 +127,10 @@ contract TriCvxVault is ERC1155SupplyUpgradeable {
 
     /** 
         @notice Redeem bribes
-        @param  to              address  Recipient
-        @param  bribeCvxAmount  uint256  Amount of bribeCVX
+        @param  to               address  Recipient
+        @param  rewardCvxAmount  uint256  Amount of rewardCVX
     */
-    function redeemBribes(address to, uint256 bribeCvxAmount)
+    function redeemBribes(address to, uint256 rewardCvxAmount)
         external
         returns (
             address[] memory withdrawnTokens,
@@ -148,19 +139,15 @@ contract TriCvxVault is ERC1155SupplyUpgradeable {
     {
         if (mintDeadline > block.timestamp) revert BeforeMintDeadline();
         if (to == address(0)) revert ZeroAddress();
-        if (bribeCvxAmount == 0) revert ZeroAmount();
+        if (rewardCvxAmount == 0) revert ZeroAmount();
 
-        uint256 totalSupplyBeforeBurn = totalSupply(BRIBE_CVX);
+        uint256 totalSupplyBeforeBurn = totalSupply();
 
         // // Burn the provided amount of shares.
         // // This will revert if the user does not have enough shares.
-        _burn(msg.sender, BRIBE_CVX, bribeCvxAmount);
-
-        // // Withdraw from strategies if needed and transfer.
-        // beforeWithdraw(underlyingAmount);
+        _burn(msg.sender, rewardCvxAmount);
 
         uint256 bLen = bribes.length;
-
         withdrawnTokens = new address[](bLen);
         withdrawnAmounts = new uint256[](bLen);
 
@@ -168,7 +155,7 @@ contract TriCvxVault is ERC1155SupplyUpgradeable {
         for (uint256 i; i < bLen; ++i) {
             withdrawnTokens[i] = bribes[i].token;
             withdrawnAmounts[i] =
-                (bribes[i].amount * bribeCvxAmount) /
+                (bribes[i].amount * rewardCvxAmount) /
                 totalSupplyBeforeBurn;
 
             ERC20(withdrawnTokens[i]).safeTransfer(to, withdrawnAmounts[i]);
