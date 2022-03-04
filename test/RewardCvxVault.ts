@@ -10,7 +10,7 @@ import {
 import {
   ConvexToken,
   CurveVoterProxy,
-  TriCvxVault,
+  RewardCvxVault,
   VaultControllerMock,
   Crv,
   Booster,
@@ -20,12 +20,12 @@ import {
 } from '../typechain-types';
 import { BigNumber } from 'ethers';
 
-describe('TriCvxVault', () => {
+describe('RewardCvxVault', () => {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let vaultControllerSigner: SignerWithAddress;
   let vaultController: VaultControllerMock;
-  let triCvxVault: TriCvxVault;
+  let rewardCvxVault: RewardCvxVault;
   let cvx: ConvexToken;
   let crv: Crv;
   let cvxCrvToken: any;
@@ -42,6 +42,7 @@ describe('TriCvxVault', () => {
   const epochDepositDuration = toBN(1209600); // 2 weeks in seconds
   const initialCvxBalanceForAdmin = toBN(100e18);
   const zeroAddress = '0x0000000000000000000000000000000000000000';
+  const rewardCvxId = 'rewardCVX';
 
   before(async () => {
     [admin, notAdmin] = await ethers.getSigners();
@@ -49,7 +50,7 @@ describe('TriCvxVault', () => {
     const VaultController = await ethers.getContractFactory(
       'VaultControllerMock'
     );
-    const TriCvxVault = await ethers.getContractFactory('TriCvxVault');
+    const RewardCvxVault = await ethers.getContractFactory('RewardCvxVault');
     const Cvx = await ethers.getContractFactory('ConvexToken');
     const Crv = await ethers.getContractFactory('Crv');
     const CvxCrvToken = await ethers.getContractFactory('cvxCrvToken');
@@ -105,7 +106,7 @@ describe('TriCvxVault', () => {
       epochDepositDuration,
       cvxLockDuration
     );
-    triCvxVault = await TriCvxVault.deploy();
+    rewardCvxVault = await RewardCvxVault.deploy();
 
     vaultControllerSigner = await impersonateAddressAndReturnSigner(
       admin,
@@ -120,20 +121,27 @@ describe('TriCvxVault', () => {
       const invalidMintDeadline = 0;
 
       await expect(
-        triCvxVault.initialize(vaultController.address, invalidMintDeadline)
+        rewardCvxVault.initialize(
+          vaultController.address,
+          invalidMintDeadline,
+          rewardCvxId,
+          rewardCvxId
+        )
       ).to.be.revertedWith('ZeroAmount()');
     });
 
     it('Should set up contract state', async () => {
       const mintDeadline =
         (await ethers.provider.getBlock('latest')).timestamp + 86400;
-      const events = await callAndReturnEvents(triCvxVault.initialize, [
+      const events = await callAndReturnEvents(rewardCvxVault.initialize, [
         vaultController.address,
         mintDeadline,
+        rewardCvxId,
+        rewardCvxId,
       ]);
       const initializeEvent = events[events.length - 1];
-      const stateVaultController = await triCvxVault.vaultController();
-      const stateMintDeadline = await triCvxVault.mintDeadline();
+      const stateVaultController = await rewardCvxVault.vaultController();
+      const stateMintDeadline = await rewardCvxVault.mintDeadline();
 
       expect(initializeEvent.eventSignature).to.equal(
         'Initialized(address,uint256)'
@@ -149,13 +157,13 @@ describe('TriCvxVault', () => {
 
   describe('setRewardClaimer', () => {
     it('Should set rewardClaimer', async () => {
-      const rewardClaimerBefore = await triCvxVault.rewardClaimer();
+      const rewardClaimerBefore = await rewardCvxVault.rewardClaimer();
       const events = await callAndReturnEvents(
-        triCvxVault.connect(vaultControllerSigner).setRewardClaimer,
+        rewardCvxVault.connect(vaultControllerSigner).setRewardClaimer,
         [admin.address]
       );
       const setEvent = events[events.length - 1];
-      const rewardClaimerAfter = await triCvxVault.rewardClaimer();
+      const rewardClaimerAfter = await rewardCvxVault.rewardClaimer();
 
       expect(rewardClaimerBefore).to.equal(zeroAddress);
       expect(setEvent.eventSignature).to.equal('SetRewardClaimer(address)');
@@ -167,7 +175,7 @@ describe('TriCvxVault', () => {
 
     it('Should revert if not vaultController', async () => {
       await expect(
-        triCvxVault.setRewardClaimer(admin.address)
+        rewardCvxVault.setRewardClaimer(admin.address)
       ).to.be.revertedWith('NotVaultController()');
     });
 
@@ -175,7 +183,7 @@ describe('TriCvxVault', () => {
       const invalidRewardClaimer = zeroAddress;
 
       await expect(
-        triCvxVault
+        rewardCvxVault
           .connect(vaultControllerSigner)
           .setRewardClaimer(invalidRewardClaimer)
       ).to.be.revertedWith('ZeroAddress()');
@@ -186,26 +194,14 @@ describe('TriCvxVault', () => {
     it('Should mint tokens', async () => {
       const to = admin.address;
       const amount = toBN(1e18);
-      const balanceBefore = {
-        voteCvx: await triCvxVault.balanceOf(to, 0),
-        bribeCvx: await triCvxVault.balanceOf(to, 1),
-        rewardCvx: await triCvxVault.balanceOf(to, 2),
-      };
+      const balanceBefore = await rewardCvxVault.balanceOf(to);
       const events = await callAndReturnEvents(
-        triCvxVault.connect(vaultControllerSigner).mint,
+        rewardCvxVault.connect(vaultControllerSigner).mint,
         [to, amount]
       );
       const mintEvent = events[events.length - 1];
-      const balanceAfter = {
-        voteCvx: await triCvxVault.balanceOf(to, 0),
-        bribeCvx: await triCvxVault.balanceOf(to, 1),
-        rewardCvx: await triCvxVault.balanceOf(to, 2),
-      };
-      const expectedBalance = {
-        voteCvx: balanceBefore.voteCvx.add(amount),
-        bribeCvx: balanceBefore.bribeCvx.add(amount),
-        rewardCvx: balanceBefore.rewardCvx.add(amount),
-      };
+      const balanceAfter = await rewardCvxVault.balanceOf(to);
+      const expectedBalance = balanceBefore.add(amount);
 
       expect(mintEvent.eventSignature).to.equal('Minted(address,uint256)');
       expect(mintEvent.args.to).to.equal(to).to.not.equal(zeroAddress);
@@ -218,7 +214,7 @@ describe('TriCvxVault', () => {
       const amount = toBN(1e18);
 
       await expect(
-        triCvxVault.connect(notAdmin).mint(to, amount)
+        rewardCvxVault.connect(notAdmin).mint(to, amount)
       ).to.be.revertedWith('NotVaultController()');
     });
 
@@ -227,14 +223,14 @@ describe('TriCvxVault', () => {
       const amount = toBN(1e18);
 
       await expect(
-        triCvxVault.connect(vaultControllerSigner).mint(invalidTo, amount)
-      ).to.be.revertedWith('ERC1155: mint to the zero address');
+        rewardCvxVault.connect(vaultControllerSigner).mint(invalidTo, amount)
+      ).to.be.revertedWith('ERC20: mint to the zero address');
     });
 
     it('Should revert if after mint deadline', async () => {
       const to = admin.address;
       const amount = toBN(1e18);
-      const mintDeadline = await triCvxVault.mintDeadline();
+      const mintDeadline = await rewardCvxVault.mintDeadline();
       const { timestamp } = await ethers.provider.getBlock('latest');
       const afterMintDeadline = mintDeadline.sub(timestamp).add(1);
 
@@ -246,7 +242,7 @@ describe('TriCvxVault', () => {
 
       expect(mintDeadline.lt(timestampAfter)).to.equal(true);
       await expect(
-        triCvxVault.connect(vaultControllerSigner).mint(to, amount)
+        rewardCvxVault.connect(vaultControllerSigner).mint(to, amount)
       ).to.be.revertedWith('AfterMintDeadline');
     });
   });
@@ -255,32 +251,34 @@ describe('TriCvxVault', () => {
     it('Should revert if token is zero address', async () => {
       const invalidToken = zeroAddress;
 
-      await expect(triCvxVault.addBribe(invalidToken)).to.be.revertedWith(
+      await expect(rewardCvxVault.addBribe(invalidToken)).to.be.revertedWith(
         'ZeroAddress()'
       );
     });
 
     it('Should not add reward if zero token balance', async () => {
-      const balance = await cvx.balanceOf(triCvxVault.address);
+      const balance = await cvx.balanceOf(rewardCvxVault.address);
       const token = cvx.address;
 
       expect(balance).to.equal(0);
-      await expect(triCvxVault.addBribe(token)).to.be.revertedWith(
+      await expect(rewardCvxVault.addBribe(token)).to.be.revertedWith(
         'ZeroBalance()'
       );
     });
 
     it('Should add bribe if non-zero token balance', async () => {
       const transferAmount = toBN(1e18);
-      const balanceBefore = await cvx.balanceOf(triCvxVault.address);
+      const balanceBefore = await cvx.balanceOf(rewardCvxVault.address);
 
-      await cvx.transfer(triCvxVault.address, transferAmount);
+      await cvx.transfer(rewardCvxVault.address, transferAmount);
 
-      const balanceAfter = await cvx.balanceOf(triCvxVault.address);
+      const balanceAfter = await cvx.balanceOf(rewardCvxVault.address);
       const token = cvx.address;
-      const events = await callAndReturnEvents(triCvxVault.addBribe, [token]);
+      const events = await callAndReturnEvents(rewardCvxVault.addBribe, [
+        token,
+      ]);
       const addEvent = events[events.length - 1];
-      const bribe = await triCvxVault.bribes(0);
+      const bribe = await rewardCvxVault.bribes(0);
 
       expect(balanceAfter)
         .to.equal(balanceBefore.add(transferAmount))
@@ -298,7 +296,7 @@ describe('TriCvxVault', () => {
   });
 
   describe('redeemBribes', () => {
-    let newTriCvxVault: TriCvxVault;
+    let newRewardCvxVault: RewardCvxVault;
 
     before(async () => {
       const mintDeadline =
@@ -306,35 +304,40 @@ describe('TriCvxVault', () => {
       const mintAmount = toBN(10e18);
       const transferAmount = toBN(10e18);
 
-      newTriCvxVault = await (
-        await ethers.getContractFactory('TriCvxVault')
+      newRewardCvxVault = await (
+        await ethers.getContractFactory('RewardCvxVault')
       ).deploy();
 
-      await cvx.transfer(newTriCvxVault.address, transferAmount);
-      await newTriCvxVault.initialize(vaultController.address, mintDeadline);
-      await newTriCvxVault
+      await cvx.transfer(newRewardCvxVault.address, transferAmount);
+      await newRewardCvxVault.initialize(
+        vaultController.address,
+        mintDeadline,
+        rewardCvxId,
+        rewardCvxId
+      );
+      await newRewardCvxVault
         .connect(vaultControllerSigner)
         .mint(admin.address, mintAmount);
-      await newTriCvxVault
+      await newRewardCvxVault
         .connect(vaultControllerSigner)
         .setRewardClaimer(admin.address);
-      await newTriCvxVault.addBribe(cvx.address);
+      await newRewardCvxVault.addBribe(cvx.address);
     });
 
     it('Should revert if before mint deadline', async () => {
       const { timestamp } = await ethers.provider.getBlock('latest');
-      const mintDeadline = await newTriCvxVault.mintDeadline();
+      const mintDeadline = await newRewardCvxVault.mintDeadline();
       const to = admin.address;
       const redeemAmount = toBN(1e18);
 
       expect(mintDeadline.gt(timestamp)).to.equal(true);
       await expect(
-        newTriCvxVault.redeemBribes(to, redeemAmount)
+        newRewardCvxVault.redeemBribes(to, redeemAmount)
       ).to.be.revertedWith('BeforeMintDeadline()');
     });
 
     it('Should revert if to is zero address', async () => {
-      const mintDeadline = await newTriCvxVault.mintDeadline();
+      const mintDeadline = await newRewardCvxVault.mintDeadline();
       const { timestamp } = await ethers.provider.getBlock('latest');
       const afterMintDeadline = mintDeadline.sub(timestamp).add(1);
 
@@ -344,7 +347,7 @@ describe('TriCvxVault', () => {
       const redeemAmount = toBN(1e18);
 
       await expect(
-        newTriCvxVault.redeemBribes(invalidTo, redeemAmount)
+        newRewardCvxVault.redeemBribes(invalidTo, redeemAmount)
       ).to.be.revertedWith('ZeroAddress()');
     });
 
@@ -353,7 +356,7 @@ describe('TriCvxVault', () => {
       const invalidRedeemAmount = 0;
 
       await expect(
-        newTriCvxVault.redeemBribes(to, invalidRedeemAmount)
+        newRewardCvxVault.redeemBribes(to, invalidRedeemAmount)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
@@ -362,7 +365,7 @@ describe('TriCvxVault', () => {
       const to = notAdmin.address;
       const redeemAmount = toBN(1e18);
       const balanceBefore = await cvx.balanceOf(notAdmin.address);
-      const events = await callAndReturnEvents(newTriCvxVault.redeemBribes, [
+      const events = await callAndReturnEvents(newRewardCvxVault.redeemBribes, [
         to,
         redeemAmount,
       ]);
