@@ -11,15 +11,16 @@ import {FixedPointMathLib} from "./lib/FixedPointMathLib.sol";
 /// @title Yield Bearing Vault
 /// @author joeysantoro, Transmissions11 and JetJadeja
 
-/// @title Initializable version of ERC4626Vault
+/// @title Upgradeable version of ERC4626Vault
 /// @author kphed [REDACTED]
-/// - Use upgradeable ERC20 contract
-/// - Use an initializer function instead of constructor
+/// - Replace ERC20 with upgradeable ERC20 contract
+/// - Replace constructor with initialize function
 /// - Use OZ implementations until after we review Solmate
-///     - Use OpenZeppelin ERC20 implementation
-///     - Use SafeERC20
+///     - ERC20.sol
+///     - SafeERC20.sol
+///     - ERC20Upgradeable.sol
 /// - Add beforeDeposit hook
-contract ERC4626VaultInitializable is ERC20Upgradeable {
+contract ERC4626VaultUpgradeable is ERC20Upgradeable {
     using SafeERC20 for ERC20;
     using FixedPointMathLib for uint256;
 
