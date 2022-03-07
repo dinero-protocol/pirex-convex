@@ -2,7 +2,7 @@
 pragma solidity 0.8.12;
 
 import "hardhat/console.sol";
-import {ERC4626VaultInitializable} from "./ERC4626VaultInitializable.sol";
+import {ERC4626VaultUpgradeable} from "./ERC4626VaultUpgradeable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
@@ -13,7 +13,7 @@ interface IConvexDelegateRegistry {
     function setDelegate(bytes32 id, address delegate) external;
 }
 
-contract LockedCvxVault is ERC4626VaultInitializable {
+contract LockedCvxVault is ERC4626VaultUpgradeable {
     using SafeERC20 for ERC20;
 
     bytes32 public immutable DELEGATION_SPACE = bytes32(bytes("cvx.eth"));
