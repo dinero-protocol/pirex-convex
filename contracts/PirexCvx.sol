@@ -2,6 +2,7 @@
 pragma solidity 0.8.12;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
@@ -11,7 +12,7 @@ interface IConvexDelegateRegistry {
     function setDelegate(bytes32 id, address delegate) external;
 }
 
-contract PirexCvx is Ownable, ERC20("Pirex CVX", "pCVX") {
+contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     using SafeERC20 for ERC20;
 
     ERC20 public cvx;
@@ -24,6 +25,7 @@ contract PirexCvx is Ownable, ERC20("Pirex CVX", "pCVX") {
     event SetCvxLocker(address _cvxLocker);
     event SetCvxDelegateRegistry(address _cvxDelegateRegistry);
     event SetDelegationSpace(string _delegationSpace);
+    event Deposit(address to, uint256 amount);
 
     error ZeroAddress();
     error ZeroAmount();
@@ -98,5 +100,37 @@ contract PirexCvx is Ownable, ERC20("Pirex CVX", "pCVX") {
         delegationSpace = bytes32(d);
 
         emit SetDelegationSpace(_delegationSpace);
+    }
+
+    /**
+        @notice Lock CVX
+        @param  amount  uint256  CVX amount
+     */
+    function _lock(uint256 amount) internal {
+        cvxLocker.lock(address(this), amount, 0);
+    }
+
+    /**
+        @notice Deposit CVX
+        @param  to      address  Address receiving pCVX
+        @param  amount  uint256  CVX amount
+     */
+    function deposit(address to, uint256 amount) external nonReentrant {
+        if (to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+
+        // Mint pCVX
+        _mint(to, amount);
+
+        emit Deposit(to, amount);
+
+        // Transfer vault underlying and approve amount to be deposited
+        cvx.safeTransferFrom(msg.sender, address(this), amount);
+
+        // Validates zero address
+        cvx.safeIncreaseAllowance(address(cvxLocker), amount);
+
+        // Lock CVX
+        _lock(amount);
     }
 }

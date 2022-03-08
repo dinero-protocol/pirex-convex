@@ -1,7 +1,12 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { setUpConvex, callAndReturnEvent } from './helpers';
+import {
+  setUpConvex,
+  callAndReturnEvent,
+  callAndReturnEvents,
+  toBN,
+} from './helpers';
 import {
   ConvexToken,
   CvxLocker,
@@ -199,6 +204,83 @@ describe('PirexCvx', () => {
       await expect(
         pCvx.connect(notAdmin).setDelegationSpace(delegationSpace)
       ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+  });
+
+  describe('deposit', () => {
+    it('Should deposit CVX', async () => {
+      const balanceBefore = await cvx.balanceOf(admin.address);
+      const lockBalanceBefore = await cvxLocker.lockedBalanceOf(pCvx.address);
+      const msgSender = admin.address;
+      const to = admin.address;
+      const depositAmount = toBN(1e18);
+
+      await cvx.approve(pCvx.address, depositAmount);
+
+      const events = await callAndReturnEvents(pCvx.deposit, [
+        to,
+        depositAmount,
+      ]);
+      const mintEvent = events[0];
+      const depositEvent = events[1];
+      const transferEvent = events[2];
+      const approvalEvent = events[4];
+      const balanceAfter = await cvx.balanceOf(admin.address);
+      const lockBalanceAfter = await cvxLocker.lockedBalanceOf(pCvx.address);
+
+      expect(balanceAfter)
+        .to.equal(balanceBefore.sub(depositAmount))
+        .to.not.equal(0);
+      expect(mintEvent.eventSignature).to.equal(
+        'Transfer(address,address,uint256)'
+      );
+      expect(mintEvent.args.from).to.equal(zeroAddress);
+      expect(mintEvent.args.to).to.equal(to).to.not.equal(zeroAddress);
+      expect(mintEvent.args.value).to.equal(depositAmount).to.not.equal(0);
+      expect(depositEvent.eventSignature).to.equal('Deposit(address,uint256)');
+      expect(depositEvent.args.to).to.equal(to).to.not.equal(zeroAddress);
+      expect(depositEvent.args.amount).to.equal(depositAmount).to.not.equal(0);
+      expect(lockBalanceAfter)
+        .to.equal(lockBalanceBefore.add(depositAmount))
+        .to.not.equal(0);
+      expect(transferEvent.eventSignature).to.equal(
+        'Transfer(address,address,uint256)'
+      );
+      expect(transferEvent.args.from)
+        .to.equal(msgSender)
+        .to.not.equal(zeroAddress);
+      expect(transferEvent.args.to)
+        .to.equal(pCvx.address)
+        .to.not.equal(zeroAddress);
+      expect(transferEvent.args.value).to.equal(depositAmount).to.not.equal(0);
+      expect(approvalEvent.eventSignature).to.equal(
+        'Approval(address,address,uint256)'
+      );
+      expect(approvalEvent.args.owner)
+        .to.equal(pCvx.address)
+        .to.not.equal(zeroAddress);
+      expect(approvalEvent.args.spender)
+        .to.equal(cvxLocker.address)
+        .to.not.equal(zeroAddress);
+      expect(approvalEvent.args.value).to.equal(depositAmount).to.not.equal(0);
+    });
+
+    it('Should if to is zero address', async () => {
+      const invalidTo = zeroAddress;
+      const depositAmount = toBN(1e18);
+
+      await expect(pCvx.deposit(invalidTo, depositAmount)).to.be.revertedWith(
+        'ZeroAddress()'
+      );
+    });
+
+    it('Should if amount is zero', async () => {
+      const to = admin.address;
+      const invalidAmount = toBN(0);
+
+      await expect(pCvx.deposit(to, invalidAmount)).to.be.revertedWith(
+        'ZeroAmount()'
+      );
     });
   });
 });
