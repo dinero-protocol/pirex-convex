@@ -9,6 +9,7 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
 import {UpCvx} from "./UpCvx.sol";
+import {RpCvx} from "./RpCvx.sol";
 
 interface IConvexDelegateRegistry {
     function setDelegate(bytes32 id, address delegate) external;
@@ -17,6 +18,18 @@ interface IConvexDelegateRegistry {
 contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     using SafeERC20 for ERC20;
 
+    enum Futures {
+        Vote,
+        Reward
+    }
+
+    enum Contract {
+        CvxLocker,
+        CvxDelegateRegistry,
+        UpCvxImplementation,
+        RpCvxImplementation
+    }
+
     ERC20 public immutable CVX;
     uint256 public immutable EPOCH_DURATION = 2 weeks;
 
@@ -24,27 +37,33 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     ICvxDelegateRegistry public cvxDelegateRegistry;
 
     address public upCvxImplementation;
+    address public rpCvxImplementation;
     bytes32 public delegationSpace = bytes32(bytes("cvx.eth"));
     uint256 public cvxOutstanding;
 
-    // Epochs mapped to UpCvx addresses
+    // Epochs mapped to minimal proxy addresses
     mapping(uint256 => address) public upCvxByEpoch;
+    mapping(uint256 => address) public rpCvxByEpoch;
 
-    // List of deployed UpCvx instances
+    // List of deployed minimal proxies
     address[] public upCvx;
+    address[] public rpCvx;
 
-    event SetCvxLocker(address _cvxLocker);
-    event SetCvxDelegateRegistry(address _cvxDelegateRegistry);
+    event SetContract(Contract c, address contractAddress);
     event SetDelegationSpace(string _delegationSpace);
-    event SetUpCvxImplementation(address _upCvxImplementation);
     event Deposit(address indexed to, uint256 amount);
-    event CreatedUpCvx(uint256 epoch, address instance);
-    event InitiateRedemption(uint256 indexed epoch, address indexed to, uint256 amount);
+    event CreatedUpCvx(uint256 epoch, address contractAddress);
+    event CreatedRpCvx(uint256 epoch, address contractAddress);
+    event InitiateRedemption(
+        uint256 indexed epoch,
+        address indexed to,
+        uint256 amount
+    );
 
     error ZeroAddress();
     error ZeroAmount();
     error EmptyString();
-    error InstanceAlreadyExists();
+    error ContractAlreadyExists();
 
     /**
         @param  _CVX                     address     CVX address    
@@ -66,31 +85,41 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
 
         upCvxImplementation = address(new UpCvx());
+        rpCvxImplementation = address(new RpCvx());
     }
 
     /** 
         @notice Set CvxLocker address
-        @param  _cvxLocker  address  CvxLocker address    
+        @param  c                Contract  Contract to set
+        @param  contractAddress  address   CvxLocker address    
      */
-    function setCvxLocker(address _cvxLocker) external onlyOwner {
-        if (_cvxLocker == address(0)) revert ZeroAddress();
-        cvxLocker = ICvxLocker(_cvxLocker);
-
-        emit SetCvxLocker(_cvxLocker);
-    }
-
-    /** 
-        @notice Set CvxDelegateRegistry address
-        @param  _cvxDelegateRegistry  address  CvxDelegateRegistry address    
-     */
-    function setCvxDelegateRegistry(address _cvxDelegateRegistry)
+    function setContract(Contract c, address contractAddress)
         external
         onlyOwner
     {
-        if (_cvxDelegateRegistry == address(0)) revert ZeroAddress();
-        cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
+        if (contractAddress == address(0)) revert ZeroAddress();
 
-        emit SetCvxDelegateRegistry(_cvxDelegateRegistry);
+        emit SetContract(c, contractAddress);
+
+        if (c == Contract.CvxLocker) {
+            cvxLocker = ICvxLocker(contractAddress);
+            return;
+        }
+
+        if (c == Contract.CvxDelegateRegistry) {
+            cvxDelegateRegistry = ICvxDelegateRegistry(contractAddress);
+            return;
+        }
+
+        if (c == Contract.UpCvxImplementation) {
+            upCvxImplementation = contractAddress;
+            return;
+        }
+
+        if (c == Contract.RpCvxImplementation) {
+            rpCvxImplementation = contractAddress;
+            return;
+        }
     }
 
     /** 
@@ -106,20 +135,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         delegationSpace = bytes32(d);
 
         emit SetDelegationSpace(_delegationSpace);
-    }
-
-    /**
-        @notice Set UpCvx
-        @param  _upCvxImplementation  address  UpCvx implementation address
-     */
-    function setUpCvxImplementation(address _upCvxImplementation)
-        external
-        onlyOwner
-    {
-        if (_upCvxImplementation == address(0)) revert ZeroAddress();
-        upCvxImplementation = _upCvxImplementation;
-
-        emit SetUpCvxImplementation(_upCvxImplementation);
     }
 
     /**
@@ -144,7 +159,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         @return         address  UpCvx address
      */
     function _createUpCvx(uint256 epoch) internal returns (address) {
-        if (upCvxByEpoch[epoch] != address(0)) revert InstanceAlreadyExists();
+        if (upCvxByEpoch[epoch] != address(0)) revert ContractAlreadyExists();
 
         // Clone implementation and deploy minimal proxy
         UpCvx u = UpCvx(Clones.clone(upCvxImplementation));
@@ -185,13 +200,15 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
 
     /**
         @notice Initiate CVX redemption
-        @param  to      address  upCVX recipient
-        @param  amount  uint256  pCVX amount
+        @param  to       address  upCVX recipient
+        @param  amount   uint256  pCVX amount
+        @param  f        Futures   Future-settled asset
      */
-    function initiateRedemption(address to, uint256 amount)
-        external
-        nonReentrant
-    {
+    function initiateRedemption(
+        address to,
+        uint256 amount,
+        Futures f
+    ) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
 
         // Burn pCVX - validates `to`
@@ -214,5 +231,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         u.mint(to, amount);
 
         // Mint voteCVX or rewardCVX
+        if (f == Futures.Vote) {} else {}
     }
 }

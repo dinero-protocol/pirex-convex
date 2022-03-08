@@ -26,6 +26,16 @@ describe('PirexCvx', () => {
   const delegationSpace = ethers.utils.formatBytes32String('cvx.eth');
   const zeroAddress = '0x0000000000000000000000000000000000000000';
   const epochDuration = 1209600;
+  const contractEnum = {
+    cvxLocker: 0,
+    cvxDelegateRegistry: 1,
+    upCvxImplementation: 2,
+    rpCvxImplementation: 3,
+  };
+  const futuresEnum = {
+    vote: 0,
+    reward: 1,
+  };
 
   before(async () => {
     [admin, notAdmin] = await ethers.getSigners();
@@ -51,57 +61,43 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('setCvxLocker', () => {
-    it('Should update the CvxLocker address', async () => {
+  describe('setContract', () => {
+    it('Should set cvxLocker', async () => {
       const oldCvxLocker = cvxLocker.address;
       const newCvxLocker = admin.address;
       const cvxLockerBefore = await pCvx.cvxLocker();
-      const setEvent = await callAndReturnEvent(pCvx.setCvxLocker, [
+      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+        contractEnum.cvxLocker,
         newCvxLocker,
       ]);
       const cvxLockerAfter = await pCvx.cvxLocker();
 
       // Revert change to appropriate value
-      await pCvx.setCvxLocker(oldCvxLocker);
+      await pCvx.setContract(contractEnum.cvxLocker, oldCvxLocker);
 
       expect(cvxLockerBefore).to.not.equal(cvxLockerAfter);
       expect(cvxLockerBefore).to.equal(oldCvxLocker).to.not.equal(zeroAddress);
       expect(cvxLockerAfter).to.equal(newCvxLocker).to.not.equal(zeroAddress);
-      expect(setEvent.eventSignature).to.equal('SetCvxLocker(address)');
-      expect(setEvent.args._cvxLocker)
-        .to.equal(newCvxLocker)
-        .to.not.equal(zeroAddress);
+      expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
+      expect(setEvent.args.c).to.equal(contractEnum.cvxLocker);
+      expect(setEvent.args.contractAddress).to.equal(newCvxLocker);
     });
 
-    it('Should revert if _cvxLocker is zero address', async () => {
-      const invalidAddress = zeroAddress;
-
-      await expect(pCvx.setCvxLocker(invalidAddress)).to.be.revertedWith(
-        'ZeroAddress()'
-      );
-    });
-
-    it('Should if not called by owner', async () => {
-      const _cvxLocker = admin.address;
-
-      await expect(
-        pCvx.connect(notAdmin).setCvxLocker(_cvxLocker)
-      ).to.be.revertedWith('Ownable: caller is not the owner');
-    });
-  });
-
-  describe('setCvxDelegateRegistry', () => {
-    it('Should update the CvxDelegateRegistry address', async () => {
+    it('Should set cvxDelegateRegistry', async () => {
       const oldCvxDelegateRegistry = cvxDelegateRegistry.address;
       const newCvxDelegateRegistry = admin.address;
       const cvxDelegateRegistryBefore = await pCvx.cvxDelegateRegistry();
-      const setEvent = await callAndReturnEvent(pCvx.setCvxDelegateRegistry, [
+      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+        contractEnum.cvxDelegateRegistry,
         newCvxDelegateRegistry,
       ]);
       const cvxDelegateRegistryAfter = await pCvx.cvxDelegateRegistry();
 
       // Revert change to appropriate value
-      await pCvx.setCvxDelegateRegistry(oldCvxDelegateRegistry);
+      await pCvx.setContract(
+        contractEnum.cvxDelegateRegistry,
+        oldCvxDelegateRegistry
+      );
 
       expect(cvxDelegateRegistryBefore).to.not.equal(cvxDelegateRegistryAfter);
       expect(cvxDelegateRegistryBefore)
@@ -110,27 +106,72 @@ describe('PirexCvx', () => {
       expect(cvxDelegateRegistryAfter)
         .to.equal(newCvxDelegateRegistry)
         .to.not.equal(zeroAddress);
-      expect(setEvent.eventSignature).to.equal(
-        'SetCvxDelegateRegistry(address)'
+      expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
+      expect(setEvent.args.c).to.equal(contractEnum.cvxDelegateRegistry);
+      expect(setEvent.args.contractAddress).to.equal(newCvxDelegateRegistry);
+    });
+
+    it('Should set upCvxImplementation', async () => {
+      const oldImplementation = await pCvx.upCvxImplementation();
+      const newImplementation = admin.address;
+      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+        contractEnum.upCvxImplementation,
+        newImplementation,
+      ]);
+
+      // Revert change to appropriate value
+      await pCvx.setContract(
+        contractEnum.upCvxImplementation,
+        oldImplementation
       );
-      expect(setEvent.args._cvxDelegateRegistry)
-        .to.equal(newCvxDelegateRegistry)
+
+      expect(oldImplementation)
+        .to.not.equal(newImplementation)
+        .to.not.equal(zeroAddress);
+      expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
+      expect(setEvent.args.c).to.equal(contractEnum.upCvxImplementation);
+      expect(setEvent.args.contractAddress)
+        .to.equal(newImplementation)
         .to.not.equal(zeroAddress);
     });
 
-    it('Should revert if _cvxDelegateRegistry is zero address', async () => {
+    it('Should set rpCvxImplementation', async () => {
+      const oldImplementation = await pCvx.rpCvxImplementation();
+      const newImplementation = admin.address;
+      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+        contractEnum.rpCvxImplementation,
+        newImplementation,
+      ]);
+
+      // Revert change to appropriate value
+      await pCvx.setContract(
+        contractEnum.rpCvxImplementation,
+        oldImplementation
+      );
+
+      expect(oldImplementation)
+        .to.not.equal(newImplementation)
+        .to.not.equal(zeroAddress);
+      expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
+      expect(setEvent.args.c).to.equal(contractEnum.rpCvxImplementation);
+      expect(setEvent.args.contractAddress)
+        .to.equal(newImplementation)
+        .to.not.equal(zeroAddress);
+    });
+
+    it('Should revert if contractAddress is zero address', async () => {
       const invalidAddress = zeroAddress;
 
       await expect(
-        pCvx.setCvxDelegateRegistry(invalidAddress)
+        pCvx.setContract(contractEnum.cvxLocker, invalidAddress)
       ).to.be.revertedWith('ZeroAddress()');
     });
 
     it('Should if not called by owner', async () => {
-      const _cvxDelegateRegistry = admin.address;
+      const _cvxLocker = admin.address;
 
       await expect(
-        pCvx.connect(notAdmin).setCvxDelegateRegistry(_cvxDelegateRegistry)
+        pCvx.connect(notAdmin).setContract(contractEnum.cvxLocker, _cvxLocker)
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
   });
@@ -170,45 +211,6 @@ describe('PirexCvx', () => {
 
       await expect(
         pCvx.connect(notAdmin).setDelegationSpace(delegationSpace)
-      ).to.be.revertedWith('Ownable: caller is not the owner');
-    });
-  });
-
-  describe('setDelegationSpace', () => {
-    it('Should update upCvxImplementation', async () => {
-      const oldImplementation = await pCvx.upCvxImplementation();
-      const newImplementation = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setUpCvxImplementation, [
-        newImplementation,
-      ]);
-
-      // Revert change to appropriate value
-      await pCvx.setUpCvxImplementation(oldImplementation);
-
-      expect(oldImplementation)
-        .to.not.equal(newImplementation)
-        .to.not.equal(zeroAddress);
-      expect(setEvent.eventSignature).to.equal(
-        'SetUpCvxImplementation(address)'
-      );
-      expect(setEvent.args._upCvxImplementation)
-        .to.equal(newImplementation)
-        .to.not.equal(zeroAddress);
-    });
-
-    it('Should revert if _upCvxImplementation is zero address', async () => {
-      const invalidImplementation = zeroAddress;
-
-      await expect(
-        pCvx.setUpCvxImplementation(invalidImplementation)
-      ).to.be.revertedWith('ZeroAddress()');
-    });
-
-    it('Should if not called by owner', async () => {
-      const implementation = admin.address;
-
-      await expect(
-        pCvx.connect(notAdmin).setUpCvxImplementation(implementation)
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
   });
@@ -300,6 +302,7 @@ describe('PirexCvx', () => {
       const events = await callAndReturnEvents(pCvx.initiateRedemption, [
         to,
         redemptionAmount,
+        futuresEnum.reward,
       ]);
       const burnEvent = events[0];
       const initiateEvent = events[1];
@@ -329,7 +332,7 @@ describe('PirexCvx', () => {
       expect(createdUpCvxEvent.args.epoch)
         .to.equal(currentEpoch)
         .to.not.equal(0);
-      expect(createdUpCvxEvent.args.instance)
+      expect(createdUpCvxEvent.args.contractAddress)
         .to.equal(upCvx)
         .to.not.equal(zeroAddress);
       expect(mintUpCvxEvent.eventSignature).to.equal(
@@ -352,7 +355,7 @@ describe('PirexCvx', () => {
       const to = admin.address;
       const redemptionAmount = toBN(1e18);
 
-      await pCvx.initiateRedemption(to, redemptionAmount);
+      await pCvx.initiateRedemption(to, redemptionAmount, futuresEnum.reward);
 
       const balanceAfter = await upCvx.balanceOf(admin.address);
 
@@ -374,7 +377,7 @@ describe('PirexCvx', () => {
       const to = admin.address;
       const redemptionAmount = toBN(1e18);
 
-      await pCvx.initiateRedemption(to, redemptionAmount);
+      await pCvx.initiateRedemption(to, redemptionAmount, futuresEnum.reward);
 
       const upCvxAfter = await ethers.getContractAt(
         'UpCvx',
@@ -396,7 +399,7 @@ describe('PirexCvx', () => {
       const invalidAmount = toBN(0);
 
       await expect(
-        pCvx.initiateRedemption(to, invalidAmount)
+        pCvx.initiateRedemption(to, invalidAmount, futuresEnum.reward)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
@@ -407,7 +410,7 @@ describe('PirexCvx', () => {
 
       expect(balance.lt(redemptionAmount)).to.equal(true);
       await expect(
-        pCvx.initiateRedemption(to, redemptionAmount)
+        pCvx.initiateRedemption(to, redemptionAmount, futuresEnum.reward)
       ).to.be.revertedWith('ERC20: burn amount exceeds balance');
     });
   });
