@@ -207,6 +207,48 @@ describe('PirexCvx', () => {
     });
   });
 
+  describe('setDelegationSpace', () => {
+    it('Should update unlockingPirexCvxImplementation', async () => {
+      const oldImplementation = await pCvx.unlockingPirexCvxImplementation();
+      const newImplementation = admin.address;
+      const setEvent = await callAndReturnEvent(
+        pCvx.setUnlockingPirexCvxImplementation,
+        [newImplementation]
+      );
+
+      // Revert change to appropriate value
+      await pCvx.setUnlockingPirexCvxImplementation(oldImplementation);
+
+      expect(oldImplementation)
+        .to.not.equal(newImplementation)
+        .to.not.equal(zeroAddress);
+      expect(setEvent.eventSignature).to.equal(
+        'SetUnlockingPirexCvxImplementation(address)'
+      );
+      expect(setEvent.args._unlockingPirexCvxImplementation)
+        .to.equal(newImplementation)
+        .to.not.equal(zeroAddress);
+    });
+
+    it('Should revert if _unlockingPirexCvxImplementation is zero address', async () => {
+      const invalidImplementation = zeroAddress;
+
+      await expect(
+        pCvx.setUnlockingPirexCvxImplementation(invalidImplementation)
+      ).to.be.revertedWith('ZeroAddress()');
+    });
+
+    it('Should if not called by owner', async () => {
+      const implementation = admin.address;
+
+      await expect(
+        pCvx
+          .connect(notAdmin)
+          .setUnlockingPirexCvxImplementation(implementation)
+      ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+  });
+
   describe('deposit', () => {
     it('Should deposit CVX', async () => {
       const balanceBefore = await cvx.balanceOf(admin.address);
