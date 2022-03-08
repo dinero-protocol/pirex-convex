@@ -7,6 +7,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
+import {UnlockingPirexCvx} from "./UnlockingPirexCvx.sol";
 
 interface IConvexDelegateRegistry {
     function setDelegate(bytes32 id, address delegate) external;
@@ -19,12 +20,16 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     ICvxLocker public cvxLocker;
     ICvxDelegateRegistry public cvxDelegateRegistry;
 
+    address public unlockingPirexCvxImplementation;
     bytes32 public delegationSpace = bytes32(bytes("cvx.eth"));
 
     event SetCvx(address _cvx);
     event SetCvxLocker(address _cvxLocker);
     event SetCvxDelegateRegistry(address _cvxDelegateRegistry);
     event SetDelegationSpace(string _delegationSpace);
+    event SetUnlockingPirexCvxImplementation(
+        address _unlockingPirexCvxImplementation
+    );
     event Deposit(address to, uint256 amount);
 
     error ZeroAddress();
@@ -49,6 +54,8 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
 
         if (_cvxDelegateRegistry == address(0)) revert ZeroAddress();
         cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
+
+        unlockingPirexCvxImplementation = address(new UnlockingPirexCvx());
     }
 
     /** 
@@ -100,6 +107,22 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         delegationSpace = bytes32(d);
 
         emit SetDelegationSpace(_delegationSpace);
+    }
+
+    /**
+        @notice Set UnlockingPirexCvx
+        @param  _unlockingPirexCvxImplementation  address  UnlockingPirexCvx implementation address
+     */
+    function setUnlockingPirexCvxImplementation(
+        address _unlockingPirexCvxImplementation
+    ) external onlyOwner {
+        if (_unlockingPirexCvxImplementation == address(0))
+            revert ZeroAddress();
+        unlockingPirexCvxImplementation = _unlockingPirexCvxImplementation;
+
+        emit SetUnlockingPirexCvxImplementation(
+            _unlockingPirexCvxImplementation
+        );
     }
 
     /**
