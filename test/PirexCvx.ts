@@ -376,7 +376,9 @@ describe('PirexCvx', () => {
       const upCvxBalance = await (
         await ethers.getContractAt(
           'ERC20PresetMinterPauserUpgradeable',
-          await pCvx.upCvxByEpoch(currentEpoch)
+          (
+            await pCvx.upCvxByEpoch(currentEpoch)
+          ).token
         )
       ).balanceOf(admin.address);
       const rpCvxDetails = await getFuturesCvxDetails(
@@ -414,7 +416,9 @@ describe('PirexCvx', () => {
       const currentEpoch = await pCvx.getCurrentEpoch();
       const upCvx = await ethers.getContractAt(
         'ERC20PresetMinterPauserUpgradeable',
-        await pCvx.upCvxByEpoch(currentEpoch)
+        (
+          await pCvx.upCvxByEpoch(currentEpoch)
+        ).token
       );
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
       const upCvxBalanceBefore = await upCvx.balanceOf(admin.address);
@@ -448,7 +452,9 @@ describe('PirexCvx', () => {
       const currentEpoch = await pCvx.getCurrentEpoch();
       const upCvx = await ethers.getContractAt(
         'ERC20PresetMinterPauserUpgradeable',
-        await pCvx.upCvxByEpoch(currentEpoch)
+        (
+          await pCvx.upCvxByEpoch(currentEpoch)
+        ).token
       );
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
       const upCvxBalanceBefore = await upCvx.balanceOf(admin.address);
@@ -496,7 +502,9 @@ describe('PirexCvx', () => {
       const epochAfter = await pCvx.getCurrentEpoch();
       const upCvxBefore = await ethers.getContractAt(
         'ERC20PresetMinterPauserUpgradeable',
-        await pCvx.upCvxByEpoch(epochBefore)
+        (
+          await pCvx.upCvxByEpoch(epochBefore)
+        ).token
       );
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
       const to = admin.address;
@@ -506,7 +514,9 @@ describe('PirexCvx', () => {
 
       const upCvxAfter = await ethers.getContractAt(
         'ERC20PresetMinterPauserUpgradeable',
-        await pCvx.upCvxByEpoch(epochAfter)
+        (
+          await pCvx.upCvxByEpoch(epochAfter)
+        ).token
       );
       const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
       const upCvxBalanceEpochBefore = await upCvxBefore.balanceOf(
