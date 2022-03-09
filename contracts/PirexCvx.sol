@@ -30,8 +30,8 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         CvxLocker,
         CvxDelegateRegistry,
         UpCvxImplementation,
-        RpCvxImplementation,
-        VpCvxImplementation
+        VpCvxImplementation,
+        RpCvxImplementation
     }
 
     ERC20 public immutable CVX;
@@ -131,13 +131,13 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
             return;
         }
 
-        if (c == Contract.RpCvxImplementation) {
-            rpCvxImplementation = contractAddress;
+        if (c == Contract.VpCvxImplementation) {
+            vpCvxImplementation = contractAddress;
             return;
         }
 
-        if (c == Contract.VpCvxImplementation) {
-            vpCvxImplementation = contractAddress;
+        if (c == Contract.RpCvxImplementation) {
+            rpCvxImplementation = contractAddress;
             return;
         }
     }
@@ -347,13 +347,10 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
 
         emit InitiateRedemption(currentEpoch, to, amount);
 
-        // Deploy new instance upCVX
-        if (upCvxByEpoch[currentEpoch] == address(0)) {
-            _setUpRedemptionContracts(currentEpoch, f);
-        }
+        (address uAddr, ) = _setUpRedemptionContracts(currentEpoch, f);
 
         // Mint upCVX
-        UpCvx(upCvxByEpoch[currentEpoch]).mint(to, amount);
+        UpCvx(uAddr).mint(to, amount);
 
         // Mint voteCVX or rewardCVX
         _mintFutures(currentEpoch + EPOCH_DURATION, to, amount, f);
