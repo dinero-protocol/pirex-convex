@@ -10,6 +10,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {ERC20PresetMinterPauserUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/presets/ERC20PresetMinterPauserUpgradeable.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
+import {StakedPirexCvx} from "./StakedPirexCvx.sol";
 
 interface IConvexDelegateRegistry {
     function setDelegate(bytes32 id, address delegate) external;
@@ -53,6 +54,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     address public upCvxImplementation;
     address public vpCvxImplementation;
     address public rpCvxImplementation;
+    address public spCvxImplementation;
     bytes32 public delegationSpace = bytes32(bytes("cvx.eth"));
     uint256 public cvxOutstanding;
 
@@ -65,13 +67,15 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     uint256[] public upCvxEpochs;
     address[] public vpCvx;
     address[] public rpCvx;
+    address[] public spCvx;
 
     event SetContract(Contract c, address contractAddress);
     event SetDelegationSpace(string _delegationSpace);
     event CreateUpCvx(uint256 epoch, address contractAddress);
     event CreateFutures(uint256 epoch, address contractAddress);
+    event CreateSpCvx(address contractAddress);
     event MintFutures(
-        uint256 epochCount,
+        uint8 rounds,
         address indexed to,
         uint256 amount,
         Futures indexed f
@@ -79,6 +83,12 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     event Deposit(address indexed to, uint256 amount);
     event InitiateRedemption(address indexed to, uint256 amount);
     event Redeem(uint256 indexed epoch, address indexed to, uint256 amount);
+    event Stake(
+        uint8 rounds,
+        address indexed to,
+        uint256 amount,
+        Futures indexed f
+    );
 
     error ZeroAddress();
     error ZeroAmount();
@@ -107,6 +117,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         upCvxImplementation = address(new ERC20PresetMinterPauserUpgradeable());
         vpCvxImplementation = address(new ERC20PresetMinterPauserUpgradeable());
         rpCvxImplementation = address(new ERC20PresetMinterPauserUpgradeable());
+        spCvxImplementation = address(new StakedPirexCvx());
     }
 
     /** 
@@ -266,7 +277,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
 
     /**
         @notice Mint futures tokens
-        @param  rounds  uint8    Futures rounds (i.e. Convex voting rounds)
+        @param  rounds  uint8    Rounds (i.e. Convex voting rounds)
         @param  to      address  Futures recipient
         @param  amount  uint256  Futures amount
         @param  f       enum     Futures
@@ -367,5 +378,36 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
 
         // Validates `to`
         CVX.safeTransfer(to, amount);
+    }
+
+    /**
+        @notice Stake pCVX
+        @param  rounds  uint8    Rounds (i.e. Convex voting rounds)
+        @param  to      address  spCVX recipient
+        @param  amount  uint256  pCVX/spCVX amount
+        @param  f       enum     Futures
+    */
+    function stake(
+        uint8 rounds,
+        address to,
+        uint256 amount,
+        Futures f
+    ) external nonReentrant {
+        // Clone implementation and deploy minimal proxy
+        address sAddr = Clones.clone(spCvxImplementation);
+        spCvx.push(sAddr);
+
+        emit Stake(rounds, to, amount, f);
+
+        uint256 stakeDuration = rounds * EPOCH_DURATION;
+
+        StakedPirexCvx(sAddr).initialize(
+            stakeDuration,
+            this,
+            "Pirex CVX Staked",
+            "spCVX"
+        );
+
+        _mintFutures(rounds, to, amount, f);
     }
 }
