@@ -20,6 +20,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     using SafeERC20 for ERC20;
     using Strings for uint256;
 
+    // Users can choose between the two futures tokens when staking or unlocking
     enum Futures {
         Vote,
         Reward
@@ -40,26 +41,26 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     ICvxDelegateRegistry public cvxDelegateRegistry;
 
     address public upCvxImplementation;
-    address public rpCvxImplementation;
     address public vpCvxImplementation;
+    address public rpCvxImplementation;
     bytes32 public delegationSpace = bytes32(bytes("cvx.eth"));
     uint256 public cvxOutstanding;
 
     // Epochs mapped to minimal proxy addresses
     mapping(uint256 => address) public upCvxByEpoch;
-    mapping(uint256 => address) public rpCvxByEpoch;
     mapping(uint256 => address) public vpCvxByEpoch;
+    mapping(uint256 => address) public rpCvxByEpoch;
 
     // List of deployed minimal proxies
     address[] public upCvx;
-    address[] public rpCvx;
     address[] public vpCvx;
+    address[] public rpCvx;
 
     event SetContract(Contract c, address contractAddress);
     event SetDelegationSpace(string _delegationSpace);
     event Deposit(address indexed to, uint256 amount);
     event CreatedUpCvx(uint256 epoch, address contractAddress);
-    event CreatedRpCvx(uint256 epoch, address contractAddress);
+    event CreatedFuturesCvx(uint256 epoch, address contractAddress);
     event InitiateRedemption(
         uint256 indexed epoch,
         address indexed to,
@@ -67,6 +68,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     );
     event SetUpRedemptionContracts(
         uint256 epoch,
+        Futures f,
         address _upCvx,
         address[8] _rpCvx
     );
@@ -97,8 +99,8 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
 
         upCvxImplementation = address(new UpCvx());
-        rpCvxImplementation = address(new FuturesCvx());
         vpCvxImplementation = address(new FuturesCvx());
+        rpCvxImplementation = address(new FuturesCvx());
     }
 
     /** 
@@ -194,37 +196,57 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     }
 
     /**
-        @notice Create a rpCVX token for an epoch
+        @notice Create a FuturesCvx token for an epoch
         @param   epoch    uint256  Epoch
+        @param   f        enum     Futures
         @return  address  rpCvx    address
      */
-    function _createRpCvx(uint256 epoch) internal returns (address) {
-        if (rpCvxByEpoch[epoch] != address(0)) return rpCvxByEpoch[epoch];
+    function _createFuturesCvx(uint256 epoch, Futures f)
+        internal
+        returns (address)
+    {
+        bool isVote = f == Futures.Vote;
+        address futuresAddr = isVote
+            ? vpCvxByEpoch[epoch]
+            : rpCvxByEpoch[epoch];
 
-        address r = Clones.clone(rpCvxImplementation);
-        rpCvxByEpoch[epoch] = r;
-        rpCvx.push(r);
+        if (futuresAddr != address(0)) return futuresAddr;
 
-        emit CreatedRpCvx(epoch, r);
-
-        FuturesCvx(r).initialize(
-            epoch,
-            "Pirex CVX Reward",
-            string(abi.encodePacked("rpCVX-", epoch.toString()))
+        futuresAddr = Clones.clone(
+            isVote ? vpCvxImplementation : rpCvxImplementation
         );
 
-        return r;
+        if (isVote) {
+            vpCvxByEpoch[epoch] = futuresAddr;
+            vpCvx.push(futuresAddr);
+        } else {
+            rpCvxByEpoch[epoch] = futuresAddr;
+            rpCvx.push(futuresAddr);
+        }
+
+        emit CreatedFuturesCvx(epoch, futuresAddr);
+
+        FuturesCvx(futuresAddr).initialize(
+            epoch,
+            isVote ? "Pirex CVX Vote" : "Pirex CVX Reward",
+            string(
+                abi.encodePacked(isVote ? "vpCVX" : "rpCVX-", epoch.toString())
+            )
+        );
+
+        return futuresAddr;
     }
 
     /**
         @notice Set up contracts for a redemption
         @param   epoch                uint256     Epoch
+        @param   f                    enum        Futures
         @return  _upCvx               address     UpCvx address
-        @return  _rpCvx               address[8]  rpCVX addresses
+        @return  _futuresCvx          address[8]  FuturesCVX addresses
     */
-    function _setUpRedemptionContracts(uint256 epoch)
+    function _setUpRedemptionContracts(uint256 epoch, Futures f)
         internal
-        returns (address _upCvx, address[8] memory _rpCvx)
+        returns (address _upCvx, address[8] memory _futuresCvx)
     {
         if (epoch == 0) revert ZeroEpoch();
 
@@ -238,11 +260,14 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
 
             // Create futures contracts for 8 Convex voting rounds
             for (uint8 i; i < 8; ++i) {
-                _rpCvx[i] = _createRpCvx(startingEpoch + (i * EPOCH_DURATION));
+                _futuresCvx[i] = _createFuturesCvx(
+                    startingEpoch + (i * EPOCH_DURATION),
+                    f
+                );
             }
         }
 
-        emit SetUpRedemptionContracts(epoch, _upCvx, _rpCvx);
+        emit SetUpRedemptionContracts(epoch, f, _upCvx, _futuresCvx);
     }
 
     /**
@@ -250,7 +275,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         @param  startingEpoch  uint256  Epoch to start minting tokens
         @param  to             address  Account receiving tokens
         @param  amount         uint256  Amount tokens to mint
-        @param  f              Futures  Enum
+        @param  f              enum     Futures
     */
     function _mintFutures(
         uint256 startingEpoch,
@@ -262,10 +287,15 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
+        bool isVote = f == Futures.Vote;
+
         unchecked {
             for (uint8 i; i < 8; ++i) {
-                FuturesCvx(rpCvxByEpoch[startingEpoch + (i * EPOCH_DURATION)])
-                    .mint(to, amount);
+                FuturesCvx(
+                    isVote
+                        ? vpCvxByEpoch[startingEpoch + (i * EPOCH_DURATION)]
+                        : rpCvxByEpoch[startingEpoch + (i * EPOCH_DURATION)]
+                ).mint(to, amount);
             }
         }
     }
@@ -298,7 +328,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         @notice Initiate CVX redemption
         @param  to       address  upCVX recipient
         @param  amount   uint256  pCVX amount
-        @param  f        Futures  Enum
+        @param  f        enum     Futures
      */
     function initiateRedemption(
         address to,
@@ -319,7 +349,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
 
         // Deploy new instance upCVX
         if (upCvxByEpoch[currentEpoch] == address(0)) {
-            _setUpRedemptionContracts(currentEpoch);
+            _setUpRedemptionContracts(currentEpoch, f);
         }
 
         // Mint upCVX
