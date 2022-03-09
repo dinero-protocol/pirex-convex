@@ -25,7 +25,7 @@ describe('PirexCvx', () => {
 
   const delegationSpace = ethers.utils.formatBytes32String('cvx.eth');
   const zeroAddress = '0x0000000000000000000000000000000000000000';
-  const epochDuration = 1209600;
+  const epochDuration = toBN(1209600);
   const contractEnum = {
     cvxLocker: 0,
     cvxDelegateRegistry: 1,
@@ -306,10 +306,7 @@ describe('PirexCvx', () => {
       ]);
       const burnEvent = events[0];
       const initiateEvent = events[1];
-      const createdUpCvxEvent = events[2];
-      const mintUpCvxEvent = events[3];
       const balanceAfter = await pCvx.balanceOf(admin.address);
-      const upCvx = await pCvx.upCvxByEpoch(currentEpoch);
 
       expect(balanceAfter).to.equal(balanceBefore.sub(redemptionAmount));
       expect(burnEvent.eventSignature).to.equal(
@@ -324,23 +321,6 @@ describe('PirexCvx', () => {
       expect(initiateEvent.args.epoch).to.equal(currentEpoch).to.not.equal(0);
       expect(initiateEvent.args.to).to.equal(to).to.not.equal(zeroAddress);
       expect(initiateEvent.args.amount)
-        .to.equal(redemptionAmount)
-        .to.not.equal(0);
-      expect(createdUpCvxEvent.eventSignature).to.equal(
-        'CreatedUpCvx(uint256,address)'
-      );
-      expect(createdUpCvxEvent.args.epoch)
-        .to.equal(currentEpoch)
-        .to.not.equal(0);
-      expect(createdUpCvxEvent.args.contractAddress)
-        .to.equal(upCvx)
-        .to.not.equal(zeroAddress);
-      expect(mintUpCvxEvent.eventSignature).to.equal(
-        'Transfer(address,address,uint256)'
-      );
-      expect(mintUpCvxEvent.args.from).to.equal(zeroAddress);
-      expect(mintUpCvxEvent.args.to).to.equal(to).to.not.equal(zeroAddress);
-      expect(mintUpCvxEvent.args.value)
         .to.equal(redemptionAmount)
         .to.not.equal(0);
     });
@@ -367,7 +347,7 @@ describe('PirexCvx', () => {
     it('Should initiate redemption for a new vault if epoch has changed', async () => {
       const epochBefore = await pCvx.getCurrentEpoch();
 
-      await increaseBlockTimestamp(epochDuration);
+      await increaseBlockTimestamp(Number(epochDuration));
 
       const epochAfter = await pCvx.getCurrentEpoch();
       const upCvxBefore = await ethers.getContractAt(
