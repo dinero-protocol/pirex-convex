@@ -250,7 +250,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
                 // Validates `to`
                 ERC1155PresetMinterPauser(token).mint(
                     to,
-                    startingEpoch + (i * EPOCH_DURATION),
+                    startingEpoch + i * EPOCH_DURATION,
                     amount,
                     ""
                 );
@@ -369,7 +369,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         emit Stake(rounds, to, amount, f, sAddr);
 
         s.initialize(
-            rounds * EPOCH_DURATION,
+            getCurrentEpoch() + rounds * EPOCH_DURATION,
             this,
             "Pirex CVX Staked",
             "spCVX"
@@ -403,6 +403,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         // Transfer shares from msg.sender to self
         ERC20(address(s)).safeTransferFrom(msg.sender, address(this), amount);
 
+        // Burn upCVX and transfer pCVX to `to`
         s.redeem(to, amount);
     }
 }
