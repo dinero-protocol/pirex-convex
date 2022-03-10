@@ -7,7 +7,6 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import {ERC20PresetMinterPauserUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/presets/ERC20PresetMinterPauserUpgradeable.sol";
 import {ERC1155PresetMinterPauser} from "@openzeppelin/contracts/token/ERC1155/presets/ERC1155PresetMinterPauser.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
@@ -20,11 +19,6 @@ interface IConvexDelegateRegistry {
 contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     using SafeERC20 for ERC20;
     using Strings for uint256;
-
-    struct Unlock {
-        address token;
-        uint256 lockExpiry;
-    }
 
     // Users can choose between the two futures tokens when staking or unlocking
     enum Futures {
@@ -53,28 +47,15 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     ICvxLocker public cvxLocker;
     ICvxDelegateRegistry public cvxDelegateRegistry;
     ERC1155PresetMinterPauser public upCvx;
+    ERC1155PresetMinterPauser public vpCvx;
+    ERC1155PresetMinterPauser public rpCvx;
 
-    address public vpCvxImplementation;
-    address public rpCvxImplementation;
     address public spCvxImplementation;
     bytes32 public delegationSpace = bytes32(bytes("cvx.eth"));
     uint256 public cvxOutstanding;
 
-    // Epochs mapped to minimal proxy addresses
-    mapping(uint256 => Unlock) public upCvxByEpoch;
-    mapping(uint256 => address) public vpCvxByEpoch;
-    mapping(uint256 => address) public rpCvxByEpoch;
-
-    // List of deployed minimal proxies
-    uint256[] public upCvxEpochs;
-    address[] public vpCvx;
-    address[] public rpCvx;
-    address[] public spCvx;
-
     event SetContract(Contract c, address contractAddress);
     event SetDelegationSpace(string _delegationSpace);
-    event CreateUpCvx(uint256 epoch, address contractAddress);
-    event CreateFutures(uint256 epoch, address contractAddress);
     event CreateSpCvx(address contractAddress);
     event MintFutures(
         uint8 rounds,
@@ -118,8 +99,8 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
 
         upCvx = new ERC1155PresetMinterPauser("");
-        vpCvxImplementation = address(new ERC20PresetMinterPauserUpgradeable());
-        rpCvxImplementation = address(new ERC20PresetMinterPauserUpgradeable());
+        vpCvx = new ERC1155PresetMinterPauser("");
+        rpCvx = new ERC1155PresetMinterPauser("");
         spCvxImplementation = address(new StakedPirexCvx());
     }
 
@@ -152,12 +133,12 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         }
 
         if (c == Contract.VpCvxImplementation) {
-            vpCvxImplementation = contractAddress;
+            vpCvx = ERC1155PresetMinterPauser(contractAddress);
             return;
         }
 
         if (c == Contract.RpCvxImplementation) {
-            rpCvxImplementation = contractAddress;
+            rpCvx = ERC1155PresetMinterPauser(contractAddress);
             return;
         }
     }
@@ -220,47 +201,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     }
 
     /**
-        @notice Create a futures token for an epoch
-        @param   epoch    uint256  Epoch
-        @param   f        enum     Futures
-        @return  address  rpCvx    address
-     */
-    function _createFutures(uint256 epoch, Futures f)
-        internal
-        returns (address)
-    {
-        bool isVote = f == Futures.Vote;
-        address futuresAddr = isVote
-            ? vpCvxByEpoch[epoch]
-            : rpCvxByEpoch[epoch];
-
-        if (futuresAddr != address(0)) return futuresAddr;
-
-        futuresAddr = Clones.clone(
-            isVote ? vpCvxImplementation : rpCvxImplementation
-        );
-
-        if (isVote) {
-            vpCvxByEpoch[epoch] = futuresAddr;
-            vpCvx.push(futuresAddr);
-        } else {
-            rpCvxByEpoch[epoch] = futuresAddr;
-            rpCvx.push(futuresAddr);
-        }
-
-        emit CreateFutures(epoch, futuresAddr);
-
-        ERC20PresetMinterPauserUpgradeable(futuresAddr).initialize(
-            isVote ? "Pirex CVX Vote" : "Pirex CVX Reward",
-            string(
-                abi.encodePacked(isVote ? "vpCVX-" : "rpCVX-", epoch.toString())
-            )
-        );
-
-        return futuresAddr;
-    }
-
-    /**
         @notice Mint futures tokens
         @param  rounds  uint8    Rounds (i.e. Convex voting rounds)
         @param  to      address  Futures recipient
@@ -278,9 +218,21 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         unchecked {
             for (uint8 i; i < rounds; ++i) {
                 // Validates `to`
-                ERC20PresetMinterPauserUpgradeable(
-                    _createFutures(startingEpoch + (i * EPOCH_DURATION), f)
-                ).mint(to, amount);
+                if (f == Futures.Vote) {
+                    vpCvx.mint(
+                        to,
+                        startingEpoch + (i * EPOCH_DURATION),
+                        amount,
+                        ""
+                    );
+                } else {
+                    rpCvx.mint(
+                        to,
+                        startingEpoch + (i * EPOCH_DURATION),
+                        amount,
+                        ""
+                    );
+                }
             }
         }
 
@@ -331,7 +283,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         // Mint upCVX associated with the current epoch - validates `to`
         upCvx.mint(to, getCurrentEpoch(), amount, "");
 
-        // Mint voteCVX or rewardCVX
+        // Mint vpCVX or rpCVX
         _mintFutures(REDEMPTION_FUTURES_ROUNDS, to, amount, f);
     }
 
@@ -346,7 +298,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         address to,
         uint256 amount
     ) external nonReentrant {
-        // Revert if token cannot be unlocked
+        // Revert if token cannot be unlocked yet
         if (epoch + UNLOCKING_DURATION > block.timestamp)
             revert BeforeLockExpiry();
         if (amount == 0) revert ZeroAmount();
@@ -381,7 +333,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     ) external nonReentrant {
         // Clone implementation and deploy minimal proxy
         address sAddr = Clones.clone(spCvxImplementation);
-        spCvx.push(sAddr);
 
         emit Stake(rounds, to, amount, f);
 
