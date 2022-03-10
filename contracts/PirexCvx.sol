@@ -31,15 +31,18 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         CvxLocker,
         CvxDelegateRegistry,
         UpCvx,
-        VpCvxImplementation,
-        RpCvxImplementation
+        VpCvx,
+        RpCvx,
+        SpCvxImplementation
     }
 
     ERC20 public immutable CVX;
 
-    // Time between Convex voting rounds
-    uint256 public immutable EPOCH_DURATION = 1209600;
-    uint256 public immutable UNLOCKING_DURATION = 10281600;
+    // Seconds between Convex voting rounds (2 weeks)
+    uint32 public immutable EPOCH_DURATION = 1209600;
+
+    // Seconds before upCVX can be redeemed for CVX (17 weeks)
+    uint32 public immutable UNLOCKING_DURATION = 10281600;
 
     // Number of futures rounds to mint when a redemption is initiated
     uint8 public immutable REDEMPTION_FUTURES_ROUNDS = 8;
@@ -50,8 +53,14 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     ERC1155PresetMinterPauser public vpCvx;
     ERC1155PresetMinterPauser public rpCvx;
 
+    // Staked Pirex CVX implementation
     address public spCvxImplementation;
+    address[] public spCvx;
+
+    // Convex Snapshot space
     bytes32 public delegationSpace = bytes32(bytes("cvx.eth"));
+
+    // The amount of CVX that needs to remain unlocked for redemptions
     uint256 public cvxOutstanding;
 
     event SetContract(Contract c, address contractAddress);
@@ -132,14 +141,18 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
             return;
         }
 
-        if (c == Contract.VpCvxImplementation) {
+        if (c == Contract.VpCvx) {
             vpCvx = ERC1155PresetMinterPauser(contractAddress);
             return;
         }
 
-        if (c == Contract.RpCvxImplementation) {
+        if (c == Contract.RpCvx) {
             rpCvx = ERC1155PresetMinterPauser(contractAddress);
             return;
+        }
+
+        if (c == Contract.SpCvxImplementation) {
+            spCvxImplementation = contractAddress;
         }
     }
 
@@ -214,29 +227,21 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         Futures f
     ) internal {
         uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
+        address token = f == Futures.Vote ? address(vpCvx) : address(rpCvx);
+
+        emit MintFutures(rounds, to, amount, f);
 
         unchecked {
             for (uint8 i; i < rounds; ++i) {
                 // Validates `to`
-                if (f == Futures.Vote) {
-                    vpCvx.mint(
-                        to,
-                        startingEpoch + (i * EPOCH_DURATION),
-                        amount,
-                        ""
-                    );
-                } else {
-                    rpCvx.mint(
-                        to,
-                        startingEpoch + (i * EPOCH_DURATION),
-                        amount,
-                        ""
-                    );
-                }
+                ERC1155PresetMinterPauser(token).mint(
+                    to,
+                    startingEpoch + (i * EPOCH_DURATION),
+                    amount,
+                    ""
+                );
             }
         }
-
-        emit MintFutures(rounds, to, amount, f);
     }
 
     /**
@@ -331,18 +336,19 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         uint256 amount,
         Futures f
     ) external nonReentrant {
-        // Clone implementation and deploy minimal proxy
-        address sAddr = Clones.clone(spCvxImplementation);
+        if (rounds == 0) revert ZeroAmount();
+        if (amount == 0) revert ZeroAmount();
 
         emit Stake(rounds, to, amount, f);
 
-        uint256 stakeDuration = rounds * EPOCH_DURATION;
-
-        StakedPirexCvx(sAddr).initialize(
-            stakeDuration,
-            this,
-            "Pirex CVX Staked",
-            "spCVX"
+        // Deploy new vault dedicated to this staking position
+        spCvx.push(
+            StakedPirexCvx(Clones.clone(spCvxImplementation)).initialize(
+                rounds * EPOCH_DURATION,
+                this,
+                "Pirex CVX Staked",
+                "spCVX"
+            )
         );
 
         _mintFutures(rounds, to, amount, f);
