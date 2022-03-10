@@ -45,11 +45,12 @@ describe('PirexCvx', () => {
     reward: 1,
   };
   const getFuturesCvxBalances = async (
+    rounds: number,
     futures: number,
     currentEpoch: BigNumber
   ) =>
     await Promise.reduce(
-      [...Array(8).keys()],
+      [...Array(rounds).keys()],
       async (acc: BigNumber[], _: number, idx: number) => {
         const epoch: BigNumber = currentEpoch
           .add(epochDuration)
@@ -365,6 +366,7 @@ describe('PirexCvx', () => {
         )
       ).balanceOf(admin.address, currentEpoch);
       const rpCvxBalances = await getFuturesCvxBalances(
+        8,
         futuresEnum.reward,
         currentEpoch
       );
@@ -414,6 +416,7 @@ describe('PirexCvx', () => {
         currentEpoch
       );
       const rpCvxBalances = await getFuturesCvxBalances(
+        8,
         futuresEnum.reward,
         currentEpoch
       );
@@ -454,6 +457,7 @@ describe('PirexCvx', () => {
         currentEpoch
       );
       const vpCvxBalances = await getFuturesCvxBalances(
+        8,
         futuresEnum.vote,
         currentEpoch
       );
@@ -615,6 +619,73 @@ describe('PirexCvx', () => {
       expect(redeemEvent.args.epoch).to.equal(epoch);
       expect(redeemEvent.args.to).to.equal(to);
       expect(redeemEvent.args.amount).to.equal(amount);
+    });
+  });
+
+  describe('stake', () => {
+    it('Should revert if rounds is zero', async () => {
+      const invalidRounds = 0;
+      const to = admin.address;
+      const amount = toBN(1e18);
+      const f = futuresEnum.reward;
+
+      await expect(pCvx.stake(invalidRounds, to, amount, f)).to.be.revertedWith(
+        'ZeroAmount()'
+      );
+    });
+
+    it('Should revert if amount is zero', async () => {
+      const rounds = 1;
+      const to = admin.address;
+      const invalidAmount = toBN(0);
+      const f = futuresEnum.reward;
+
+      await expect(pCvx.stake(rounds, to, invalidAmount, f)).to.be.revertedWith(
+        'ZeroAmount()'
+      );
+    });
+
+    it('Should stake pCVX', async () => {
+      const rounds = 26;
+      const to = admin.address;
+      const amount = toBN(1e18);
+      const f = futuresEnum.reward;
+      const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
+      const events = await callAndReturnEvents(pCvx.stake, [
+        rounds,
+        to,
+        amount,
+        f,
+      ]);
+      const stakeEvent = events[2];
+      const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
+      const spCvx = await pCvx.getSpCvx();
+      const vault = await ethers.getContractAt(
+        'StakedPirexCvx',
+        spCvx[spCvx.length - 1]
+      );
+      const rpCvxBalances = await getFuturesCvxBalances(
+        rounds,
+        f,
+        await pCvx.getCurrentEpoch()
+      );
+      const vaultUnderlyingBalance = await pCvx.balanceOf(vault.address);
+      const toUnderlyingBalance = await vault.balanceOfUnderlying(to);
+      const toVaultShareBalance = await vault.balanceOf(to);
+
+      expect(pCvxBalanceAfter).to.equal(pCvxBalanceBefore.sub(amount));
+      expect(stakeEvent.eventSignature).to.equal(
+        'Stake(uint8,address,uint256,uint8,address)'
+      );
+      expect(stakeEvent.args.rounds).to.equal(rounds);
+      expect(stakeEvent.args.to).to.equal(to);
+      expect(stakeEvent.args.amount).to.equal(amount);
+      expect(stakeEvent.args.f).to.equal(f);
+      expect(stakeEvent.args.vault).to.equal(vault.address);
+      expect(every(rpCvxBalances, (r) => r.eq(amount))).to.equal(true);
+      expect(toUnderlyingBalance).to.equal(amount);
+      expect(vaultUnderlyingBalance).to.equal(amount);
+      expect(toVaultShareBalance).to.equal(amount);
     });
   });
 });
