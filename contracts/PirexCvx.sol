@@ -60,12 +60,16 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     // Convex Snapshot space
     bytes32 public delegationSpace = bytes32(bytes("cvx.eth"));
 
+    // Protocol-owned EOA that is delegated vlCVX votes
+    address public voteDelegate;
+
     // The amount of CVX that needs to remain unlocked for redemptions
     uint256 public cvxOutstanding;
 
     event SetContract(Contract c, address contractAddress);
     event SetDelegationSpace(string _delegationSpace);
-    event CreateSpCvx(address contractAddress);
+    event SetVoteDelegate(address _voteDelegate);
+    event RemoveVoteDelegate();
     event MintFutures(
         uint8 rounds,
         address indexed to,
@@ -82,11 +86,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         Futures indexed f,
         address vault
     );
-    event Unstake(
-        address vault,
-        address indexed to,
-        uint256 amount
-    );
+    event Unstake(address vault, address indexed to, uint256 amount);
 
     error ZeroAddress();
     error ZeroAmount();
@@ -175,6 +175,30 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         delegationSpace = bytes32(d);
 
         emit SetDelegationSpace(_delegationSpace);
+    }
+
+    /**
+        @notice Set vote delegate
+        @param  _voteDelegate  address  Account to delegate votes to
+     */
+    function setVoteDelegate(address _voteDelegate) external onlyOwner {
+        if (_voteDelegate == address(0)) revert ZeroAddress();
+        voteDelegate = _voteDelegate;
+
+        emit SetVoteDelegate(_voteDelegate);
+
+        cvxDelegateRegistry.setDelegate(delegationSpace, _voteDelegate);
+    }
+
+    /**
+        @notice Remove vote delegate
+     */
+    function removeVoteDelegate() external onlyOwner {
+        voteDelegate = address(0);
+
+        emit RemoveVoteDelegate();
+
+        cvxDelegateRegistry.clearDelegate(delegationSpace);
     }
 
     /**

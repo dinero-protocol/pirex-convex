@@ -259,6 +259,82 @@ describe('PirexCvx', () => {
     });
   });
 
+  describe('setVoteDelegate', () => {
+    it('Should set voteDelegate', async () => {
+      const voteDelegateBefore = await pCvx.voteDelegate();
+      const convexDelegateBefore = await cvxDelegateRegistry.delegation(
+        pCvx.address,
+        await pCvx.delegationSpace()
+      );
+      const voteDelegate = admin.address;
+      const events = await callAndReturnEvents(pCvx.setVoteDelegate, [
+        voteDelegate,
+      ]);
+      const setEvent = events[0];
+      const voteDelegateAfter = await pCvx.voteDelegate();
+      const convexDelegateAfter = await cvxDelegateRegistry.delegation(
+        pCvx.address,
+        await pCvx.delegationSpace()
+      );
+
+      expect(voteDelegateBefore).to.equal(zeroAddress);
+      expect(convexDelegateBefore).to.equal(zeroAddress);
+      expect(voteDelegateAfter).to.not.equal(voteDelegateBefore);
+      expect(voteDelegateAfter).to.equal(voteDelegate);
+      expect(convexDelegateAfter).to.not.equal(convexDelegateBefore);
+      expect(convexDelegateAfter).to.equal(voteDelegate);
+      expect(setEvent.eventSignature).to.equal('SetVoteDelegate(address)');
+      expect(setEvent.args._voteDelegate).to.equal(voteDelegate);
+    });
+
+    it('Should revert if _voteDelegate is zero address', async () => {
+      const invalidVoteDelegate = zeroAddress;
+
+      await expect(
+        pCvx.setVoteDelegate(invalidVoteDelegate)
+      ).to.be.revertedWith('ZeroAddress()');
+    });
+
+    it('Should revert if not called by owner', async () => {
+      const voteDelegate = admin.address;
+
+      await expect(
+        pCvx.connect(notAdmin).setVoteDelegate(voteDelegate)
+      ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+  });
+
+  describe('removeVoteDelegate', () => {
+    it('Should remove voteDelegate', async () => {
+      const voteDelegateBefore = await pCvx.voteDelegate();
+      const convexDelegateBefore = await cvxDelegateRegistry.delegation(
+        pCvx.address,
+        await pCvx.delegationSpace()
+      );
+      const events = await callAndReturnEvents(pCvx.removeVoteDelegate, []);
+      const removeEvent = events[0];
+      const voteDelegateAfter = await pCvx.voteDelegate();
+      const convexDelegateAfter = await cvxDelegateRegistry.delegation(
+        pCvx.address,
+        await pCvx.delegationSpace()
+      );
+
+      expect(voteDelegateBefore).to.equal(admin.address);
+      expect(convexDelegateBefore).to.equal(admin.address);
+      expect(voteDelegateAfter).to.not.equal(voteDelegateBefore);
+      expect(voteDelegateAfter).to.equal(zeroAddress);
+      expect(convexDelegateAfter).to.not.equal(convexDelegateBefore);
+      expect(convexDelegateAfter).to.equal(zeroAddress);
+      expect(removeEvent.eventSignature).to.equal('RemoveVoteDelegate()');
+    });
+
+    it('Should revert if not called by owner', async () => {
+      await expect(
+        pCvx.connect(notAdmin).removeVoteDelegate()
+      ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+  });
+
   describe('getCurrentEpoch', () => {
     it('Should return the current epoch', async () => {
       const timestamp = toBN(
