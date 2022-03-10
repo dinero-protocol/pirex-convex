@@ -82,6 +82,11 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         Futures indexed f,
         address vault
     );
+    event Unstake(
+        address vault,
+        address indexed to,
+        uint256 amount
+    );
 
     error ZeroAddress();
     error ZeroAmount();
@@ -374,5 +379,30 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         s.deposit(to, amount);
 
         _mintFutures(rounds, to, amount, f);
+    }
+
+    /**
+        @notice Unstake pCVX
+        @param  vault   address  StakedPirexCvx vault
+        @param  to      address  pCVX recipient
+        @param  amount  uint256  pCVX/spCVX amount
+    */
+    function unstake(
+        address vault,
+        address to,
+        uint256 amount
+    ) external nonReentrant {
+        if (vault == address(0)) revert ZeroAddress();
+        if (to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+
+        StakedPirexCvx s = StakedPirexCvx(vault);
+
+        emit Unstake(vault, to, amount);
+
+        // Transfer shares from msg.sender to self
+        ERC20(address(s)).safeTransferFrom(msg.sender, address(this), amount);
+
+        s.redeem(to, amount);
     }
 }

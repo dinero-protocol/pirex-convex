@@ -688,4 +688,91 @@ describe('PirexCvx', () => {
       expect(toVaultShareBalance).to.equal(amount);
     });
   });
+
+  describe('unstake', () => {
+    it('Should revert if vault is zero address', async () => {
+      const invalidVault = zeroAddress;
+      const to = admin.address;
+      const amount = toBN(1e18);
+
+      await expect(pCvx.unstake(invalidVault, to, amount)).to.be.revertedWith(
+        'ZeroAddress()'
+      );
+    });
+
+    it('Should revert if to is zero address', async () => {
+      const vault = admin.address;
+      const invalidTo = zeroAddress;
+      const amount = toBN(1e18);
+
+      await expect(pCvx.unstake(vault, invalidTo, amount)).to.be.revertedWith(
+        'ZeroAddress()'
+      );
+    });
+
+    it('Should revert if amount is zero', async () => {
+      const vault = admin.address;
+      const to = admin.address;
+      const invalidAmount = toBN(0);
+
+      await expect(pCvx.unstake(vault, to, invalidAmount)).to.be.revertedWith(
+        'ZeroAmount()'
+      );
+    });
+
+    it('Should revert if before stake expiry', async () => {
+      const spCvx = await pCvx.getSpCvx();
+      const vault = await ethers.getContractAt(
+        'StakedPirexCvx',
+        spCvx[spCvx.length - 1]
+      );
+      const to = admin.address;
+      const amount = await vault.balanceOf(admin.address);
+
+      await vault.increaseAllowance(pCvx.address, amount);
+
+      await expect(pCvx.unstake(vault.address, to, amount)).to.be.revertedWith(
+        'BeforeStakeExpiry()'
+      );
+    });
+
+    it('Should unstake pCVX', async () => {
+      const spCvx = await pCvx.getSpCvx();
+      const vault = await ethers.getContractAt(
+        'StakedPirexCvx',
+        spCvx[spCvx.length - 1]
+      );
+      const stakeExpiry = await vault.stakeExpiry();
+      const { timestamp } = await ethers.provider.getBlock('latest');
+
+      await increaseBlockTimestamp(Number(stakeExpiry.sub(timestamp)));
+
+      const to = admin.address;
+      const amount = await vault.balanceOf(admin.address);
+      const pCvxBalanceBefore = await pCvx.balanceOf(to);
+      const vaultShareBalanceBefore = await vault.balanceOf(admin.address);
+
+      await vault.increaseAllowance(pCvx.address, amount);
+
+      const events = await callAndReturnEvents(pCvx.unstake, [
+        vault.address,
+        to,
+        amount,
+      ]);
+      const unstakeEvent = events[0];
+      const pCvxBalanceAfter = await pCvx.balanceOf(to);
+      const vaultShareBalanceAfter = await vault.balanceOf(admin.address);
+
+      expect(pCvxBalanceAfter).to.equal(pCvxBalanceBefore.add(amount));
+      expect(vaultShareBalanceAfter)
+        .to.equal(vaultShareBalanceBefore.sub(amount))
+        .to.equal(0);
+      expect(unstakeEvent.eventSignature).to.equal(
+        'Unstake(address,address,uint256)'
+      );
+      expect(unstakeEvent.args.vault).to.equal(vault.address);
+      expect(unstakeEvent.args.to).to.equal(to);
+      expect(unstakeEvent.args.amount).to.equal(amount);
+    });
+  });
 });
