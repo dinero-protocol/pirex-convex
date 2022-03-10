@@ -21,25 +21,23 @@ contract StakedPirexCvx is ERC4626VaultUpgradeable {
 
     /**
         @notice Initializes the contract - reverts if called more than once
-        @param  stakeDuration  uint256  Duration pCVX remains staked
-        @param  _underlying    ERC20    Underlying asset
-        @param  _name          string   Token name
-        @param  _symbol        string   Token symbol
+        @param  _stakeExpiry  uint256  Timestamp after which pCVX can be unstaked
+        @param  _underlying   ERC20    Underlying asset
+        @param  _name         string   Token name
+        @param  _symbol       string   Token symbol
      */
     function initialize(
-        uint256 stakeDuration,
+        uint256 _stakeExpiry,
         ERC20 _underlying,
         string memory _name,
         string memory _symbol
-    ) external returns (address) {
-        if (stakeDuration == 0) revert ZeroAmount();
-        stakeExpiry = block.timestamp + stakeDuration;
+    ) external {
+        if (_stakeExpiry == 0) revert ZeroAmount();
+        stakeExpiry = _stakeExpiry;
 
         _initialize(_underlying, _name, _symbol);
 
-        emit Initialize(stakeDuration, address(_underlying), _name, _symbol);
-
-        return address(this);
+        emit Initialize(_stakeExpiry, address(_underlying), _name, _symbol);
     }
 
     /**

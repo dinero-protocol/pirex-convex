@@ -682,6 +682,7 @@ describe('PirexCvx', () => {
       expect(stakeEvent.args.amount).to.equal(amount);
       expect(stakeEvent.args.f).to.equal(f);
       expect(stakeEvent.args.vault).to.equal(vault.address);
+      expect(rpCvxBalances.length).to.equal(rounds);
       expect(every(rpCvxBalances, (r) => r.eq(amount))).to.equal(true);
       expect(toUnderlyingBalance).to.equal(amount);
       expect(vaultUnderlyingBalance).to.equal(amount);
