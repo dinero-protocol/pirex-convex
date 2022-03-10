@@ -79,7 +79,8 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         uint8 rounds,
         address indexed to,
         uint256 amount,
-        Futures indexed f
+        Futures indexed f,
+        address vault
     );
 
     error ZeroAddress();
@@ -173,10 +174,18 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
 
     /**
         @notice Get current epoch
-        @return uint256 Current epoch
+        @return uint256  Current epoch
      */
     function getCurrentEpoch() public view returns (uint256) {
         return (block.timestamp / EPOCH_DURATION) * EPOCH_DURATION;
+    }
+
+    /**
+        @notice Get spCvx array
+        @return address  StakedPirexCvx vault address
+     */
+    function getSpCvx() external view returns (address[] memory) {
+        return spCvx;
     }
 
     /**
@@ -339,17 +348,30 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         if (rounds == 0) revert ZeroAmount();
         if (amount == 0) revert ZeroAmount();
 
-        emit Stake(rounds, to, amount, f);
-
         // Deploy new vault dedicated to this staking position
-        spCvx.push(
-            StakedPirexCvx(Clones.clone(spCvxImplementation)).initialize(
-                rounds * EPOCH_DURATION,
-                this,
-                "Pirex CVX Staked",
-                "spCVX"
-            )
+        StakedPirexCvx s = StakedPirexCvx(Clones.clone(spCvxImplementation));
+        address sAddr = address(s);
+
+        // Maintain a record of vault
+        spCvx.push(sAddr);
+
+        // Transfer pCVX to self
+        _transfer(msg.sender, address(this), amount);
+
+        // Approve vault to transfer pCVX for deposit
+        _approve(address(this), sAddr, amount);
+
+        emit Stake(rounds, to, amount, f, sAddr);
+
+        s.initialize(
+            rounds * EPOCH_DURATION,
+            this,
+            "Pirex CVX Staked",
+            "spCVX"
         );
+
+        // Transfer pCVX to vault and mint shares for `to`
+        s.deposit(to, amount);
 
         _mintFutures(rounds, to, amount, f);
     }
