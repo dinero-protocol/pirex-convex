@@ -74,23 +74,31 @@ describe('PirexCvx', () => {
 
   describe('constructor', () => {
     it('Should set up contract state', async () => {
-      const _cvx = await pCvx.CVX();
+      const _CVX = await pCvx.CVX();
+      const _EPOCH_DURATION = await pCvx.EPOCH_DURATION();
+      const _UNLOCKING_DURATION = await pCvx.UNLOCKING_DURATION();
+      const _REDEMPTION_FUTURES_ROUNDS = await pCvx.REDEMPTION_FUTURES_ROUNDS();
       const _cvxLocker = await pCvx.cvxLocker();
       const _cvxDelegateRegistry = await pCvx.cvxDelegateRegistry();
-      const _delegationSpace = await pCvx.delegationSpace();
       const _upCvx = await pCvx.upCvx();
       const _vpCvx = await pCvx.vpCvx();
       const _rpCvx = await pCvx.rpCvx();
+      const _spCvxImplementation = await pCvx.spCvxImplementation();
+      const _delegationSpace = await pCvx.delegationSpace();
+      const _cvxOutstanding = await pCvx.cvxOutstanding();
 
-      expect(_cvx).to.equal(cvx.address).to.not.equal(zeroAddress);
-      expect(_cvxLocker).to.equal(cvxLocker.address).to.not.equal(zeroAddress);
-      expect(_cvxDelegateRegistry)
-        .to.equal(cvxDelegateRegistry.address)
-        .to.not.equal(zeroAddress);
-      expect(_delegationSpace).to.equal(delegationSpaceBytes32);
+      expect(_CVX).to.equal(cvx.address);
+      expect(_EPOCH_DURATION).to.equal(1209600);
+      expect(_UNLOCKING_DURATION).to.equal(10281600);
+      expect(_REDEMPTION_FUTURES_ROUNDS).to.equal(8);
+      expect(_cvxLocker).to.equal(cvxLocker.address);
+      expect(_cvxDelegateRegistry).to.equal(cvxDelegateRegistry.address);
       expect(_upCvx).to.not.equal(zeroAddress);
       expect(_vpCvx).to.not.equal(zeroAddress);
       expect(_rpCvx).to.not.equal(zeroAddress);
+      expect(_spCvxImplementation).to.not.equal(zeroAddress);
+      expect(_delegationSpace).to.equal(delegationSpaceBytes32);
+      expect(_cvxOutstanding).to.equal(0);
     });
   });
 

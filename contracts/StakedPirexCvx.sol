@@ -31,13 +31,15 @@ contract StakedPirexCvx is ERC4626VaultUpgradeable {
         ERC20 _underlying,
         string memory _name,
         string memory _symbol
-    ) external {
+    ) external returns (address) {
         if (stakeDuration == 0) revert ZeroAmount();
         stakeExpiry = block.timestamp + stakeDuration;
 
         _initialize(_underlying, _name, _symbol);
 
         emit Initialize(stakeDuration, address(_underlying), _name, _symbol);
+
+        return address(this);
     }
 
     /**
