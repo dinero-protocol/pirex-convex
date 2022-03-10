@@ -26,6 +26,8 @@ describe('PirexCvx', () => {
   let cvxLocker: CvxLocker;
   let cvxDelegateRegistry: DelegateRegistry;
 
+  let depositEpoch: BigNumber;
+
   const delegationSpace = 'cvx.eth';
   const delegationSpaceBytes32 =
     ethers.utils.formatBytes32String(delegationSpace);
@@ -34,7 +36,7 @@ describe('PirexCvx', () => {
   const contractEnum = {
     cvxLocker: 0,
     cvxDelegateRegistry: 1,
-    upCvxImplementation: 2,
+    upCvx: 2,
     vpCvxImplementation: 3,
     rpCvxImplementation: 4,
   };
@@ -94,7 +96,7 @@ describe('PirexCvx', () => {
       const _cvxLocker = await pCvx.cvxLocker();
       const _cvxDelegateRegistry = await pCvx.cvxDelegateRegistry();
       const _delegationSpace = await pCvx.delegationSpace();
-      const _upCvxImplementation = await pCvx.upCvxImplementation();
+      const _upCvx = await pCvx.upCvx();
       const _vpCvxImplementation = await pCvx.vpCvxImplementation();
       const _rpCvxImplementation = await pCvx.rpCvxImplementation();
 
@@ -104,7 +106,7 @@ describe('PirexCvx', () => {
         .to.equal(cvxDelegateRegistry.address)
         .to.not.equal(zeroAddress);
       expect(_delegationSpace).to.equal(delegationSpaceBytes32);
-      expect(_upCvxImplementation).to.not.equal(zeroAddress);
+      expect(_upCvx).to.not.equal(zeroAddress);
       expect(_vpCvxImplementation).to.not.equal(zeroAddress);
       expect(_rpCvxImplementation).to.not.equal(zeroAddress);
     });
@@ -152,27 +154,24 @@ describe('PirexCvx', () => {
       expect(setEvent.args.contractAddress).to.equal(admin.address);
     });
 
-    it('Should set upCvxImplementation', async () => {
-      const implementationBefore = await pCvx.upCvxImplementation();
+    it('Should set upCvx', async () => {
+      const implementationBefore = await pCvx.upCvx();
       const setEvent = await callAndReturnEvent(pCvx.setContract, [
-        contractEnum.upCvxImplementation,
+        contractEnum.upCvx,
         admin.address,
       ]);
-      const implementationAfter = await pCvx.upCvxImplementation();
+      const implementationAfter = await pCvx.upCvx();
 
       // Revert change to appropriate value
-      await pCvx.setContract(
-        contractEnum.upCvxImplementation,
-        implementationBefore
-      );
+      await pCvx.setContract(contractEnum.upCvx, implementationBefore);
 
       expect(implementationBefore).to.not.equal(implementationAfter);
       expect(implementationBefore).to.not.equal(zeroAddress);
       expect(implementationAfter).to.equal(admin.address);
       expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
-      expect(setEvent.args.c).to.equal(contractEnum.upCvxImplementation);
+      expect(setEvent.args.c).to.equal(contractEnum.upCvx);
       expect(setEvent.args.contractAddress).to.equal(admin.address);
-      expect(implementationBefore).to.equal(await pCvx.upCvxImplementation());
+      expect(implementationBefore).to.equal(await pCvx.upCvx());
     });
 
     it('Should set vpCvxImplementation', async () => {
@@ -313,6 +312,8 @@ describe('PirexCvx', () => {
       const lockBalanceAfter = await cvxLocker.lockedBalanceOf(pCvx.address);
       const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
 
+      depositEpoch = await pCvx.getCurrentEpoch();
+
       expect(cvxBalanceAfter).to.equal(cvxBalanceBefore.sub(depositAmount));
       expect(lockBalanceAfter).to.equal(lockBalanceBefore.add(depositAmount));
       expect(pCvxBalanceAfter).to.equal(pCvxBalanceBefore.add(depositAmount));
@@ -375,12 +376,11 @@ describe('PirexCvx', () => {
       const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
       const upCvxBalance = await (
         await ethers.getContractAt(
-          'ERC20PresetMinterPauserUpgradeable',
-          (
-            await pCvx.upCvxByEpoch(currentEpoch)
-          ).token
+          'ERC1155PresetMinterPauser',
+          await pCvx.upCvx()
         )
-      ).balanceOf(admin.address);
+      ).balanceOf(admin.address, currentEpoch);
+
       const rpCvxDetails = await getFuturesCvxDetails(
         futuresEnum.reward,
         currentEpoch
@@ -415,20 +415,24 @@ describe('PirexCvx', () => {
     it('Should initiate a redemption for the same contract if the epoch has not changed', async () => {
       const currentEpoch = await pCvx.getCurrentEpoch();
       const upCvx = await ethers.getContractAt(
-        'ERC20PresetMinterPauserUpgradeable',
-        (
-          await pCvx.upCvxByEpoch(currentEpoch)
-        ).token
+        'ERC1155PresetMinterPauser',
+        await pCvx.upCvx()
       );
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
-      const upCvxBalanceBefore = await upCvx.balanceOf(admin.address);
+      const upCvxBalanceBefore = await upCvx.balanceOf(
+        admin.address,
+        currentEpoch
+      );
       const to = admin.address;
       const redemptionAmount = toBN(1e18);
 
       await pCvx.initiateRedemption(to, redemptionAmount, futuresEnum.reward);
 
       const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
-      const upCvxBalanceAfter = await upCvx.balanceOf(admin.address);
+      const upCvxBalanceAfter = await upCvx.balanceOf(
+        admin.address,
+        currentEpoch
+      );
       const rpCvxDetails = await getFuturesCvxDetails(
         futuresEnum.reward,
         currentEpoch
@@ -451,20 +455,24 @@ describe('PirexCvx', () => {
     it('Should initiate a redemption for the same contract with a different futures type', async () => {
       const currentEpoch = await pCvx.getCurrentEpoch();
       const upCvx = await ethers.getContractAt(
-        'ERC20PresetMinterPauserUpgradeable',
-        (
-          await pCvx.upCvxByEpoch(currentEpoch)
-        ).token
+        'ERC1155PresetMinterPauser',
+        await pCvx.upCvx()
       );
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
-      const upCvxBalanceBefore = await upCvx.balanceOf(admin.address);
+      const upCvxBalanceBefore = await upCvx.balanceOf(
+        admin.address,
+        currentEpoch
+      );
       const to = admin.address;
       const redemptionAmount = toBN(1e18);
 
       await pCvx.initiateRedemption(to, redemptionAmount, futuresEnum.vote);
 
       const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
-      const upCvxBalanceAfter = await upCvx.balanceOf(admin.address);
+      const upCvxBalanceAfter = await upCvx.balanceOf(
+        admin.address,
+        currentEpoch
+      );
       const rpCvxDetails = await getFuturesCvxDetails(
         futuresEnum.reward,
         currentEpoch
@@ -500,11 +508,9 @@ describe('PirexCvx', () => {
       await increaseBlockTimestamp(Number(epochDuration));
 
       const epochAfter = await pCvx.getCurrentEpoch();
-      const upCvxBefore = await ethers.getContractAt(
-        'ERC20PresetMinterPauserUpgradeable',
-        (
-          await pCvx.upCvxByEpoch(epochBefore)
-        ).token
+      const upCvx = await ethers.getContractAt(
+        'ERC1155PresetMinterPauser',
+        await pCvx.upCvx()
       );
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
       const to = admin.address;
@@ -512,17 +518,15 @@ describe('PirexCvx', () => {
 
       await pCvx.initiateRedemption(to, redemptionAmount, futuresEnum.reward);
 
-      const upCvxAfter = await ethers.getContractAt(
-        'ERC20PresetMinterPauserUpgradeable',
-        (
-          await pCvx.upCvxByEpoch(epochAfter)
-        ).token
-      );
       const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
-      const upCvxBalanceEpochBefore = await upCvxBefore.balanceOf(
-        admin.address
+      const upCvxBalanceEpochBefore = await upCvx.balanceOf(
+        admin.address,
+        epochBefore
       );
-      const upCvxBalanceEpochAfter = await upCvxAfter.balanceOf(admin.address);
+      const upCvxBalanceEpochAfter = await upCvx.balanceOf(
+        admin.address,
+        epochAfter
+      );
       const rpCvxDetailsBefore = await getFuturesCvxDetails(
         futuresEnum.reward,
         epochBefore
@@ -539,8 +543,6 @@ describe('PirexCvx', () => {
       );
       expect(upCvxBalanceEpochAfter).to.not.equal(0);
       expect(upCvxBalanceEpochAfter).to.not.equal(upCvxBalanceEpochBefore);
-      expect(upCvxAfter.address).to.not.equal(zeroAddress);
-      expect(upCvxAfter.address).to.not.equal(upCvxBefore.address);
       expect(
         every(
           rpCvxDetailsAfter.contracts,
@@ -589,6 +591,82 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith(
         'Transaction reverted: function was called with incorrect parameters'
       );
+    });
+  });
+
+  describe('redeem', () => {
+    it('Should revert if before lock expiry', async () => {
+      const currentEpoch = await pCvx.getCurrentEpoch();
+      const to = admin.address;
+      const amount = toBN(1e18);
+
+      await expect(pCvx.redeem(currentEpoch, to, amount)).to.be.revertedWith(
+        'BeforeLockExpiry()'
+      );
+    });
+
+    it('Should revert if insufficient upCVX balance for epoch', async () => {
+      const invalidEpoch = (await pCvx.getCurrentEpoch()).add(1);
+      const to = admin.address;
+      const amount = toBN(1e18);
+
+      const upCvx = await ethers.getContractAt(
+        'ERC1155PresetMinterPauser',
+        await pCvx.upCvx()
+      );
+      const upCvxBalance = await upCvx.balanceOf(admin.address, invalidEpoch);
+
+      await upCvx.setApprovalForAll(pCvx.address, true);
+      await increaseBlockTimestamp(10281601);
+
+      const { timestamp } = await ethers.provider.getBlock('latest');
+
+      expect(upCvxBalance).to.equal(0);
+      expect(
+        invalidEpoch.add(await pCvx.UNLOCKING_DURATION()).lt(timestamp)
+      ).to.equal(true);
+      await expect(pCvx.redeem(invalidEpoch, to, amount)).to.be.revertedWith(
+        'ERC1155: burn amount exceeds balance'
+      );
+    });
+
+    it('Should revert if amount is zero', async () => {
+      const epoch = depositEpoch;
+      const to = admin.address;
+      const invalidAmount = toBN(0);
+
+      await expect(pCvx.redeem(epoch, to, invalidAmount)).to.be.revertedWith(
+        'ZeroAmount()'
+      );
+    });
+
+    it('Should redeem CVX', async () => {
+      const epoch = depositEpoch;
+      const to = admin.address;
+      const amount = toBN(1e18);
+      const upCvx = await ethers.getContractAt(
+        'ERC1155PresetMinterPauser',
+        await pCvx.upCvx()
+      );
+      const upCvxBalanceBefore = await upCvx.balanceOf(admin.address, epoch);
+      const cvxBalanceBefore = await cvx.balanceOf(admin.address);
+      const events = await callAndReturnEvents(pCvx.redeem, [
+        epoch,
+        to,
+        amount,
+      ]);
+      const upCvxBalanceAfter = await upCvx.balanceOf(admin.address, epoch);
+      const cvxBalanceAfter = await cvx.balanceOf(admin.address);
+      const redeemEvent = events[0];
+
+      expect(upCvxBalanceAfter).to.equal(upCvxBalanceBefore.sub(amount));
+      expect(cvxBalanceAfter).to.equal(cvxBalanceBefore.add(amount));
+      expect(redeemEvent.eventSignature).to.equal(
+        'Redeem(uint256,address,uint256)'
+      );
+      expect(redeemEvent.args.epoch).to.equal(epoch);
+      expect(redeemEvent.args.to).to.equal(to);
+      expect(redeemEvent.args.amount).to.equal(amount);
     });
   });
 });
