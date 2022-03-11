@@ -25,19 +25,20 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     /**
         @notice Epoch rewards for pCVX holders
-        @param  tokens        address[]  Token
-        @param  tokenAmounts  uint256[]  Token amounts
+        @param  amounts  uint256[]  Token amounts
         @param  claimed       mapping    Accounts mapped to tokens mapped to claimed amounts
      */
     struct SnapshotRewards {
-        address[] tokens;
-        uint256[] tokenAmounts;
+        uint256[] amounts;
         mapping(address => mapping(address => uint256)) claimed;
     }
 
+    /**
+        @notice Epoch rewards for rpCVX holders
+        @param  amounts  uint256[]  Token amounts
+     */
     struct FuturesRewards {
-        address[] tokens;
-        uint256[] tokenAmounts;
+        uint256[] amounts;
     }
 
     // Users can choose between the two futures tokens when staking or unlocking
@@ -89,6 +90,10 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     // Epochs mapped to snapshot ids
     mapping(uint256 => uint256) public epochSnapshotIds;
+
+    // Epochs mapped to reward tokens - reward indexes must line up with
+    // that of the indexes for snapshot and futures reward amounts
+    mapping(uint256 => address[]) public rewards;
 
     // Epochs mapped to snapshot rewards
     mapping(uint256 => SnapshotRewards) snapshotRewards;
@@ -271,27 +276,24 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     /**
         @notice Get rewards for an epoch
-        @param  epoch                 uint256    Epoch
-        @return snapshotTokens        address[]  Tokens
-        @return snapshotTokenAmounts  uint256[]  Token amounts
-        @return futuresTokens        address[]  Tokens
-        @return futuresTokenAmounts  uint256[]  Token amounts
+        @param  epoch                  uint256    Epoch
+        @return _rewards               address[]  Reward tokens
+        @return snapshotRewardAmounts  uint256[]  Snapshot reward amounts
+        @return futuresRewardAmounts   uint256[]  Futures reward amounts
      */
     function getRewards(uint256 epoch)
         external
         view
         returns (
-            address[] memory snapshotTokens,
-            uint256[] memory snapshotTokenAmounts,
-            address[] memory futuresTokens,
-            uint256[] memory futuresTokenAmounts
+            address[] memory _rewards,
+            uint256[] memory snapshotRewardAmounts,
+            uint256[] memory futuresRewardAmounts
         )
     {
         return (
-            snapshotRewards[epoch].tokens,
-            snapshotRewards[epoch].tokenAmounts,
-            futuresRewards[epoch].tokens,
-            futuresRewards[epoch].tokenAmounts
+            rewards[epoch],
+            snapshotRewards[epoch].amounts,
+            futuresRewards[epoch].amounts
         );
     }
 
@@ -539,11 +541,12 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         // Used for determining reward amounts for snapshotted token holders
         uint256 snapshotId = _getCurrentSnapshotId();
         uint256 snapshotSupply = totalSupplyAt(snapshotId);
+        uint256 currentEpoch = getCurrentEpoch();
 
         emit ClaimVotiumReward(token, index, amount, snapshotId);
 
         // Used for determining reward amounts for rpCVX token holders for this epoch
-        uint256 epochRpCvxSupply = rpCvx.totalSupply(getCurrentEpoch());
+        uint256 epochRpCvxSupply = rpCvx.totalSupply(currentEpoch);
 
         // Used for calculating the actual token amount received
         uint256 prevBalance = ERC20(token).balanceOf(address(this));
@@ -566,14 +569,13 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         uint256 snapshotRewardsAmount = (actualAmount * snapshotSupply) /
             (snapshotSupply + epochRpCvxSupply);
 
-        uint256 currentEpoch = getCurrentEpoch();
+        // Add reward token address, which shares the same index as the amount in the structs below
+        rewards[currentEpoch].push(token);
 
         SnapshotRewards storage s = snapshotRewards[currentEpoch];
-        s.tokens.push(token);
-        s.tokenAmounts.push(snapshotRewardsAmount);
+        s.amounts.push(snapshotRewardsAmount);
 
         FuturesRewards storage f = futuresRewards[currentEpoch];
-        f.tokens.push(token);
-        f.tokenAmounts.push(actualAmount - snapshotRewardsAmount);
+        f.amounts.push(actualAmount - snapshotRewardsAmount);
     }
 }
