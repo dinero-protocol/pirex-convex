@@ -991,4 +991,80 @@ describe('PirexCvx', () => {
       expect(claimEvent.args.snapshotId).to.equal(currentSnapshotId);
     });
   });
+
+  describe('claimSnapshotReward', () => {
+    it('Should revert if epoch is zero', async () => {
+      const invalidEpoch = 0;
+      const rewardIndex = 0;
+      const to = admin.address;
+
+      await expect(
+        pCvx.claimSnapshotReward(invalidEpoch, rewardIndex, to)
+      ).to.be.revertedWith('ZeroAmount()');
+    });
+
+    it('Should revert if msg.sender has an insufficient balance', async () => {
+      const epoch = await pCvx.getCurrentEpoch();
+      const rewardIndex = 0;
+      const to = admin.address;
+
+      await expect(
+        pCvx.connect(notAdmin).claimSnapshotReward(epoch, rewardIndex, to)
+      ).to.be.revertedWith('InsufficientBalance()');
+    });
+
+    it('Should claim snapshot reward', async () => {
+      const cvxBalanceBefore = await cvx.balanceOf(admin.address);
+      const epoch = await pCvx.getCurrentEpoch();
+      const rewardIndex = 0;
+      const to = admin.address;
+      const events = await callAndReturnEvents(pCvx.claimSnapshotReward, [
+        epoch,
+        rewardIndex,
+        to,
+      ]);
+      const claimEvent = events[0];
+      const transferEvent = events[1];
+      const cvxBalanceAfter = await cvx.balanceOf(admin.address);
+      const snapshotId = await pCvx.epochSnapshotIds(epoch);
+      const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
+      const snapshotBalance = await pCvx.balanceOfAt(admin.address, snapshotId);
+      const { _rewards, snapshotRewardAmounts } = await pCvx.getRewards(epoch);
+      const rewardAmount = snapshotRewardAmounts[rewardIndex];
+      const expectedClaimAmount = rewardAmount
+        .mul(snapshotBalance)
+        .div(snapshotSupply);
+
+      expect(cvxBalanceAfter).to.not.equal(cvxBalanceBefore);
+      expect(cvxBalanceAfter).to.equal(
+        cvxBalanceBefore.add(expectedClaimAmount)
+      );
+      expect(claimEvent.eventSignature).to.equal(
+        'ClaimSnapshotReward(uint256,uint256,address,uint256,uint256,address,uint256)'
+      );
+      expect(claimEvent.args.epoch).to.equal(epoch);
+      expect(claimEvent.args.rewardIndex).to.equal(rewardIndex);
+      expect(claimEvent.args.to).to.equal(to);
+      expect(claimEvent.args.snapshotId).to.equal(snapshotId);
+      expect(claimEvent.args.snapshotBalance).to.equal(snapshotBalance);
+      expect(claimEvent.args.reward).to.equal(_rewards[0]);
+      expect(claimEvent.args.claimAmount).to.equal(expectedClaimAmount);
+      expect(transferEvent.eventSignature).to.equal(
+        'Transfer(address,address,uint256)'
+      );
+      expect(transferEvent.args.from).to.equal(pCvx.address);
+      expect(transferEvent.args.to).to.equal(to);
+      expect(transferEvent.args.value).to.equal(expectedClaimAmount);
+    });
+
+    it('Should revert if msg.sender has already claimed', async () => {
+      const epoch = await pCvx.getCurrentEpoch();
+      const rewardIndex = 0;
+      const to = admin.address;
+
+      await expect(
+        pCvx.claimSnapshotReward(epoch, rewardIndex, to)
+      ).to.be.revertedWith('AlreadyClaimed()');
+    });
+  });
 });
