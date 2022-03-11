@@ -9,7 +9,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import {ERC1155PresetMinterPauserSupply} from "./ERC1155PresetMinterPauserSupply.sol";
+import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
@@ -70,9 +70,9 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     ICvxLocker public cvxLocker;
     ICvxDelegateRegistry public cvxDelegateRegistry;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
-    ERC1155PresetMinterPauserSupply public upCvx;
-    ERC1155PresetMinterPauserSupply public vpCvx;
-    ERC1155PresetMinterPauserSupply public rpCvx;
+    ERC1155PresetMinterSupply public upCvx;
+    ERC1155PresetMinterSupply public vpCvx;
+    ERC1155PresetMinterSupply public rpCvx;
 
     // Staked Pirex CVX implementation
     address public spCvxImplementation;
@@ -159,9 +159,9 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
             _votiumMultiMerkleStash
         );
 
-        upCvx = new ERC1155PresetMinterPauserSupply("");
-        vpCvx = new ERC1155PresetMinterPauserSupply("");
-        rpCvx = new ERC1155PresetMinterPauserSupply("");
+        upCvx = new ERC1155PresetMinterSupply("");
+        vpCvx = new ERC1155PresetMinterSupply("");
+        rpCvx = new ERC1155PresetMinterSupply("");
         spCvxImplementation = address(new StakedPirexCvx());
     }
 
@@ -189,17 +189,17 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         }
 
         if (c == Contract.UpCvx) {
-            upCvx = ERC1155PresetMinterPauserSupply(contractAddress);
+            upCvx = ERC1155PresetMinterSupply(contractAddress);
             return;
         }
 
         if (c == Contract.VpCvx) {
-            vpCvx = ERC1155PresetMinterPauserSupply(contractAddress);
+            vpCvx = ERC1155PresetMinterSupply(contractAddress);
             return;
         }
 
         if (c == Contract.RpCvx) {
-            rpCvx = ERC1155PresetMinterPauserSupply(contractAddress);
+            rpCvx = ERC1155PresetMinterSupply(contractAddress);
             return;
         }
 
@@ -361,7 +361,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         unchecked {
             for (uint8 i; i < rounds; ++i) {
                 // Validates `to`
-                ERC1155PresetMinterPauserSupply(token).mint(
+                ERC1155PresetMinterSupply(token).mint(
                     to,
                     startingEpoch + i * EPOCH_DURATION,
                     amount,
