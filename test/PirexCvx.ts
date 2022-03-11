@@ -955,14 +955,12 @@ describe('PirexCvx', () => {
         )
       ).totalSupply(currentEpoch);
       const expectedSnapshotRewards = {
-        tokens: [cvx.address],
-        tokenAmounts: [
+        amounts: [
           amount.mul(snapshotSupply).div(snapshotSupply.add(epochRpCvxSupply)),
         ],
       };
       const expectedFuturesRewards = {
-        tokens: [cvx.address],
-        tokenAmounts: [amount.sub(expectedSnapshotRewards.tokenAmounts[0])],
+        amounts: [amount.sub(expectedSnapshotRewards.amounts[0])],
       };
       const events = await callAndReturnEvents(pCvx.claimVotiumReward, [
         token,
@@ -975,17 +973,12 @@ describe('PirexCvx', () => {
       const rewards = await pCvx.getRewards(currentEpoch);
       const currentSnapshotId = await pCvx.getCurrentSnapshotId();
 
-      expect(rewards.snapshotTokens).to.deep.equal(
-        expectedSnapshotRewards.tokens
+      expect(rewards._rewards).to.deep.equal([token]);
+      expect(rewards.snapshotRewardAmounts).to.deep.equal(
+        expectedSnapshotRewards.amounts
       );
-      expect(rewards.snapshotTokenAmounts).to.deep.equal(
-        expectedSnapshotRewards.tokenAmounts
-      );
-      expect(rewards.futuresTokens).to.deep.equal(
-        expectedFuturesRewards.tokens
-      );
-      expect(rewards.futuresTokenAmounts).to.deep.equal(
-        expectedFuturesRewards.tokenAmounts
+      expect(rewards.futuresRewardAmounts).to.deep.equal(
+        expectedFuturesRewards.amounts
       );
       expect(snapEvent.eventSignature).to.equal('Snapshot(uint256)');
       expect(snapEvent.args.id).to.equal(currentSnapshotId);
