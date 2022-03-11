@@ -56,7 +56,7 @@ export const setUpConvex = async () => {
   const [admin]: SignerWithAddress[] = await ethers.getSigners();
 
   // Constants
-  const initialCvxBalanceForAdmin = toBN(100e18);
+  const initialBalanceForAdmin = toBN(100e18);
   const crvAddr = '0xd533a949740bb3306d119cc777fa900ba034cd52';
   const crvDepositorAddr = '0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae';
   const cvxCrvRewardsAddr = '0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e';
@@ -131,7 +131,8 @@ export const setUpConvex = async () => {
   await cvxLocker.addReward(crv.address, admin.address, true);
   await cvxLocker.addReward(cvxCrvToken.address, admin.address, true);
   await cvxStakingProxy.setApprovals();
-  await cvx.mint(admin.address, initialCvxBalanceForAdmin);
+  await cvx.mint(admin.address, initialBalanceForAdmin);
+  await crv.mint(admin.address, initialBalanceForAdmin)
 
   return {
     curveVoterProxy,

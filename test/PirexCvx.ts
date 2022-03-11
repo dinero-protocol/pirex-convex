@@ -17,6 +17,7 @@ import {
   DelegateRegistry,
   PirexCvx,
   MultiMerkleStash,
+  Crv,
 } from '../typechain-types';
 import { BalanceTree } from '../lib/merkle';
 
@@ -25,6 +26,7 @@ describe('PirexCvx', () => {
   let notAdmin: SignerWithAddress;
   let pCvx: PirexCvx;
   let cvx: ConvexToken;
+  let crv: Crv;
   let cvxLocker: CvxLocker;
   let cvxDelegateRegistry: DelegateRegistry;
   let votiumMultiMerkleStash: MultiMerkleStash;
@@ -70,7 +72,7 @@ describe('PirexCvx', () => {
 
   before(async () => {
     [admin, notAdmin] = await ethers.getSigners();
-    ({ cvx, cvxLocker, cvxDelegateRegistry, votiumMultiMerkleStash } =
+    ({ cvx, crv, cvxLocker, cvxDelegateRegistry, votiumMultiMerkleStash } =
       await setUpConvex());
     pCvx = await (
       await ethers.getContractFactory('PirexCvx')
@@ -921,31 +923,55 @@ describe('PirexCvx', () => {
   });
 
   describe('claimVotiumReward', () => {
-    let votiumRewardDistribution: { account: string; amount: BigNumber }[];
-    let tree: BalanceTree;
+    let cvxRewardDistribution: { account: string; amount: BigNumber }[];
+    let crvRewardDistribution: { account: string; amount: BigNumber }[];
+    let cvxTree: BalanceTree;
+    let crvTree: BalanceTree;
 
     before(async () => {
-      votiumRewardDistribution = [
+      cvxRewardDistribution = [
         {
           account: pCvx.address,
           amount: toBN(1e18),
         },
       ];
-      tree = new BalanceTree(votiumRewardDistribution);
+      crvRewardDistribution = [
+        {
+          account: pCvx.address,
+          amount: toBN(2e18),
+        },
+      ];
+      cvxTree = new BalanceTree(cvxRewardDistribution);
+      crvTree = new BalanceTree(crvRewardDistribution);
 
-      const token = cvx.address;
-      const merkleRoot = tree.getHexRoot();
+      const token1 = cvx.address;
+      const token2 = crv.address;
 
       await cvx.transfer(votiumMultiMerkleStash.address, toBN(1e18));
-      await votiumMultiMerkleStash.updateMerkleRoot(token, merkleRoot);
+      await votiumMultiMerkleStash.updateMerkleRoot(
+        token1,
+        cvxTree.getHexRoot()
+      );
+
+      await crv.transfer(votiumMultiMerkleStash.address, toBN(2e18));
+      await votiumMultiMerkleStash.updateMerkleRoot(
+        token2,
+        crvTree.getHexRoot()
+      );
     });
 
     it('Should claim Votium rewards and set distribution for pCVX and rpCVX token holders', async () => {
-      const token = cvx.address;
+      const tokens = [cvx.address, crv.address];
       const index = 0;
-      const account = votiumRewardDistribution[index].account;
-      const amount = votiumRewardDistribution[index].amount;
-      const merkleProof = tree.getProof(index, account, amount);
+      const account = pCvx.address;
+      const amounts = [
+        cvxRewardDistribution[0].amount,
+        crvRewardDistribution[0].amount,
+      ];
+      const trees = [
+        cvxTree.getProof(index, account, amounts[0]),
+        crvTree.getProof(index, account, amounts[1]),
+      ];
       const snapshotSupply = await pCvx.totalSupply();
       const currentEpoch = await pCvx.getCurrentEpoch();
       const epochRpCvxSupply = await (
@@ -955,25 +981,34 @@ describe('PirexCvx', () => {
         )
       ).totalSupply(currentEpoch);
       const expectedSnapshotRewards = {
-        amounts: [
-          amount.mul(snapshotSupply).div(snapshotSupply.add(epochRpCvxSupply)),
-        ],
+        amounts: amounts.map((amount) =>
+          amount.mul(snapshotSupply).div(snapshotSupply.add(epochRpCvxSupply))
+        ),
       };
       const expectedFuturesRewards = {
-        amounts: [amount.sub(expectedSnapshotRewards.amounts[0])],
+        amounts: amounts.map((amount, idx) =>
+          amount.sub(expectedSnapshotRewards.amounts[idx])
+        ),
       };
-      const events = await callAndReturnEvents(pCvx.claimVotiumReward, [
-        token,
+      const cvxClaimEvents = await callAndReturnEvents(pCvx.claimVotiumReward, [
+        tokens[0],
         index,
-        amount,
-        merkleProof,
+        amounts[0],
+        trees[0],
       ]);
-      const snapEvent = events[0];
-      const claimEvent = events[1];
+      const crvClaimEvents = await callAndReturnEvents(pCvx.claimVotiumReward, [
+        tokens[1],
+        index,
+        amounts[1],
+        trees[1],
+      ]);
+      const snapEvent = cvxClaimEvents[0];
+      const cvxClaimEvent = cvxClaimEvents[1];
+      const crvClaimEvent = crvClaimEvents[0];
       const rewards = await pCvx.getRewards(currentEpoch);
       const currentSnapshotId = await pCvx.getCurrentSnapshotId();
 
-      expect(rewards._rewards).to.deep.equal([token]);
+      expect(rewards._rewards).to.deep.equal(tokens);
       expect(rewards.snapshotRewardAmounts).to.deep.equal(
         expectedSnapshotRewards.amounts
       );
@@ -982,13 +1017,21 @@ describe('PirexCvx', () => {
       );
       expect(snapEvent.eventSignature).to.equal('Snapshot(uint256)');
       expect(snapEvent.args.id).to.equal(currentSnapshotId);
-      expect(claimEvent.eventSignature).to.equal(
+      expect(cvxClaimEvent.eventSignature).to.equal(
         'ClaimVotiumReward(address,uint256,uint256,uint256)'
       );
-      expect(claimEvent.args.token).to.equal(token);
-      expect(claimEvent.args.index).to.equal(index);
-      expect(claimEvent.args.amount).to.equal(amount);
-      expect(claimEvent.args.snapshotId).to.equal(currentSnapshotId);
+      expect(cvxClaimEvent.args.token).to.equal(tokens[0]);
+      expect(cvxClaimEvent.args.index).to.equal(index);
+      expect(cvxClaimEvent.args.amount).to.equal(amounts[0]);
+      expect(cvxClaimEvent.args.snapshotId).to.equal(currentSnapshotId);
+
+      expect(crvClaimEvent.eventSignature).to.equal(
+        'ClaimVotiumReward(address,uint256,uint256,uint256)'
+      );
+      expect(crvClaimEvent.args.token).to.equal(tokens[1]);
+      expect(crvClaimEvent.args.index).to.equal(index);
+      expect(crvClaimEvent.args.amount).to.equal(amounts[1]);
+      expect(crvClaimEvent.args.snapshotId).to.equal(currentSnapshotId);
     });
   });
 
@@ -1015,46 +1058,74 @@ describe('PirexCvx', () => {
 
     it('Should claim snapshot reward', async () => {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
+      const crvBalanceBefore = await crv.balanceOf(admin.address);
       const epoch = await pCvx.getCurrentEpoch();
-      const rewardIndex = 0;
+      const rewardIndexes = [0, 1];
       const to = admin.address;
-      const events = await callAndReturnEvents(pCvx.claimSnapshotReward, [
+      const cvxEvents = await callAndReturnEvents(pCvx.claimSnapshotReward, [
         epoch,
-        rewardIndex,
+        rewardIndexes[0],
         to,
       ]);
-      const claimEvent = events[0];
-      const transferEvent = events[1];
+      const crvEvents = await callAndReturnEvents(pCvx.claimSnapshotReward, [
+        epoch,
+        rewardIndexes[1],
+        to,
+      ]);
+      const cvxClaimEvent = cvxEvents[0];
+      const cvxTransferEvent = cvxEvents[1];
+      const crvClaimEvent = crvEvents[0];
+      const crvTransferEvent = crvEvents[1];
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
+      const crvBalanceAfter = await crv.balanceOf(admin.address);
       const snapshotId = await pCvx.epochSnapshotIds(epoch);
       const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
       const snapshotBalance = await pCvx.balanceOfAt(admin.address, snapshotId);
       const { _rewards, snapshotRewardAmounts } = await pCvx.getRewards(epoch);
-      const rewardAmount = snapshotRewardAmounts[rewardIndex];
-      const expectedClaimAmount = rewardAmount
-        .mul(snapshotBalance)
-        .div(snapshotSupply);
+      const expectedClaimAmounts = snapshotRewardAmounts.map(
+        (amount: BigNumber) => amount.mul(snapshotBalance).div(snapshotSupply)
+      );
 
       expect(cvxBalanceAfter).to.not.equal(cvxBalanceBefore);
       expect(cvxBalanceAfter).to.equal(
-        cvxBalanceBefore.add(expectedClaimAmount)
+        cvxBalanceBefore.add(expectedClaimAmounts[0])
       );
-      expect(claimEvent.eventSignature).to.equal(
+      expect(crvBalanceAfter).to.not.equal(crvBalanceBefore);
+      expect(crvBalanceAfter).to.equal(
+        crvBalanceBefore.add(expectedClaimAmounts[1])
+      );
+      expect(cvxClaimEvent.eventSignature).to.equal(
         'ClaimSnapshotReward(uint256,uint256,address,uint256,uint256,address,uint256)'
       );
-      expect(claimEvent.args.epoch).to.equal(epoch);
-      expect(claimEvent.args.rewardIndex).to.equal(rewardIndex);
-      expect(claimEvent.args.to).to.equal(to);
-      expect(claimEvent.args.snapshotId).to.equal(snapshotId);
-      expect(claimEvent.args.snapshotBalance).to.equal(snapshotBalance);
-      expect(claimEvent.args.reward).to.equal(_rewards[0]);
-      expect(claimEvent.args.claimAmount).to.equal(expectedClaimAmount);
-      expect(transferEvent.eventSignature).to.equal(
+      expect(cvxClaimEvent.args.epoch).to.equal(epoch);
+      expect(cvxClaimEvent.args.rewardIndex).to.equal(rewardIndexes[0]);
+      expect(cvxClaimEvent.args.to).to.equal(to);
+      expect(cvxClaimEvent.args.snapshotId).to.equal(snapshotId);
+      expect(cvxClaimEvent.args.snapshotBalance).to.equal(snapshotBalance);
+      expect(cvxClaimEvent.args.reward).to.equal(_rewards[0]);
+      expect(cvxClaimEvent.args.claimAmount).to.equal(expectedClaimAmounts[0]);
+      expect(cvxTransferEvent.eventSignature).to.equal(
         'Transfer(address,address,uint256)'
       );
-      expect(transferEvent.args.from).to.equal(pCvx.address);
-      expect(transferEvent.args.to).to.equal(to);
-      expect(transferEvent.args.value).to.equal(expectedClaimAmount);
+      expect(cvxTransferEvent.args.from).to.equal(pCvx.address);
+      expect(cvxTransferEvent.args.to).to.equal(to);
+      expect(cvxTransferEvent.args.value).to.equal(expectedClaimAmounts[0]);
+      expect(crvClaimEvent.eventSignature).to.equal(
+        'ClaimSnapshotReward(uint256,uint256,address,uint256,uint256,address,uint256)'
+      );
+      expect(crvClaimEvent.args.epoch).to.equal(epoch);
+      expect(crvClaimEvent.args.rewardIndex).to.equal(rewardIndexes[1]);
+      expect(crvClaimEvent.args.to).to.equal(to);
+      expect(crvClaimEvent.args.snapshotId).to.equal(snapshotId);
+      expect(crvClaimEvent.args.snapshotBalance).to.equal(snapshotBalance);
+      expect(crvClaimEvent.args.reward).to.equal(_rewards[1]);
+      expect(crvClaimEvent.args.claimAmount).to.equal(expectedClaimAmounts[1]);
+      expect(crvTransferEvent.eventSignature).to.equal(
+        'Transfer(address,address,uint256)'
+      );
+      expect(crvTransferEvent.args.from).to.equal(pCvx.address);
+      expect(crvTransferEvent.args.to).to.equal(to);
+      expect(crvTransferEvent.args.value).to.equal(expectedClaimAmounts[1]);
     });
 
     it('Should revert if msg.sender has already claimed', async () => {
@@ -1068,31 +1139,29 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('claimFuturesReward', () => {
+  describe('claimFuturesRewards', () => {
     it('Should revert if epoch is zero', async () => {
       const invalidEpoch = 0;
-      const rewardIndex = 0;
       const to = admin.address;
 
       await expect(
-        pCvx.claimFuturesReward(invalidEpoch, rewardIndex, to)
+        pCvx.claimFuturesRewards(invalidEpoch, to)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
     it('Should revert if msg.sender has an insufficient balance', async () => {
       const epoch = await pCvx.getCurrentEpoch();
-      const rewardIndex = 0;
       const to = admin.address;
 
       await expect(
-        pCvx.connect(notAdmin).claimSnapshotReward(epoch, rewardIndex, to)
+        pCvx.connect(notAdmin).claimFuturesRewards(epoch, to)
       ).to.be.revertedWith('InsufficientBalance()');
     });
 
     it('Should claim futures reward', async () => {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
+      const crvBalanceBefore = await crv.balanceOf(admin.address);
       const epoch = await pCvx.getCurrentEpoch();
-      const rewardIndex = 0;
       const to = admin.address;
       const rpCvx = await ethers.getContractAt(
         'ERC1155PresetMinterSupply',
@@ -1113,21 +1182,21 @@ describe('PirexCvx', () => {
 
       await rpCvx.setApprovalForAll(pCvx.address, true);
 
-      const events = await callAndReturnEvents(pCvx.claimFuturesReward, [
+      const events = await callAndReturnEvents(pCvx.claimFuturesRewards, [
         epoch,
-        rewardIndex,
         to,
       ]);
       const claimEvent = events[0];
-      const transferEvent = events[2];
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
+      const crvBalanceAfter = await crv.balanceOf(admin.address);
       const rpCvxBalanceAfter = await rpCvx.balanceOf(admin.address, epoch);
       const rpCvxSupplyAfter = await rpCvx.totalSupply(epoch);
-      const { _rewards, futuresRewardAmounts } = await pCvx.getRewards(epoch);
-      const rewardAmount = futuresRewardAmounts[rewardIndex];
-      const expectedClaimAmount = rewardAmount
-        .mul(rpCvxBalanceBefore)
-        .div(rpCvxSupplyBefore);
+      const { _rewards, futuresRewardAmounts } =
+        await pCvx.getRewards(epoch);
+      const expectedClaimAmounts = futuresRewardAmounts.map(
+        (amount: BigNumber) =>
+          amount.mul(rpCvxBalanceBefore).div(rpCvxSupplyBefore)
+      );
 
       expect(rpCvxBalanceAfter).to.not.equal(rpCvxBalanceBefore);
       expect(rpCvxBalanceAfter).to.equal(0);
@@ -1137,23 +1206,18 @@ describe('PirexCvx', () => {
       );
       expect(cvxBalanceAfter).to.not.equal(cvxBalanceBefore);
       expect(cvxBalanceAfter).to.equal(
-        cvxBalanceBefore.add(expectedClaimAmount)
+        cvxBalanceBefore.add(expectedClaimAmounts[0])
+      );
+      expect(crvBalanceAfter).to.not.equal(crvBalanceBefore);
+      expect(crvBalanceAfter).to.equal(
+        crvBalanceBefore.add(expectedClaimAmounts[1])
       );
       expect(claimEvent.eventSignature).to.equal(
-        'ClaimFuturesReward(uint256,uint256,address,uint256,address,uint256)'
+        'ClaimFuturesRewards(uint256,address,address[])'
       );
       expect(claimEvent.args.epoch).to.equal(epoch);
-      expect(claimEvent.args.rewardIndex).to.equal(rewardIndex);
       expect(claimEvent.args.to).to.equal(to);
-      expect(claimEvent.args.futuresBalance).to.equal(rpCvxBalanceBefore);
-      expect(claimEvent.args.reward).to.equal(_rewards[0]);
-      expect(claimEvent.args.claimAmount).to.equal(expectedClaimAmount);
-      expect(transferEvent.eventSignature).to.equal(
-        'Transfer(address,address,uint256)'
-      );
-      expect(transferEvent.args.from).to.equal(pCvx.address);
-      expect(transferEvent.args.to).to.equal(to);
-      expect(transferEvent.args.value).to.equal(expectedClaimAmount);
+      expect(claimEvent.args.rewards).to.deep.equal(_rewards);
     });
   });
 });
