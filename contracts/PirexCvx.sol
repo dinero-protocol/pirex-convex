@@ -137,6 +137,14 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         address reward,
         uint256 claimAmount
     );
+    event ClaimFuturesReward(
+        uint256 epoch,
+        uint256 rewardIndex,
+        address to,
+        uint256 futuresBalance,
+        address reward,
+        uint256 claimAmount
+    );
 
     error ZeroAddress();
     error ZeroAmount();
@@ -602,10 +610,12 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     ) external nonReentrant {
         if (epoch == 0) revert ZeroAmount();
 
+        // Check whether msg.sender maintained a positive balance before the snapshot
         uint256 snapshotId = epochSnapshotIds[epoch];
         uint256 snapshotBalance = balanceOfAt(msg.sender, snapshotId);
         if (snapshotBalance == 0) revert InsufficientBalance();
 
+        // Check whether msg.sender has already claimed this reward
         address reward = rewards[epoch][rewardIndex];
         if (snapshotRewards[epoch].claimed[msg.sender][reward] != 0)
             revert AlreadyClaimed();
@@ -627,6 +637,43 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
             claimAmount
         );
 
+        ERC20(reward).safeTransfer(to, claimAmount);
+    }
+
+    /**
+        @notice Claim a Futures reward as a rpCVX holder
+        @param  epoch        uint256  Epoch / token id
+        @param  rewardIndex  uint8    Reward token index
+        @param  to           address  Snapshot reward recipient
+    */
+    function claimFuturesReward(
+        uint256 epoch,
+        uint8 rewardIndex,
+        address to
+    ) external nonReentrant {
+        if (epoch == 0) revert ZeroAmount();
+
+        // Check msg.sender rpCVX balance
+        uint256 rpCvxBalance = rpCvx.balanceOf(msg.sender, epoch);
+        if (rpCvxBalance == 0) revert InsufficientBalance();
+
+        // Proportionate to the % of rpCVX owned out of the rpCVX total supply
+        uint256 claimAmount = (futuresRewards[epoch].amounts[rewardIndex] *
+            rpCvxBalance) / rpCvx.totalSupply(epoch);
+
+        address reward = rewards[epoch][rewardIndex];
+
+        emit ClaimFuturesReward(
+            epoch,
+            rewardIndex,
+            to,
+            rpCvxBalance,
+            reward,
+            claimAmount
+        );
+
+        // Burn rpCVX tokens and transfer rewards
+        rpCvx.burn(msg.sender, epoch, rpCvxBalance);
         ERC20(reward).safeTransfer(to, claimAmount);
     }
 }

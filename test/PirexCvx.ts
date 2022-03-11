@@ -1067,4 +1067,93 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('AlreadyClaimed()');
     });
   });
+
+  describe('claimFuturesReward', () => {
+    it('Should revert if epoch is zero', async () => {
+      const invalidEpoch = 0;
+      const rewardIndex = 0;
+      const to = admin.address;
+
+      await expect(
+        pCvx.claimFuturesReward(invalidEpoch, rewardIndex, to)
+      ).to.be.revertedWith('ZeroAmount()');
+    });
+
+    it('Should revert if msg.sender has an insufficient balance', async () => {
+      const epoch = await pCvx.getCurrentEpoch();
+      const rewardIndex = 0;
+      const to = admin.address;
+
+      await expect(
+        pCvx.connect(notAdmin).claimSnapshotReward(epoch, rewardIndex, to)
+      ).to.be.revertedWith('InsufficientBalance()');
+    });
+
+    it('Should claim futures reward', async () => {
+      const cvxBalanceBefore = await cvx.balanceOf(admin.address);
+      const epoch = await pCvx.getCurrentEpoch();
+      const rewardIndex = 0;
+      const to = admin.address;
+      const rpCvx = await ethers.getContractAt(
+        'ERC1155PresetMinterSupply',
+        await pCvx.rpCvx()
+      );
+
+      // Transfer half to test correctness for partial reward claims
+      await rpCvx.safeTransferFrom(
+        admin.address,
+        notAdmin.address,
+        epoch,
+        (await rpCvx.balanceOf(admin.address, epoch)).div(2),
+        ethers.utils.formatBytes32String('')
+      );
+
+      const rpCvxBalanceBefore = await rpCvx.balanceOf(admin.address, epoch);
+      const rpCvxSupplyBefore = await rpCvx.totalSupply(epoch);
+
+      await rpCvx.setApprovalForAll(pCvx.address, true);
+
+      const events = await callAndReturnEvents(pCvx.claimFuturesReward, [
+        epoch,
+        rewardIndex,
+        to,
+      ]);
+      const claimEvent = events[0];
+      const transferEvent = events[2];
+      const cvxBalanceAfter = await cvx.balanceOf(admin.address);
+      const rpCvxBalanceAfter = await rpCvx.balanceOf(admin.address, epoch);
+      const rpCvxSupplyAfter = await rpCvx.totalSupply(epoch);
+      const { _rewards, futuresRewardAmounts } = await pCvx.getRewards(epoch);
+      const rewardAmount = futuresRewardAmounts[rewardIndex];
+      const expectedClaimAmount = rewardAmount
+        .mul(rpCvxBalanceBefore)
+        .div(rpCvxSupplyBefore);
+
+      expect(rpCvxBalanceAfter).to.not.equal(rpCvxBalanceBefore);
+      expect(rpCvxBalanceAfter).to.equal(0);
+      expect(rpCvxSupplyAfter).to.not.equal(rpCvxSupplyBefore);
+      expect(rpCvxSupplyAfter).to.equal(
+        rpCvxSupplyBefore.sub(rpCvxBalanceBefore)
+      );
+      expect(cvxBalanceAfter).to.not.equal(cvxBalanceBefore);
+      expect(cvxBalanceAfter).to.equal(
+        cvxBalanceBefore.add(expectedClaimAmount)
+      );
+      expect(claimEvent.eventSignature).to.equal(
+        'ClaimFuturesReward(uint256,uint256,address,uint256,address,uint256)'
+      );
+      expect(claimEvent.args.epoch).to.equal(epoch);
+      expect(claimEvent.args.rewardIndex).to.equal(rewardIndex);
+      expect(claimEvent.args.to).to.equal(to);
+      expect(claimEvent.args.futuresBalance).to.equal(rpCvxBalanceBefore);
+      expect(claimEvent.args.reward).to.equal(_rewards[0]);
+      expect(claimEvent.args.claimAmount).to.equal(expectedClaimAmount);
+      expect(transferEvent.eventSignature).to.equal(
+        'Transfer(address,address,uint256)'
+      );
+      expect(transferEvent.args.from).to.equal(pCvx.address);
+      expect(transferEvent.args.to).to.equal(to);
+      expect(transferEvent.args.value).to.equal(expectedClaimAmount);
+    });
+  });
 });
