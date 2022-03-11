@@ -128,12 +128,22 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         uint256 amount,
         uint256 snapshotId
     );
+    event ClaimSnapshotReward(
+        uint256 epoch,
+        uint256 rewardIndex,
+        address to,
+        uint256 snapshotId,
+        uint256 snapshotBalance,
+        address reward,
+        uint256 claimAmount
+    );
 
     error ZeroAddress();
     error ZeroAmount();
     error EmptyString();
     error BeforeLockExpiry();
     error InsufficientBalance();
+    error AlreadyClaimed();
 
     /**
         @param  _CVX                     address  CVX address    
@@ -577,5 +587,46 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
         FuturesRewards storage f = futuresRewards[currentEpoch];
         f.amounts.push(actualAmount - snapshotRewardsAmount);
+    }
+
+    /**
+        @notice Claim a Snapshot reward as a pCVX holder
+        @param  epoch        uint256  Epoch
+        @param  rewardIndex  uint8    Reward token index
+        @param  to           address  Snapshot reward recipient
+    */
+    function claimSnapshotReward(
+        uint256 epoch,
+        uint8 rewardIndex,
+        address to
+    ) external nonReentrant {
+        if (epoch == 0) revert ZeroAmount();
+
+        uint256 snapshotId = epochSnapshotIds[epoch];
+        uint256 snapshotBalance = balanceOfAt(msg.sender, snapshotId);
+        if (snapshotBalance == 0) revert InsufficientBalance();
+
+        address reward = rewards[epoch][rewardIndex];
+        if (snapshotRewards[epoch].claimed[msg.sender][reward] != 0)
+            revert AlreadyClaimed();
+
+        // Proportionate to the % of pCVX owned out of total supply for the snapshot
+        uint256 claimAmount = (snapshotRewards[epoch].amounts[rewardIndex] *
+            snapshotBalance) / totalSupplyAt(snapshotId);
+
+        // Set claim amount to prevent re-claiming
+        snapshotRewards[epoch].claimed[msg.sender][reward] = claimAmount;
+
+        emit ClaimSnapshotReward(
+            epoch,
+            rewardIndex,
+            to,
+            snapshotId,
+            snapshotBalance,
+            reward,
+            claimAmount
+        );
+
+        ERC20(reward).safeTransfer(to, claimAmount);
     }
 }

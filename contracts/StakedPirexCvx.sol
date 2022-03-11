@@ -44,7 +44,7 @@ contract StakedPirexCvx is ERC4626VaultUpgradeable {
         @notice Check underlying amount and timestamp
         @param  underlyingAmount  uint256  CVX amount
      */
-    function beforeWithdraw(uint256 underlyingAmount) internal override {
+    function beforeWithdraw(uint256 underlyingAmount) internal view override {
         if (underlyingAmount == 0) revert ZeroAmount();
         if (stakeExpiry > block.timestamp) revert BeforeStakeExpiry();
     }
