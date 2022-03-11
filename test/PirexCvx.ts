@@ -18,6 +18,7 @@ import {
   PirexCvx,
   MultiMerkleStash,
 } from '../typechain-types';
+import { BalanceTree } from '../lib/merkle';
 
 describe('PirexCvx', () => {
   let admin: SignerWithAddress;
@@ -58,7 +59,7 @@ describe('PirexCvx', () => {
           .add(epochDuration)
           .add(epochDuration.mul(idx));
         const futuresCvx: any = await ethers.getContractAt(
-          'ERC1155PresetMinterPauser',
+          'ERC1155PresetMinterPauserSupply',
           futures === futuresEnum.vote ? await pCvx.vpCvx() : await pCvx.rpCvx()
         );
 
@@ -83,7 +84,6 @@ describe('PirexCvx', () => {
 
   describe('constructor', () => {
     it('Should set up contract state', async () => {
-      const _FIRST_EPOCH = await pCvx.FIRST_EPOCH();
       const _CVX = await pCvx.CVX();
       const _EPOCH_DURATION = await pCvx.EPOCH_DURATION();
       const _UNLOCKING_DURATION = await pCvx.UNLOCKING_DURATION();
@@ -95,11 +95,13 @@ describe('PirexCvx', () => {
       const _rpCvx = await pCvx.rpCvx();
       const _spCvxImplementation = await pCvx.spCvxImplementation();
       const _delegationSpace = await pCvx.delegationSpace();
-      const _cvxOutstanding = await pCvx.cvxOutstanding()
+      const _cvxOutstanding = await pCvx.cvxOutstanding();
       const _name = await pCvx.name();
       const _symbol = await pCvx.symbol();
+      const epochSnapshotId = await pCvx.epochSnapshotIds(
+        await pCvx.getCurrentEpoch()
+      );
 
-      expect(_FIRST_EPOCH).to.equal(await pCvx.getCurrentEpoch());
       expect(_CVX).to.equal(cvx.address);
       expect(_EPOCH_DURATION).to.equal(1209600);
       expect(_UNLOCKING_DURATION).to.equal(10281600);
@@ -112,8 +114,9 @@ describe('PirexCvx', () => {
       expect(_spCvxImplementation).to.not.equal(zeroAddress);
       expect(_delegationSpace).to.equal(delegationSpaceBytes32);
       expect(_cvxOutstanding).to.equal(0);
-      expect(_name).to.equal("Pirex CVX");
-      expect(_symbol).to.equal("pCVX");
+      expect(_name).to.equal('Pirex CVX');
+      expect(_symbol).to.equal('pCVX');
+      expect(epochSnapshotId).to.equal(1);
     });
   });
 
@@ -131,44 +134,38 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('getIndex', () => {
-    it('Should return the index', async () => {
-      const index = await pCvx.getIndex();
-      const expectedIndex = toBN(
-        (await ethers.provider.getBlock('latest')).timestamp
-      )
-        .sub(await pCvx.FIRST_EPOCH())
-        .div(epochDuration);
-
-      expect(index).to.equal(0);
-      expect(index).to.equal(expectedIndex);
-    });
-  });
-
   describe('snapshot', () => {
-    it('Should not take a snapshot if index is not greater', async () => {
-      const index = await pCvx.getIndex();
-      const currentSnapshotId = await pCvx.getCurrentSnapshotId();
+    it('Should not take a snapshot if already taken', async () => {
+      const epochSnapshotId = await pCvx.epochSnapshotIds(
+        await pCvx.getCurrentEpoch()
+      );
+      const snapshotIdBefore = await pCvx.getCurrentSnapshotId();
 
       await pCvx.snapshot();
 
-      expect(index).to.equal(0);
-      expect(currentSnapshotId).to.equal(0);
+      const snapshotIdAfter = await pCvx.getCurrentSnapshotId();
+
+      expect(epochSnapshotId).to.equal(snapshotIdBefore);
+      expect(snapshotIdAfter).to.equal(snapshotIdBefore);
     });
 
-    it('Should take a snapshot if index is greater', async () => {
+    it('Should take a snapshot it not taken', async () => {
       await increaseBlockTimestamp(Number(epochDuration));
 
-      const index = await pCvx.getIndex();
-      const currentSnapshotIdBefore = await pCvx.getCurrentSnapshotId();
+      const currentEpoch = await pCvx.getCurrentEpoch();
+      const snapshotIdBefore = await pCvx.getCurrentSnapshotId();
+      const epochSnapshotIdBefore = await pCvx.epochSnapshotIds(currentEpoch);
       const snapshotEvent = await callAndReturnEvent(pCvx.snapshot, []);
-      const currentSnapshotIdAfter = await pCvx.getCurrentSnapshotId();
+      const snapshotIdAfter = await pCvx.getCurrentSnapshotId();
+      const epochSnapshotIdAfter = await pCvx.epochSnapshotIds(currentEpoch);
 
-      expect(index).to.equal(1);
-      expect(currentSnapshotIdBefore).to.equal(0);
-      expect(currentSnapshotIdAfter).to.equal(currentSnapshotIdBefore.add(1));
+      expect(epochSnapshotIdBefore).to.equal(0);
+      expect(epochSnapshotIdAfter).to.not.equal(epochSnapshotIdBefore);
+      expect(epochSnapshotIdAfter).to.equal(snapshotIdAfter);
+      expect(snapshotIdAfter).to.not.equal(snapshotIdBefore);
+      expect(snapshotIdAfter).to.equal(snapshotIdBefore.add(1));
       expect(snapshotEvent.eventSignature).to.equal('Snapshot(uint256)');
-      expect(snapshotEvent.args.id).to.equal(currentSnapshotIdAfter);
+      expect(snapshotEvent.args.id).to.equal(snapshotIdAfter);
     });
   });
 
@@ -506,7 +503,7 @@ describe('PirexCvx', () => {
       const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
       const upCvxBalance = await (
         await ethers.getContractAt(
-          'ERC1155PresetMinterPauser',
+          'ERC1155PresetMinterPauserSupply',
           await pCvx.upCvx()
         )
       ).balanceOf(admin.address, currentEpoch);
@@ -542,7 +539,7 @@ describe('PirexCvx', () => {
     it('Should initiate a redemption for the same contract if the epoch has not changed', async () => {
       const currentEpoch = await pCvx.getCurrentEpoch();
       const upCvx = await ethers.getContractAt(
-        'ERC1155PresetMinterPauser',
+        'ERC1155PresetMinterPauserSupply',
         await pCvx.upCvx()
       );
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
@@ -583,7 +580,7 @@ describe('PirexCvx', () => {
     it('Should initiate a redemption for the same contract with a different futures type', async () => {
       const currentEpoch = await pCvx.getCurrentEpoch();
       const upCvx = await ethers.getContractAt(
-        'ERC1155PresetMinterPauser',
+        'ERC1155PresetMinterPauserSupply',
         await pCvx.upCvx()
       );
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
@@ -628,7 +625,7 @@ describe('PirexCvx', () => {
 
       const epochAfter = await pCvx.getCurrentEpoch();
       const upCvx = await ethers.getContractAt(
-        'ERC1155PresetMinterPauser',
+        'ERC1155PresetMinterPauserSupply',
         await pCvx.upCvx()
       );
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
@@ -708,7 +705,7 @@ describe('PirexCvx', () => {
       const amount = toBN(1e18);
 
       const upCvx = await ethers.getContractAt(
-        'ERC1155PresetMinterPauser',
+        'ERC1155PresetMinterPauserSupply',
         await pCvx.upCvx()
       );
       const upCvxBalance = await upCvx.balanceOf(admin.address, invalidEpoch);
@@ -723,7 +720,8 @@ describe('PirexCvx', () => {
         invalidEpoch.add(await pCvx.UNLOCKING_DURATION()).lt(timestamp)
       ).to.equal(true);
       await expect(pCvx.redeem(invalidEpoch, to, amount)).to.be.revertedWith(
-        'ERC1155: burn amount exceeds balance'
+        // Caused by ERC1155Supply _beforeTokenTransfer hook
+        'VM Exception while processing transaction: reverted with panic code 0x11 (Arithmetic operation underflowed or overflowed outside of an unchecked block)'
       );
     });
 
@@ -742,7 +740,7 @@ describe('PirexCvx', () => {
       const to = admin.address;
       const amount = toBN(1e18);
       const upCvx = await ethers.getContractAt(
-        'ERC1155PresetMinterPauser',
+        'ERC1155PresetMinterPauserSupply',
         await pCvx.upCvx()
       );
       const upCvxBalanceBefore = await upCvx.balanceOf(admin.address, epoch);
@@ -919,6 +917,85 @@ describe('PirexCvx', () => {
       expect(unstakeEvent.args.vault).to.equal(vault.address);
       expect(unstakeEvent.args.to).to.equal(to);
       expect(unstakeEvent.args.amount).to.equal(amount);
+    });
+  });
+
+  describe('claimVotiumReward', () => {
+    let votiumRewardDistribution: { account: string; amount: BigNumber }[];
+    let tree: BalanceTree;
+
+    before(async () => {
+      votiumRewardDistribution = [
+        {
+          account: pCvx.address,
+          amount: toBN(1e18),
+        },
+      ];
+      tree = new BalanceTree(votiumRewardDistribution);
+
+      const token = cvx.address;
+      const merkleRoot = tree.getHexRoot();
+
+      await cvx.transfer(votiumMultiMerkleStash.address, toBN(1e18));
+      await votiumMultiMerkleStash.updateMerkleRoot(token, merkleRoot);
+    });
+
+    it('Should claim Votium rewards and set distribution for pCVX and rpCVX token holders', async () => {
+      const token = cvx.address;
+      const index = 0;
+      const account = votiumRewardDistribution[index].account;
+      const amount = votiumRewardDistribution[index].amount;
+      const merkleProof = tree.getProof(index, account, amount);
+      const snapshotSupply = await pCvx.totalSupply();
+      const currentEpoch = await pCvx.getCurrentEpoch();
+      const epochRpCvxSupply = await (
+        await ethers.getContractAt(
+          'ERC1155PresetMinterPauserSupply',
+          await pCvx.rpCvx()
+        )
+      ).totalSupply(currentEpoch);
+      const expectedSnapshotRewards = {
+        tokens: [cvx.address],
+        tokenAmounts: [
+          amount.mul(snapshotSupply).div(snapshotSupply.add(epochRpCvxSupply)),
+        ],
+      };
+      const expectedFuturesRewards = {
+        tokens: [cvx.address],
+        tokenAmounts: [amount.sub(expectedSnapshotRewards.tokenAmounts[0])],
+      };
+      const events = await callAndReturnEvents(pCvx.claimVotiumReward, [
+        token,
+        index,
+        amount,
+        merkleProof,
+      ]);
+      const snapEvent = events[0];
+      const claimEvent = events[1];
+      const rewards = await pCvx.getRewards(currentEpoch);
+      const currentSnapshotId = await pCvx.getCurrentSnapshotId();
+
+      expect(rewards.snapshotTokens).to.deep.equal(
+        expectedSnapshotRewards.tokens
+      );
+      expect(rewards.snapshotTokenAmounts).to.deep.equal(
+        expectedSnapshotRewards.tokenAmounts
+      );
+      expect(rewards.futuresTokens).to.deep.equal(
+        expectedFuturesRewards.tokens
+      );
+      expect(rewards.futuresTokenAmounts).to.deep.equal(
+        expectedFuturesRewards.tokenAmounts
+      );
+      expect(snapEvent.eventSignature).to.equal('Snapshot(uint256)');
+      expect(snapEvent.args.id).to.equal(currentSnapshotId);
+      expect(claimEvent.eventSignature).to.equal(
+        'ClaimVotiumReward(address,uint256,uint256,uint256)'
+      );
+      expect(claimEvent.args.token).to.equal(token);
+      expect(claimEvent.args.index).to.equal(index);
+      expect(claimEvent.args.amount).to.equal(amount);
+      expect(claimEvent.args.snapshotId).to.equal(currentSnapshotId);
     });
   });
 });

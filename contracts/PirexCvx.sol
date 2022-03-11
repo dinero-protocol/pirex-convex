@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
+import "hardhat/console.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {ERC20Snapshot} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
@@ -8,7 +9,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import {ERC1155PresetMinterPauser} from "@openzeppelin/contracts/token/ERC1155/presets/ERC1155PresetMinterPauser.sol";
+import {ERC1155PresetMinterPauserSupply} from "./ERC1155PresetMinterPauserSupply.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
@@ -21,6 +22,23 @@ interface IConvexDelegateRegistry {
 contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     using SafeERC20 for ERC20;
     using Strings for uint256;
+
+    /**
+        @notice Epoch rewards for pCVX holders
+        @param  tokens        address[]  Token
+        @param  tokenAmounts  uint256[]  Token amounts
+        @param  claimed       mapping    Accounts mapped to tokens mapped to claimed amounts
+     */
+    struct SnapshotRewards {
+        address[] tokens;
+        uint256[] tokenAmounts;
+        mapping(address => mapping(address => uint256)) claimed;
+    }
+
+    struct FuturesRewards {
+        address[] tokens;
+        uint256[] tokenAmounts;
+    }
 
     // Users can choose between the two futures tokens when staking or unlocking
     enum Futures {
@@ -40,9 +58,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     ERC20 public immutable CVX;
 
-    // Used to calculate the index
-    uint256 public immutable FIRST_EPOCH;
-
     // Seconds between Convex voting rounds (2 weeks)
     uint32 public immutable EPOCH_DURATION = 1209600;
 
@@ -55,9 +70,9 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     ICvxLocker public cvxLocker;
     ICvxDelegateRegistry public cvxDelegateRegistry;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
-    ERC1155PresetMinterPauser public upCvx;
-    ERC1155PresetMinterPauser public vpCvx;
-    ERC1155PresetMinterPauser public rpCvx;
+    ERC1155PresetMinterPauserSupply public upCvx;
+    ERC1155PresetMinterPauserSupply public vpCvx;
+    ERC1155PresetMinterPauserSupply public rpCvx;
 
     // Staked Pirex CVX implementation
     address public spCvxImplementation;
@@ -71,6 +86,15 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     // The amount of CVX that needs to remain unlocked for redemptions
     uint256 public cvxOutstanding;
+
+    // Epochs mapped to snapshot ids
+    mapping(uint256 => uint256) public epochSnapshotIds;
+
+    // Epochs mapped to snapshot rewards
+    mapping(uint256 => SnapshotRewards) snapshotRewards;
+
+    // Epochs mapped to futures rewards
+    mapping(uint256 => FuturesRewards) futuresRewards;
 
     event SetContract(Contract c, address contractAddress);
     event SetDelegationSpace(string _delegationSpace);
@@ -93,6 +117,12 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         address vault
     );
     event Unstake(address vault, address indexed to, uint256 amount);
+    event ClaimVotiumReward(
+        address token,
+        uint256 index,
+        uint256 amount,
+        uint256 snapshotId
+    );
 
     error ZeroAddress();
     error ZeroAmount();
@@ -112,7 +142,8 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         address _cvxDelegateRegistry,
         address _votiumMultiMerkleStash
     ) ERC20("Pirex CVX", "pCVX") {
-        FIRST_EPOCH = getCurrentEpoch();
+        // Start snapshot id from 1 and set it to simplify snapshot-taking determination
+        epochSnapshotIds[getCurrentEpoch()] = _snapshot();
 
         if (_CVX == address(0)) revert ZeroAddress();
         CVX = ERC20(_CVX);
@@ -128,9 +159,9 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
             _votiumMultiMerkleStash
         );
 
-        upCvx = new ERC1155PresetMinterPauser("");
-        vpCvx = new ERC1155PresetMinterPauser("");
-        rpCvx = new ERC1155PresetMinterPauser("");
+        upCvx = new ERC1155PresetMinterPauserSupply("");
+        vpCvx = new ERC1155PresetMinterPauserSupply("");
+        rpCvx = new ERC1155PresetMinterPauserSupply("");
         spCvxImplementation = address(new StakedPirexCvx());
     }
 
@@ -158,17 +189,17 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         }
 
         if (c == Contract.UpCvx) {
-            upCvx = ERC1155PresetMinterPauser(contractAddress);
+            upCvx = ERC1155PresetMinterPauserSupply(contractAddress);
             return;
         }
 
         if (c == Contract.VpCvx) {
-            vpCvx = ERC1155PresetMinterPauser(contractAddress);
+            vpCvx = ERC1155PresetMinterPauserSupply(contractAddress);
             return;
         }
 
         if (c == Contract.RpCvx) {
-            rpCvx = ERC1155PresetMinterPauser(contractAddress);
+            rpCvx = ERC1155PresetMinterPauserSupply(contractAddress);
             return;
         }
 
@@ -223,14 +254,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     }
 
     /**
-        @notice Get index
-        @return uint256  Index
-     */
-    function getIndex() public view returns (uint256) {
-        return (block.timestamp - FIRST_EPOCH) / EPOCH_DURATION;
-    }
-
-    /**
         @notice Get spCvx array
         @return address  StakedPirexCvx vault address
      */
@@ -240,17 +263,47 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     /**
         @notice Get current snapshot id
-        @return uint256  Snapshot id
+        @return uint256  Current snapshot id
      */
     function getCurrentSnapshotId() external view returns (uint256) {
         return _getCurrentSnapshotId();
     }
 
     /**
+        @notice Get rewards for an epoch
+        @param  epoch                 uint256    Epoch
+        @return snapshotTokens        address[]  Tokens
+        @return snapshotTokenAmounts  uint256[]  Token amounts
+        @return futuresTokens        address[]  Tokens
+        @return futuresTokenAmounts  uint256[]  Token amounts
+     */
+    function getRewards(uint256 epoch)
+        external
+        view
+        returns (
+            address[] memory snapshotTokens,
+            uint256[] memory snapshotTokenAmounts,
+            address[] memory futuresTokens,
+            uint256[] memory futuresTokenAmounts
+        )
+    {
+        return (
+            snapshotRewards[epoch].tokens,
+            snapshotRewards[epoch].tokenAmounts,
+            futuresRewards[epoch].tokens,
+            futuresRewards[epoch].tokenAmounts
+        );
+    }
+
+    /**
         @notice Snapshot token balances
      */
-    function snapshot() external {
-        if (getIndex() > _getCurrentSnapshotId()) _snapshot();
+    function snapshot() public {
+        uint256 currentEpoch = getCurrentEpoch();
+
+        if (epochSnapshotIds[currentEpoch] == 0) {
+            epochSnapshotIds[currentEpoch] = _snapshot();
+        }
     }
 
     /**
@@ -308,7 +361,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         unchecked {
             for (uint8 i; i < rounds; ++i) {
                 // Validates `to`
-                ERC1155PresetMinterPauser(token).mint(
+                ERC1155PresetMinterPauserSupply(token).mint(
                     to,
                     startingEpoch + i * EPOCH_DURATION,
                     amount,
@@ -465,5 +518,62 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
         // Burn upCVX and transfer pCVX to `to`
         s.redeem(to, amount);
+    }
+
+    /**
+        @notice Claim Votium reward
+        @param  token        address    Reward token address
+        @param  index        uint256    Merkle tree node index
+        @param  amount       uint256    Reward token amount
+        @param  merkleProof  bytes32[]  Merkle proof
+    */
+    function claimVotiumReward(
+        address token,
+        uint256 index,
+        uint256 amount,
+        bytes32[] calldata merkleProof
+    ) external {
+        // Snapshot pCVX token balances if we haven't already
+        snapshot();
+
+        // Used for determining reward amounts for snapshotted token holders
+        uint256 snapshotId = _getCurrentSnapshotId();
+        uint256 snapshotSupply = totalSupplyAt(snapshotId);
+
+        emit ClaimVotiumReward(token, index, amount, snapshotId);
+
+        // Used for determining reward amounts for rpCVX token holders for this epoch
+        uint256 epochRpCvxSupply = rpCvx.totalSupply(getCurrentEpoch());
+
+        // Used for calculating the actual token amount received
+        uint256 prevBalance = ERC20(token).balanceOf(address(this));
+
+        // Validates `token`, `index`, `amount`, and `merkleProof`
+        votiumMultiMerkleStash.claim(
+            token,
+            index,
+            address(this),
+            amount,
+            merkleProof
+        );
+
+        // Token amount after fees
+        uint256 actualAmount = ERC20(token).balanceOf(address(this)) -
+            prevBalance;
+
+        // Rewards for snapshot balances, proportionate to the snapshot pCVX + rpCVX supply
+        // E.g. if snapshot supply makes up 50% of that, then snapshotters receive 50% of rewards
+        uint256 snapshotRewardsAmount = (actualAmount * snapshotSupply) /
+            (snapshotSupply + epochRpCvxSupply);
+
+        uint256 currentEpoch = getCurrentEpoch();
+
+        SnapshotRewards storage s = snapshotRewards[currentEpoch];
+        s.tokens.push(token);
+        s.tokenAmounts.push(snapshotRewardsAmount);
+
+        FuturesRewards storage f = futuresRewards[currentEpoch];
+        f.tokens.push(token);
+        f.tokenAmounts.push(actualAmount - snapshotRewardsAmount);
     }
 }
