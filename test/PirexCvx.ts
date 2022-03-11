@@ -59,7 +59,7 @@ describe('PirexCvx', () => {
           .add(epochDuration)
           .add(epochDuration.mul(idx));
         const futuresCvx: any = await ethers.getContractAt(
-          'ERC1155PresetMinterPauserSupply',
+          'ERC1155PresetMinterSupply',
           futures === futuresEnum.vote ? await pCvx.vpCvx() : await pCvx.rpCvx()
         );
 
@@ -503,7 +503,7 @@ describe('PirexCvx', () => {
       const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
       const upCvxBalance = await (
         await ethers.getContractAt(
-          'ERC1155PresetMinterPauserSupply',
+          'ERC1155PresetMinterSupply',
           await pCvx.upCvx()
         )
       ).balanceOf(admin.address, currentEpoch);
@@ -539,7 +539,7 @@ describe('PirexCvx', () => {
     it('Should initiate a redemption for the same contract if the epoch has not changed', async () => {
       const currentEpoch = await pCvx.getCurrentEpoch();
       const upCvx = await ethers.getContractAt(
-        'ERC1155PresetMinterPauserSupply',
+        'ERC1155PresetMinterSupply',
         await pCvx.upCvx()
       );
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
@@ -580,7 +580,7 @@ describe('PirexCvx', () => {
     it('Should initiate a redemption for the same contract with a different futures type', async () => {
       const currentEpoch = await pCvx.getCurrentEpoch();
       const upCvx = await ethers.getContractAt(
-        'ERC1155PresetMinterPauserSupply',
+        'ERC1155PresetMinterSupply',
         await pCvx.upCvx()
       );
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
@@ -625,7 +625,7 @@ describe('PirexCvx', () => {
 
       const epochAfter = await pCvx.getCurrentEpoch();
       const upCvx = await ethers.getContractAt(
-        'ERC1155PresetMinterPauserSupply',
+        'ERC1155PresetMinterSupply',
         await pCvx.upCvx()
       );
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
@@ -705,7 +705,7 @@ describe('PirexCvx', () => {
       const amount = toBN(1e18);
 
       const upCvx = await ethers.getContractAt(
-        'ERC1155PresetMinterPauserSupply',
+        'ERC1155PresetMinterSupply',
         await pCvx.upCvx()
       );
       const upCvxBalance = await upCvx.balanceOf(admin.address, invalidEpoch);
@@ -740,7 +740,7 @@ describe('PirexCvx', () => {
       const to = admin.address;
       const amount = toBN(1e18);
       const upCvx = await ethers.getContractAt(
-        'ERC1155PresetMinterPauserSupply',
+        'ERC1155PresetMinterSupply',
         await pCvx.upCvx()
       );
       const upCvxBalanceBefore = await upCvx.balanceOf(admin.address, epoch);
@@ -950,7 +950,7 @@ describe('PirexCvx', () => {
       const currentEpoch = await pCvx.getCurrentEpoch();
       const epochRpCvxSupply = await (
         await ethers.getContractAt(
-          'ERC1155PresetMinterPauserSupply',
+          'ERC1155PresetMinterSupply',
           await pCvx.rpCvx()
         )
       ).totalSupply(currentEpoch);
