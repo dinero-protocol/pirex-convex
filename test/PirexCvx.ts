@@ -16,6 +16,7 @@ import {
   CvxLocker,
   DelegateRegistry,
   PirexCvx,
+  MultiMerkleStash,
 } from '../typechain-types';
 
 describe('PirexCvx', () => {
@@ -25,6 +26,7 @@ describe('PirexCvx', () => {
   let cvx: ConvexToken;
   let cvxLocker: CvxLocker;
   let cvxDelegateRegistry: DelegateRegistry;
+  let votiumMultiMerkleStash: MultiMerkleStash;
 
   let depositEpoch: BigNumber;
 
@@ -67,14 +69,21 @@ describe('PirexCvx', () => {
 
   before(async () => {
     [admin, notAdmin] = await ethers.getSigners();
-    ({ cvx, cvxLocker, cvxDelegateRegistry } = await setUpConvex());
+    ({ cvx, cvxLocker, cvxDelegateRegistry, votiumMultiMerkleStash } =
+      await setUpConvex());
     pCvx = await (
       await ethers.getContractFactory('PirexCvx')
-    ).deploy(cvx.address, cvxLocker.address, cvxDelegateRegistry.address);
+    ).deploy(
+      cvx.address,
+      cvxLocker.address,
+      cvxDelegateRegistry.address,
+      votiumMultiMerkleStash.address
+    );
   });
 
   describe('constructor', () => {
     it('Should set up contract state', async () => {
+      const _FIRST_EPOCH = await pCvx.FIRST_EPOCH();
       const _CVX = await pCvx.CVX();
       const _EPOCH_DURATION = await pCvx.EPOCH_DURATION();
       const _UNLOCKING_DURATION = await pCvx.UNLOCKING_DURATION();
@@ -86,8 +95,11 @@ describe('PirexCvx', () => {
       const _rpCvx = await pCvx.rpCvx();
       const _spCvxImplementation = await pCvx.spCvxImplementation();
       const _delegationSpace = await pCvx.delegationSpace();
-      const _cvxOutstanding = await pCvx.cvxOutstanding();
+      const _cvxOutstanding = await pCvx.cvxOutstanding()
+      const _name = await pCvx.name();
+      const _symbol = await pCvx.symbol();
 
+      expect(_FIRST_EPOCH).to.equal(await pCvx.getCurrentEpoch());
       expect(_CVX).to.equal(cvx.address);
       expect(_EPOCH_DURATION).to.equal(1209600);
       expect(_UNLOCKING_DURATION).to.equal(10281600);
@@ -100,6 +112,63 @@ describe('PirexCvx', () => {
       expect(_spCvxImplementation).to.not.equal(zeroAddress);
       expect(_delegationSpace).to.equal(delegationSpaceBytes32);
       expect(_cvxOutstanding).to.equal(0);
+      expect(_name).to.equal("Pirex CVX");
+      expect(_symbol).to.equal("pCVX");
+    });
+  });
+
+  describe('getCurrentEpoch', () => {
+    it('Should return the current epoch', async () => {
+      const currentEpoch = await pCvx.getCurrentEpoch();
+      const expectedEpoch = toBN(
+        (await ethers.provider.getBlock('latest')).timestamp
+      )
+        .div(epochDuration)
+        .mul(epochDuration);
+
+      expect(currentEpoch).to.not.equal(0);
+      expect(currentEpoch).to.equal(expectedEpoch);
+    });
+  });
+
+  describe('getIndex', () => {
+    it('Should return the index', async () => {
+      const index = await pCvx.getIndex();
+      const expectedIndex = toBN(
+        (await ethers.provider.getBlock('latest')).timestamp
+      )
+        .sub(await pCvx.FIRST_EPOCH())
+        .div(epochDuration);
+
+      expect(index).to.equal(0);
+      expect(index).to.equal(expectedIndex);
+    });
+  });
+
+  describe('snapshot', () => {
+    it('Should not take a snapshot if index is not greater', async () => {
+      const index = await pCvx.getIndex();
+      const currentSnapshotId = await pCvx.getCurrentSnapshotId();
+
+      await pCvx.snapshot();
+
+      expect(index).to.equal(0);
+      expect(currentSnapshotId).to.equal(0);
+    });
+
+    it('Should take a snapshot if index is greater', async () => {
+      await increaseBlockTimestamp(Number(epochDuration));
+
+      const index = await pCvx.getIndex();
+      const currentSnapshotIdBefore = await pCvx.getCurrentSnapshotId();
+      const snapshotEvent = await callAndReturnEvent(pCvx.snapshot, []);
+      const currentSnapshotIdAfter = await pCvx.getCurrentSnapshotId();
+
+      expect(index).to.equal(1);
+      expect(currentSnapshotIdBefore).to.equal(0);
+      expect(currentSnapshotIdAfter).to.equal(currentSnapshotIdBefore.add(1));
+      expect(snapshotEvent.eventSignature).to.equal('Snapshot(uint256)');
+      expect(snapshotEvent.args.id).to.equal(currentSnapshotIdAfter);
     });
   });
 

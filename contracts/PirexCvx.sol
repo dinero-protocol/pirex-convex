@@ -3,6 +3,7 @@ pragma solidity 0.8.12;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {ERC20Snapshot} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
@@ -10,13 +11,14 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {ERC1155PresetMinterPauser} from "@openzeppelin/contracts/token/ERC1155/presets/ERC1155PresetMinterPauser.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
+import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 import {StakedPirexCvx} from "./StakedPirexCvx.sol";
 
 interface IConvexDelegateRegistry {
     function setDelegate(bytes32 id, address delegate) external;
 }
 
-contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
+contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     using SafeERC20 for ERC20;
     using Strings for uint256;
 
@@ -38,6 +40,9 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
 
     ERC20 public immutable CVX;
 
+    // Used to calculate the index
+    uint256 public immutable FIRST_EPOCH;
+
     // Seconds between Convex voting rounds (2 weeks)
     uint32 public immutable EPOCH_DURATION = 1209600;
 
@@ -49,6 +54,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
 
     ICvxLocker public cvxLocker;
     ICvxDelegateRegistry public cvxDelegateRegistry;
+    IVotiumMultiMerkleStash public votiumMultiMerkleStash;
     ERC1155PresetMinterPauser public upCvx;
     ERC1155PresetMinterPauser public vpCvx;
     ERC1155PresetMinterPauser public rpCvx;
@@ -95,15 +101,19 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     error InsufficientBalance();
 
     /**
-        @param  _CVX                  address  CVX address    
-        @param  _cvxLocker            address  CvxLocker address
-        @param  _cvxDelegateRegistry  address  CvxDelegateRegistry address
+        @param  _CVX                     address  CVX address    
+        @param  _cvxLocker               address  CvxLocker address
+        @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
+        @param  _votiumMultiMerkleStash  address  VotiumMultiMerkleStash address
      */
     constructor(
         address _CVX,
         address _cvxLocker,
-        address _cvxDelegateRegistry
-    ) {
+        address _cvxDelegateRegistry,
+        address _votiumMultiMerkleStash
+    ) ERC20("Pirex CVX", "pCVX") {
+        FIRST_EPOCH = getCurrentEpoch();
+
         if (_CVX == address(0)) revert ZeroAddress();
         CVX = ERC20(_CVX);
 
@@ -113,6 +123,11 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
         if (_cvxDelegateRegistry == address(0)) revert ZeroAddress();
         cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
 
+        if (_votiumMultiMerkleStash == address(0)) revert ZeroAddress();
+        votiumMultiMerkleStash = IVotiumMultiMerkleStash(
+            _votiumMultiMerkleStash
+        );
+
         upCvx = new ERC1155PresetMinterPauser("");
         vpCvx = new ERC1155PresetMinterPauser("");
         rpCvx = new ERC1155PresetMinterPauser("");
@@ -120,7 +135,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     }
 
     /** 
-        @notice Set CvxLocker address
+        @notice Set a contract address
         @param  c                Contract  Contract to set
         @param  contractAddress  address   CvxLocker address    
      */
@@ -157,9 +172,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
             return;
         }
 
-        if (c == Contract.SpCvxImplementation) {
-            spCvxImplementation = contractAddress;
-        }
+        spCvxImplementation = contractAddress;
     }
 
     /** 
@@ -210,11 +223,34 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20("Pirex CVX", "pCVX") {
     }
 
     /**
+        @notice Get index
+        @return uint256  Index
+     */
+    function getIndex() public view returns (uint256) {
+        return (block.timestamp - FIRST_EPOCH) / EPOCH_DURATION;
+    }
+
+    /**
         @notice Get spCvx array
         @return address  StakedPirexCvx vault address
      */
     function getSpCvx() external view returns (address[] memory) {
         return spCvx;
+    }
+
+    /**
+        @notice Get current snapshot id
+        @return uint256  Snapshot id
+     */
+    function getCurrentSnapshotId() external view returns (uint256) {
+        return _getCurrentSnapshotId();
+    }
+
+    /**
+        @notice Snapshot token balances
+     */
+    function snapshot() external {
+        if (getIndex() > _getCurrentSnapshotId()) _snapshot();
     }
 
     /**
