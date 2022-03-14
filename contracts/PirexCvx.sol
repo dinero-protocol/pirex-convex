@@ -24,13 +24,20 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     using Strings for uint256;
 
     /**
-        @notice Rewards for pCVX holders
-        @param  amounts  uint256[]  Token amounts
-        @param  claimed  mapping    Accounts mapped to tokens mapped to claimed amounts
+        @notice Epoch details
+        @notice Reward/snapshotRewards/futuresRewards indexes are associated with 1 reward
+        @param  snapshotId              uint256    Snapshot id
+        @param  rewards                 address[]  Rewards
+        @param  snapshotRewards         uint256[]  Snapshot reward amounts
+        @param  futuresRewards          uint256[]  Futures reward amounts
+        @param  claimedSnapshotRewards  mapping    Claimed snapshot rewards
      */
-    struct SnapshotRewards {
-        uint256[] amounts;
-        mapping(address => mapping(address => uint256)) claimed;
+    struct Epoch {
+        uint256 snapshotId;
+        address[] rewards;
+        uint256[] snapshotRewards;
+        uint256[] futuresRewards;
+        mapping(address => mapping(address => uint256)) claimedSnapshotRewards;
     }
 
     // Users can choose between the two futures tokens when staking or unlocking
@@ -80,18 +87,8 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     // The amount of CVX that needs to remain unlocked for redemptions
     uint256 public cvxOutstanding;
 
-    // Epochs mapped to snapshot ids
-    mapping(uint256 => uint256) public epochSnapshotIds;
-
-    // Epochs mapped to reward tokens - reward indexes must line up with
-    // that of the indexes for snapshot and futures reward amounts
-    mapping(uint256 => address[]) public rewards;
-
-    // Epochs mapped to snapshot rewards
-    mapping(uint256 => SnapshotRewards) snapshotRewards;
-
-    // Epochs mapped to futures rewards
-    mapping(uint256 => uint256[]) futuresRewards;
+    // Epochs mapped to epoch details
+    mapping(uint256 => Epoch) private epochs;
 
     event SetContract(Contract c, address contractAddress);
     event SetDelegationSpace(string _delegationSpace);
@@ -129,11 +126,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         address reward,
         uint256 claimAmount
     );
-    event ClaimFuturesRewards(
-        uint256 epoch,
-        address to,
-        address[] rewards
-    );
+    event ClaimFuturesRewards(uint256 epoch, address to, address[] rewards);
 
     error ZeroAddress();
     error ZeroAmount();
@@ -155,7 +148,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         address _votiumMultiMerkleStash
     ) ERC20("Pirex CVX", "pCVX") {
         // Start snapshot id from 1 and set it to simplify snapshot-taking determination
-        epochSnapshotIds[getCurrentEpoch()] = _snapshot();
+        epochs[getCurrentEpoch()].snapshotId = _snapshot();
 
         if (_CVX == address(0)) revert ZeroAddress();
         CVX = ERC20(_CVX);
@@ -283,25 +276,25 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     /**
         @notice Get rewards for an epoch
-        @param  epoch                  uint256    Epoch
-        @return _rewards               address[]  Reward tokens
-        @return snapshotRewardAmounts  uint256[]  Snapshot reward amounts
-        @return futuresRewardAmounts   uint256[]  Futures reward amounts
+        @param  epoch            uint256    Epoch
+        @return snapshotId       uint256    Snapshot id
+        @return rewards          address[]  Reward tokens
+        @return snapshotRewards  uint256[]  Snapshot reward amounts
+        @return futuresRewards   uint256[]  Futures reward amounts
      */
-    function getRewards(uint256 epoch)
+    function getEpoch(uint256 epoch)
         external
         view
         returns (
-            address[] memory _rewards,
-            uint256[] memory snapshotRewardAmounts,
-            uint256[] memory futuresRewardAmounts
+            uint256 snapshotId,
+            address[] memory rewards,
+            uint256[] memory snapshotRewards,
+            uint256[] memory futuresRewards
         )
     {
-        return (
-            rewards[epoch],
-            snapshotRewards[epoch].amounts,
-            futuresRewards[epoch]
-        );
+        Epoch storage e = epochs[epoch];
+
+        return (e.snapshotId, e.rewards, e.snapshotRewards, e.futuresRewards);
     }
 
     /**
@@ -310,8 +303,8 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     function snapshot() public {
         uint256 currentEpoch = getCurrentEpoch();
 
-        if (epochSnapshotIds[currentEpoch] == 0) {
-            epochSnapshotIds[currentEpoch] = _snapshot();
+        if (epochs[currentEpoch].snapshotId == 0) {
+            epochs[currentEpoch].snapshotId = _snapshot();
         }
     }
 
@@ -576,13 +569,12 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         uint256 snapshotRewardsAmount = (actualAmount * snapshotSupply) /
             (snapshotSupply + epochRpCvxSupply);
 
-        // Add reward token address, which shares the same index as the amount in the structs below
-        rewards[currentEpoch].push(token);
-
-        SnapshotRewards storage s = snapshotRewards[currentEpoch];
-        s.amounts.push(snapshotRewardsAmount);
-
-        futuresRewards[currentEpoch].push(actualAmount - snapshotRewardsAmount);
+        // Add reward token address, which shares the same index as the snapshotRewards/futuresRewards indexes
+        epochs[currentEpoch].rewards.push(token);
+        epochs[currentEpoch].snapshotRewards.push(snapshotRewardsAmount);
+        epochs[currentEpoch].futuresRewards.push(
+            actualAmount - snapshotRewardsAmount
+        );
     }
 
     /**
@@ -598,22 +590,24 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     ) external nonReentrant {
         if (epoch == 0) revert ZeroAmount();
 
+        Epoch storage e = epochs[epoch];
+
         // Check whether msg.sender maintained a positive balance before the snapshot
-        uint256 snapshotId = epochSnapshotIds[epoch];
+        uint256 snapshotId = e.snapshotId;
         uint256 snapshotBalance = balanceOfAt(msg.sender, snapshotId);
         if (snapshotBalance == 0) revert InsufficientBalance();
 
         // Check whether msg.sender has already claimed this reward
-        address reward = rewards[epoch][rewardIndex];
-        if (snapshotRewards[epoch].claimed[msg.sender][reward] != 0)
+        address reward = e.rewards[rewardIndex];
+        if (e.claimedSnapshotRewards[msg.sender][reward] != 0)
             revert AlreadyClaimed();
 
         // Proportionate to the % of pCVX owned out of total supply for the snapshot
-        uint256 claimAmount = (snapshotRewards[epoch].amounts[rewardIndex] *
+        uint256 claimAmount = (e.snapshotRewards[rewardIndex] *
             snapshotBalance) / totalSupplyAt(snapshotId);
 
         // Set claim amount to prevent re-claiming
-        snapshotRewards[epoch].claimed[msg.sender][reward] = claimAmount;
+        e.claimedSnapshotRewards[msg.sender][reward] = claimAmount;
 
         emit ClaimSnapshotReward(
             epoch,
@@ -639,7 +633,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     {
         if (epoch == 0) revert ZeroAmount();
 
-        address[] memory r = rewards[epoch];
+        address[] memory r = epochs[epoch].rewards;
 
         emit ClaimFuturesRewards(epoch, to, r);
 
@@ -653,13 +647,16 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         // Burn rpCVX tokens
         rpCvx.burn(msg.sender, epoch, rpCvxBalance);
 
-        uint256[] memory f = futuresRewards[epoch];
-
         unchecked {
+            uint256[] memory f = epochs[epoch].futuresRewards;
+
             // Loop over rewards and transfer the amount entitled to the rpCVX token holder
             for (uint8 i; i < r.length; ++i) {
                 // Proportionate to the % of rpCVX owned out of the rpCVX total supply
-                ERC20(r[i]).safeTransfer(to, f[i] * rpCvxBalance / rpCvxTotalSupply);
+                ERC20(r[i]).safeTransfer(
+                    to,
+                    (f[i] * rpCvxBalance) / rpCvxTotalSupply
+                );
             }
         }
     }
