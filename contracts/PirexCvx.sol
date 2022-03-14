@@ -1,27 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import "hardhat/console.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {ERC20Snapshot} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 import {StakedPirexCvx} from "./StakedPirexCvx.sol";
 
-interface IConvexDelegateRegistry {
-    function setDelegate(bytes32 id, address delegate) external;
-}
-
 contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     using SafeERC20 for ERC20;
-    using Strings for uint256;
 
     /**
         @notice Epoch details
@@ -259,8 +252,8 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     }
 
     /**
-        @notice Get spCvx array
-        @return address  StakedPirexCvx vault address
+        @notice Get spCvx
+        @return address[]  StakedPirexCvx vault addresses
      */
     function getSpCvx() external view returns (address[] memory) {
         return spCvx;
@@ -355,12 +348,12 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         uint256 amount,
         Futures f
     ) internal {
-        uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
-        address token = f == Futures.Vote ? address(vpCvx) : address(rpCvx);
-
         emit MintFutures(rounds, to, amount, f);
 
         unchecked {
+            uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
+            address token = f == Futures.Vote ? address(vpCvx) : address(rpCvx);
+
             for (uint8 i; i < rounds; ++i) {
                 // Validates `to`
                 ERC1155PresetMinterSupply(token).mint(
@@ -395,9 +388,9 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     /**
         @notice Initiate CVX redemption
-        @param  to       address  upCVX recipient
-        @param  amount   uint256  pCVX/upCVX amount
-        @param  f        enum     Futures
+        @param  to      address  upCVX recipient
+        @param  amount  uint256  pCVX/upCVX amount
+        @param  f       enum     Futures
      */
     function initiateRedemption(
         address to,
@@ -423,9 +416,9 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     /**
         @notice Redeem CVX
-        @param  epoch    uint256  Epoch
-        @param  to       address  CVX recipient
-        @param  amount   uint256  upCVX/CVX amount
+        @param  epoch   uint256  Epoch
+        @param  to      address  CVX recipient
+        @param  amount  uint256  upCVX/CVX amount
      */
     function redeem(
         uint256 epoch,
@@ -511,15 +504,13 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
-        StakedPirexCvx s = StakedPirexCvx(vault);
-
         emit Unstake(vault, to, amount);
 
         // Transfer shares from msg.sender to self
-        ERC20(address(s)).safeTransferFrom(msg.sender, address(this), amount);
+        ERC20(vault).safeTransferFrom(msg.sender, address(this), amount);
 
         // Burn upCVX and transfer pCVX to `to`
-        s.redeem(to, amount);
+        StakedPirexCvx(vault).redeem(to, amount);
     }
 
     /**
@@ -534,7 +525,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         uint256 index,
         uint256 amount,
         bytes32[] calldata merkleProof
-    ) external {
+    ) external nonReentrant {
         // Snapshot pCVX token balances if we haven't already
         snapshot();
 
@@ -569,7 +560,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         uint256 snapshotRewardsAmount = (actualAmount * snapshotSupply) /
             (snapshotSupply + epochRpCvxSupply);
 
-        // Add reward token address, which shares the same index as the snapshotRewards/futuresRewards indexes
+        // Add reward token address and snapshot/futuresRewards amounts (same index for all)
         epochs[currentEpoch].rewards.push(token);
         epochs[currentEpoch].snapshotRewards.push(snapshotRewardsAmount);
         epochs[currentEpoch].futuresRewards.push(
@@ -624,8 +615,8 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     /**
         @notice Claim Futures rewards as a rpCVX holder for an epoch
-        @param  epoch        uint256  Epoch / token id
-        @param  to           address  Futures rewards recipient
+        @param  epoch  uint256  Epoch (ERC1155 token id)
+        @param  to     address  Futures rewards recipient
     */
     function claimFuturesRewards(uint256 epoch, address to)
         external
