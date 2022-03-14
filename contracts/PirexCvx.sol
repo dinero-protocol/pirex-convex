@@ -30,7 +30,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         address[] rewards;
         uint256[] snapshotRewards;
         uint256[] futuresRewards;
-        mapping(address => mapping(address => uint256)) claimedSnapshotRewards;
+        mapping(address => mapping(uint8 => uint256)) claimedSnapshotRewards;
     }
 
     // Users can choose between the two futures tokens when staking or unlocking
@@ -120,6 +120,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         uint256 claimAmount
     );
     event ClaimFuturesRewards(uint256 epoch, address to, address[] rewards);
+    event PerformEpochMaintenance(uint256 epoch, uint256 snapshotId);
 
     error ZeroAddress();
     error ZeroAmount();
@@ -322,21 +323,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
             unchecked {
                 _lock(balance - cvxOutstanding);
             }
-        }
-    }
-
-    /**
-        @notice Snapshot token balances and claim misc. rewards for current epoch
-     */
-    function _performEpochMaintenance() internal {
-        uint256 currentEpoch = getCurrentEpoch();
-
-        // If snapshot has not been set for current epoch, perform maintenance
-        if (epochs[currentEpoch].snapshotId == 0) {
-            epochs[currentEpoch].snapshotId = _snapshot();
-
-            // Only claim misc. rewards when a new snapshot is taken
-            _claimMiscRewards();
         }
     }
 
@@ -563,6 +549,26 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     }
 
     /**
+        @notice Snapshot token balances and claim misc. rewards for current epoch
+     */
+    function performEpochMaintenance() public {
+        uint256 currentEpoch = getCurrentEpoch();
+
+        // If snapshot has not been set for current epoch, perform maintenance
+        if (epochs[currentEpoch].snapshotId == 0) {
+            epochs[currentEpoch].snapshotId = _snapshot();
+
+            emit PerformEpochMaintenance(
+                currentEpoch,
+                epochs[currentEpoch].snapshotId
+            );
+
+            // Only claim misc. rewards when a new snapshot is taken
+            _claimMiscRewards();
+        }
+    }
+
+    /**
         @notice Claim Votium reward
         @param  token        address    Reward token address
         @param  index        uint256    Merkle tree node index
@@ -639,7 +645,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
         // Check whether msg.sender has already claimed this reward
         address reward = e.rewards[rewardIndex];
-        if (e.claimedSnapshotRewards[msg.sender][reward] != 0)
+        if (e.claimedSnapshotRewards[msg.sender][rewardIndex] != 0)
             revert AlreadyClaimed();
 
         // Proportionate to the % of pCVX owned out of total supply for the snapshot
@@ -647,7 +653,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
             snapshotBalance) / totalSupplyAt(snapshotId);
 
         // Set claim amount to prevent re-claiming
-        e.claimedSnapshotRewards[msg.sender][reward] = claimAmount;
+        e.claimedSnapshotRewards[msg.sender][rewardIndex] = claimAmount;
 
         emit ClaimSnapshotReward(
             epoch,
