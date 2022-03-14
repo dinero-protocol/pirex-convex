@@ -791,7 +791,7 @@ describe('PirexCvx', () => {
     });
 
     it('Should stake pCVX', async () => {
-      const rounds = 26;
+      const rounds = 255;
       const to = admin.address;
       const amount = toBN(1e18);
       const f = futuresEnum.reward;
