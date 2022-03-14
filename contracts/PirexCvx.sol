@@ -24,21 +24,13 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     using Strings for uint256;
 
     /**
-        @notice Epoch rewards for pCVX holders
+        @notice Rewards for pCVX holders
         @param  amounts  uint256[]  Token amounts
-        @param  claimed       mapping    Accounts mapped to tokens mapped to claimed amounts
+        @param  claimed  mapping    Accounts mapped to tokens mapped to claimed amounts
      */
     struct SnapshotRewards {
         uint256[] amounts;
         mapping(address => mapping(address => uint256)) claimed;
-    }
-
-    /**
-        @notice Epoch rewards for rpCVX holders
-        @param  amounts  uint256[]  Token amounts
-     */
-    struct FuturesRewards {
-        uint256[] amounts;
     }
 
     // Users can choose between the two futures tokens when staking or unlocking
@@ -99,7 +91,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     mapping(uint256 => SnapshotRewards) snapshotRewards;
 
     // Epochs mapped to futures rewards
-    mapping(uint256 => FuturesRewards) futuresRewards;
+    mapping(uint256 => uint256[]) futuresRewards;
 
     event SetContract(Contract c, address contractAddress);
     event SetDelegationSpace(string _delegationSpace);
@@ -308,7 +300,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         return (
             rewards[epoch],
             snapshotRewards[epoch].amounts,
-            futuresRewards[epoch].amounts
+            futuresRewards[epoch]
         );
     }
 
@@ -590,8 +582,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         SnapshotRewards storage s = snapshotRewards[currentEpoch];
         s.amounts.push(snapshotRewardsAmount);
 
-        FuturesRewards storage f = futuresRewards[currentEpoch];
-        f.amounts.push(actualAmount - snapshotRewardsAmount);
+        futuresRewards[currentEpoch].push(actualAmount - snapshotRewardsAmount);
     }
 
     /**
@@ -662,13 +653,13 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         // Burn rpCVX tokens
         rpCvx.burn(msg.sender, epoch, rpCvxBalance);
 
-        FuturesRewards memory f = futuresRewards[epoch];
+        uint256[] memory f = futuresRewards[epoch];
 
         unchecked {
             // Loop over rewards and transfer the amount entitled to the rpCVX token holder
             for (uint8 i; i < r.length; ++i) {
                 // Proportionate to the % of rpCVX owned out of the rpCVX total supply
-                ERC20(r[i]).safeTransfer(to, f.amounts[i] * rpCvxBalance / rpCvxTotalSupply);
+                ERC20(r[i]).safeTransfer(to, f[i] * rpCvxBalance / rpCvxTotalSupply);
             }
         }
     }
