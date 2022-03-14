@@ -127,6 +127,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     error BeforeLockExpiry();
     error InsufficientBalance();
     error AlreadyClaimed();
+    error MaintenanceRequired();
 
     /**
         @param  _CVX                     address  CVX address    
@@ -291,17 +292,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     }
 
     /**
-        @notice Snapshot token balances
-     */
-    function snapshot() public {
-        uint256 currentEpoch = getCurrentEpoch();
-
-        if (epochs[currentEpoch].snapshotId == 0) {
-            epochs[currentEpoch].snapshotId = _snapshot();
-        }
-    }
-
-    /**
         @notice Lock CVX
         @param  amount  uint256  CVX amount
      */
@@ -332,6 +322,65 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
             unchecked {
                 _lock(balance - cvxOutstanding);
             }
+        }
+    }
+
+    /**
+        @notice Snapshot token balances and claim misc. rewards for current epoch
+     */
+    function _performEpochMaintenance() internal {
+        uint256 currentEpoch = getCurrentEpoch();
+
+        // If snapshot has not been set for current epoch, perform maintenance
+        if (epochs[currentEpoch].snapshotId == 0) {
+            epochs[currentEpoch].snapshotId = _snapshot();
+
+            // Only claim misc. rewards when a new snapshot is taken
+            _claimMiscRewards();
+        }
+    }
+
+    /**
+        @notice Claim misc. rewards (e.g. Convex platform fees)
+     */
+    function _claimMiscRewards() internal {
+        // Get claimable rewards
+        ICvxLocker.EarnedData[] memory c = cvxLocker.claimableRewards(
+            address(this)
+        );
+        uint256 cLen = c.length;
+        address tAddr = address(this);
+        uint256[] memory balancesBefore = new uint256[](cLen);
+
+        // Get the current balances for each token to calculate the amount received
+        for (uint256 i; i < cLen; ++i) {
+            if (c[i].amount == 0) continue;
+
+            balancesBefore[i] = ERC20(c[i].token).balanceOf(tAddr);
+        }
+
+        // Get rewards
+        cvxLocker.getReward(tAddr, false);
+
+        uint256 currentEpoch = getCurrentEpoch();
+        Epoch storage e = epochs[currentEpoch];
+        uint256 snapshotSupply = totalSupplyAt(e.snapshotId);
+        uint256 epochRpCvxSupply = rpCvx.totalSupply(currentEpoch);
+        uint256 combinedSupply = snapshotSupply + epochRpCvxSupply;
+
+        // Calculate the rewards for both pCVX/snapshot and rpCVX/futures holders
+        for (uint256 j; j < cLen; ++j) {
+            if (c[j].amount == 0) continue;
+
+            // Actual amount of tokens received (after factoring in fees and existing balance)
+            uint256 actualAmount = ERC20(c[j].token).balanceOf(tAddr) -
+                balancesBefore[j];
+            uint256 snapshotRewardAmount = (actualAmount * snapshotSupply) /
+                combinedSupply;
+
+            e.rewards.push(c[j].token);
+            e.snapshotRewards.push(snapshotRewardAmount);
+            e.futuresRewards.push(actualAmount - snapshotRewardAmount);
         }
     }
 
@@ -526,13 +575,13 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         uint256 amount,
         bytes32[] calldata merkleProof
     ) external nonReentrant {
-        // Snapshot pCVX token balances if we haven't already
-        snapshot();
+        // Check if maintenance has been performed on the epoch
+        uint256 currentEpoch = getCurrentEpoch();
+        if (epochs[currentEpoch].snapshotId == 0) revert MaintenanceRequired();
 
         // Used for determining reward amounts for snapshotted token holders
         uint256 snapshotId = _getCurrentSnapshotId();
         uint256 snapshotSupply = totalSupplyAt(snapshotId);
-        uint256 currentEpoch = getCurrentEpoch();
 
         emit ClaimVotiumReward(token, index, amount, snapshotId);
 
