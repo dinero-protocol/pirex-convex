@@ -133,6 +133,7 @@ export const setUpConvex = async () => {
   await cvxStakingProxy.setApprovals();
   await cvx.mint(admin.address, initialBalanceForAdmin);
   await crv.mint(admin.address, initialBalanceForAdmin)
+  await cvxCrvToken.mint(admin.address, initialBalanceForAdmin);
 
   return {
     curveVoterProxy,
