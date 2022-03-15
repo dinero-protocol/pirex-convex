@@ -49,6 +49,12 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         SpCvxImplementation
     }
 
+    // Configurable fees
+    enum Fees {
+        Deposit,
+        Reward
+    }
+
     ERC20 public immutable CVX;
 
     // Seconds between Convex voting rounds (2 weeks)
@@ -59,6 +65,9 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     // Number of futures rounds to mint when a redemption is initiated
     uint8 public immutable REDEMPTION_FUTURES_ROUNDS = 8;
+
+    // Fee denominator
+    uint32 public immutable FEE_DENOMINATOR = 1000000;
 
     ICvxLocker public cvxLocker;
     ICvxDelegateRegistry public cvxDelegateRegistry;
@@ -83,7 +92,11 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     // Epochs mapped to epoch details
     mapping(uint256 => Epoch) private epochs;
 
+    // Fees (e.g. 5000 / 1000000 = 0.5%)
+    mapping(Fees => uint16) public fees;
+
     event SetContract(Contract c, address contractAddress);
+    event SetFee(Fees f, uint16 amount);
     event SetDelegationSpace(string _delegationSpace);
     event SetVoteDelegate(address _voteDelegate);
     event RemoveVoteDelegate();
@@ -207,6 +220,22 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     }
 
     /** 
+        @notice Set fee
+        @param  f       Fees     Fee enum
+        @param  amount  uint16  Fee amount
+     */
+    function setFee(Fees f, uint16 amount) external onlyOwner {
+        emit SetFee(f, amount);
+
+        if (f == Fees.Deposit) {
+            fees[Fees.Deposit] = amount;
+            return;
+        }
+
+        fees[Fees.Reward] = amount;
+    }
+
+    /** 
         @notice Set delegationSpace
         @param  _delegationSpace  string  Convex Snapshot delegation space
      */
@@ -249,7 +278,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         @notice Get current epoch
         @return uint256  Current epoch
      */
-     function getCurrentEpoch() public view returns (uint256) {
+    function getCurrentEpoch() public view returns (uint256) {
         return (block.timestamp / EPOCH_DURATION) * EPOCH_DURATION;
     }
 
