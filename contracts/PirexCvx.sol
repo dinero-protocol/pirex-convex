@@ -249,7 +249,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         @notice Get current epoch
         @return uint256  Current epoch
      */
-    function getCurrentEpoch() public view returns (uint256) {
+     function getCurrentEpoch() public view returns (uint256) {
         return (block.timestamp / EPOCH_DURATION) * EPOCH_DURATION;
     }
 
@@ -270,7 +270,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     }
 
     /**
-        @notice Get rewards for an epoch
+        @notice Get epoch
         @param  epoch            uint256    Epoch
         @return snapshotId       uint256    Snapshot id
         @return rewards          address[]  Reward tokens
@@ -327,15 +327,46 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     }
 
     /**
+        @notice Mint futures tokens
+        @param  rounds  uint8    Rounds (i.e. Convex voting rounds)
+        @param  to      address  Futures recipient
+        @param  amount  uint256  Futures amount
+        @param  f       enum     Futures
+    */
+    function _mintFutures(
+        uint8 rounds,
+        address to,
+        uint256 amount,
+        Futures f
+    ) internal {
+        emit MintFutures(rounds, to, amount, f);
+
+        unchecked {
+            uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
+            address token = f == Futures.Vote ? address(vpCvx) : address(rpCvx);
+
+            for (uint8 i; i < rounds; ++i) {
+                // Validates `to`
+                ERC1155PresetMinterSupply(token).mint(
+                    to,
+                    startingEpoch + i * EPOCH_DURATION,
+                    amount,
+                    ""
+                );
+            }
+        }
+    }
+
+    /**
         @notice Claim misc. rewards (e.g. Convex platform fees)
      */
     function _claimMiscRewards() internal {
-        // Get claimable rewards
-        ICvxLocker.EarnedData[] memory c = cvxLocker.claimableRewards(
-            address(this)
-        );
-        uint256 cLen = c.length;
         address tAddr = address(this);
+
+        // Get claimable rewards
+        ICvxLocker.EarnedData[] memory c = cvxLocker.claimableRewards(tAddr);
+
+        uint256 cLen = c.length;
         uint256[] memory balancesBefore = new uint256[](cLen);
 
         // Get the current balances for each token to calculate the amount received
@@ -367,37 +398,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
             e.rewards.push(c[j].token);
             e.snapshotRewards.push(snapshotRewardAmount);
             e.futuresRewards.push(actualAmount - snapshotRewardAmount);
-        }
-    }
-
-    /**
-        @notice Mint futures tokens
-        @param  rounds  uint8    Rounds (i.e. Convex voting rounds)
-        @param  to      address  Futures recipient
-        @param  amount  uint256  Futures amount
-        @param  f       enum     Futures
-    */
-    function _mintFutures(
-        uint8 rounds,
-        address to,
-        uint256 amount,
-        Futures f
-    ) internal {
-        emit MintFutures(rounds, to, amount, f);
-
-        unchecked {
-            uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
-            address token = f == Futures.Vote ? address(vpCvx) : address(rpCvx);
-
-            for (uint8 i; i < rounds; ++i) {
-                // Validates `to`
-                ERC1155PresetMinterSupply(token).mint(
-                    to,
-                    startingEpoch + i * EPOCH_DURATION,
-                    amount,
-                    ""
-                );
-            }
         }
     }
 
