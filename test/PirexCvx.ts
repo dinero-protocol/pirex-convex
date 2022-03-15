@@ -51,6 +51,10 @@ describe('PirexCvx', () => {
     vote: 0,
     reward: 1,
   };
+  const feesEnum = {
+    deposit: 0,
+    reward: 1,
+  };
   const getFuturesCvxBalances = async (
     rounds: number,
     futures: number,
@@ -280,6 +284,65 @@ describe('PirexCvx', () => {
       expect(spCvxImplementationBefore).to.equal(
         await pCvx.spCvxImplementation()
       );
+    });
+  });
+
+  describe('setFee', () => {
+    it('Should revert if f is not valid Fees enum', async () => {
+      const invalidF = 2;
+      const amount = 1;
+
+      await expect(pCvx.setFee(invalidF, amount)).to.be.reverted;
+    });
+
+    it('Should revert if amount is not uint16', async () => {
+      const f = feesEnum.deposit;
+      const invalidAmount = 2 ** 16;
+
+      await expect(pCvx.setFee(f, invalidAmount)).to.be.reverted;
+    });
+
+    it('Should revert if not owner', async () => {
+      const f = feesEnum.deposit;
+      const amount = 1;
+
+      await expect(pCvx.connect(notAdmin).setFee(f, amount)).to.be.revertedWith(
+        'Ownable: caller is not the owner'
+      );
+    });
+
+    it('Should set the deposit fee', async () => {
+      const depositFeeBefore = await pCvx.fees(feesEnum.deposit);
+      const amount = 20000;
+      const events = await callAndReturnEvents(pCvx.setFee, [
+        feesEnum.deposit,
+        amount,
+      ]);
+      const setEvent = events[0];
+      const depositFeeAfter = await pCvx.fees(feesEnum.deposit);
+
+      expect(depositFeeBefore).to.equal(0);
+      expect(depositFeeAfter).to.equal(amount);
+      expect(setEvent.eventSignature).to.equal('SetFee(uint8,uint16)');
+      expect(setEvent.args.f).to.equal(feesEnum.deposit);
+      expect(setEvent.args.amount).to.equal(amount);
+    });
+
+    it('Should set the reward fee', async () => {
+      const rewardFeeBefore = await pCvx.fees(feesEnum.reward);
+      const amount = 5000;
+      const events = await callAndReturnEvents(pCvx.setFee, [
+        feesEnum.reward,
+        amount,
+      ]);
+      const setEvent = events[0];
+      const rewardFeeAfter = await pCvx.fees(feesEnum.reward);
+
+      expect(rewardFeeBefore).to.equal(0);
+      expect(rewardFeeAfter).to.equal(amount);
+      expect(setEvent.eventSignature).to.equal('SetFee(uint8,uint16)');
+      expect(setEvent.args.f).to.equal(feesEnum.reward);
+      expect(setEvent.args.amount).to.equal(amount);
     });
   });
 
