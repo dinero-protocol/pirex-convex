@@ -20,6 +20,7 @@ contract FeePool is AccessControl, ReentrancyGuard {
     bytes32 public immutable REVENUE_LOCKERS_ROLE =
         bytes32(bytes("REVENUE_LOCKERS"));
     bytes32 public immutable CONTRIBUTORS_ROLE = bytes32(bytes("CONTRIBUTORS"));
+    bytes32 public immutable DEPOSITORS_ROLE = bytes32(bytes("DEPOSITORS"));
 
     // Configurable fee recipient addresses
     address public treasury;
@@ -31,6 +32,8 @@ contract FeePool is AccessControl, ReentrancyGuard {
     uint8 public revenueLockersPercent = 50;
     uint8 public contributorsPercent = 25;
 
+    event GrantDepositorRole(address depositor);
+    event RevokeDepositorRole(address depositor);
     event SetFeeRecipient(FeeRecipient f, address recipient);
     event SetFeePercents(
         uint8 _treasuryPercent,
@@ -39,6 +42,8 @@ contract FeePool is AccessControl, ReentrancyGuard {
     );
 
     error ZeroAddress();
+    error ZeroAmount();
+    error NotDepositor();
     error InvalidFeePercent();
 
     /**
@@ -64,6 +69,36 @@ contract FeePool is AccessControl, ReentrancyGuard {
         _grantRole(TREASURY_ROLE, _treasury);
         _grantRole(REVENUE_LOCKERS_ROLE, _revenueLockers);
         _grantRole(CONTRIBUTORS_ROLE, _contributors);
+    }
+
+    /**
+        @notice Grant the depositor role to an address
+        @param  depositor  address  Address to grant the depositor role
+     */
+    function grantDepositorRole(address depositor)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        if (depositor == address(0)) revert ZeroAddress();
+        
+        _grantRole(DEPOSITORS_ROLE, depositor);
+
+        emit GrantDepositorRole(depositor);
+    }
+
+    /**
+     @notice Revoke the depositor role from an address
+     @param  depositor  address  Address to revoke the depositor role
+  */
+    function revokeDepositorRole(address depositor)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        if (hasRole(DEPOSITORS_ROLE, depositor) == false) revert NotDepositor();
+
+        _revokeRole(DEPOSITORS_ROLE, depositor);
+
+        emit RevokeDepositorRole(depositor);
     }
 
     /** 

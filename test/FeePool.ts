@@ -31,11 +31,27 @@ describe('FeePool', () => {
   describe('initial state', () => {
     it('Should have predefined state variables', async () => {
       const PERCENT_DENOMINATOR = await feePool.PERCENT_DENOMINATOR();
+      const TREASURY_ROLE = await feePool.TREASURY_ROLE();
+      const REVENUE_LOCKERS_ROLE = await feePool.REVENUE_LOCKERS_ROLE();
+      const CONTRIBUTORS_ROLE = await feePool.CONTRIBUTORS_ROLE();
+      const DEPOSITORS_ROLE = await feePool.DEPOSITORS_ROLE();
       const treasuryPercent = await feePool.treasuryPercent();
       const revenueLockersPercent = await feePool.revenueLockersPercent();
       const contributorsPercent = await feePool.contributorsPercent();
 
       expect(PERCENT_DENOMINATOR).to.equal(100);
+      expect(TREASURY_ROLE).to.equal(
+        ethers.utils.formatBytes32String('TREASURY')
+      );
+      expect(REVENUE_LOCKERS_ROLE).to.equal(
+        ethers.utils.formatBytes32String('REVENUE_LOCKERS')
+      );
+      expect(CONTRIBUTORS_ROLE).to.equal(
+        ethers.utils.formatBytes32String('CONTRIBUTORS')
+      );
+      expect(DEPOSITORS_ROLE).to.equal(
+        ethers.utils.formatBytes32String('DEPOSITORS')
+      );
       expect(treasuryPercent).to.equal(25);
       expect(revenueLockersPercent).to.equal(50);
       expect(contributorsPercent).to.equal(25);
@@ -47,41 +63,50 @@ describe('FeePool', () => {
       const _treasury = await feePool.treasury();
       const _revenueLockers = await feePool.revenueLockers();
       const _contributors = await feePool.contributors();
-      const adminRole = await feePool.DEFAULT_ADMIN_ROLE();
-      const treasuryRole = await feePool.TREASURY_ROLE();
-      const revenueLockersRole = await feePool.REVENUE_LOCKERS_ROLE();
-      const contributorsRole = await feePool.CONTRIBUTORS_ROLE();
-      const adminHasRole = await feePool.hasRole(adminRole, admin.address);
-      const treasuryHasRole = await feePool.hasRole(treasuryRole, _treasury);
+      const DEFAULT_ADMIN_ROLE = await feePool.DEFAULT_ADMIN_ROLE();
+      const TREASURY_ROLE = await feePool.TREASURY_ROLE();
+      const REVENUE_LOCKERS_ROLE = await feePool.REVENUE_LOCKERS_ROLE();
+      const CONTRIBUTORS_ROLE = await feePool.CONTRIBUTORS_ROLE();
+      const DEPOSITORS_ROLE = await feePool.DEPOSITORS_ROLE();
+      const adminHasRole = await feePool.hasRole(
+        DEFAULT_ADMIN_ROLE,
+        admin.address
+      );
+      const treasuryHasRole = await feePool.hasRole(TREASURY_ROLE, _treasury);
       const revenueLockersHasRole = await feePool.hasRole(
-        revenueLockersRole,
+        REVENUE_LOCKERS_ROLE,
         _revenueLockers
       );
       const contributorsHasRole = await feePool.hasRole(
-        contributorsRole,
+        CONTRIBUTORS_ROLE,
         _contributors
       );
       const notAdminHasAdminRole = await feePool.hasRole(
-        adminRole,
+        DEFAULT_ADMIN_ROLE,
         notAdmin.address
       );
       const notAdminHasTreasuryRole = await feePool.hasRole(
-        treasuryRole,
+        TREASURY_ROLE,
         notAdmin.address
       );
       const notAdminHasRevenueLockersRole = await feePool.hasRole(
-        revenueLockersRole,
+        REVENUE_LOCKERS_ROLE,
         notAdmin.address
       );
       const notAdminHasContributorsRole = await feePool.hasRole(
-        contributorsRole,
+        CONTRIBUTORS_ROLE,
+        notAdmin.address
+      );
+      const notAdminHasDepositorsRole = await feePool.hasRole(
+        DEPOSITORS_ROLE,
         notAdmin.address
       );
       const roles = [
-        adminRole,
-        treasuryRole,
-        revenueLockersRole,
-        contributorsRole,
+        DEFAULT_ADMIN_ROLE,
+        TREASURY_ROLE,
+        REVENUE_LOCKERS_ROLE,
+        CONTRIBUTORS_ROLE,
+        DEPOSITORS_ROLE,
       ];
 
       expect(_treasury).to.equal(treasury.address);
@@ -95,7 +120,91 @@ describe('FeePool', () => {
       expect(notAdminHasTreasuryRole).to.equal(false);
       expect(notAdminHasRevenueLockersRole).to.equal(false);
       expect(notAdminHasContributorsRole).to.equal(false);
+      expect(notAdminHasDepositorsRole).to.equal(false);
       expect(uniq(roles).length).to.equal(roles.length);
+    });
+  });
+
+  describe('grantDepositorRole', () => {
+    it('Should revert if depositor is zero address', async () => {
+      const invalidDepositor = zeroAddress;
+
+      await expect(
+        feePool.grantDepositorRole(invalidDepositor)
+      ).to.be.revertedWith('ZeroAddress()');
+    });
+
+    it('Should revert if called by non-admin', async () => {
+      const depositor = notAdmin.address;
+      const adminRole = await feePool.DEFAULT_ADMIN_ROLE();
+
+      await expect(
+        feePool.connect(notAdmin).grantDepositorRole(depositor)
+      ).to.be.revertedWith(
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${adminRole}`
+      );
+    });
+
+    it('Should grant the depositor role to an address', async () => {
+      const depositorRole = await feePool.DEPOSITORS_ROLE();
+      const depositor = notAdmin.address;
+      const hasRoleBefore = await feePool.hasRole(depositorRole, depositor);
+      const [_, grantEvent] = await callAndReturnEvents(
+        feePool.grantDepositorRole,
+        [depositor]
+      );
+      const hasRoleAfter = await feePool.hasRole(depositorRole, depositor);
+
+      expect(hasRoleBefore).to.equal(false);
+      expect(hasRoleAfter).to.equal(true);
+      expect(grantEvent.eventSignature).to.equal('GrantDepositorRole(address)');
+      expect(grantEvent.args.depositor).to.equal(notAdmin.address);
+    });
+  });
+
+  describe('revokeDepositorRole', () => {
+    it('Should revert if called by non-admin', async () => {
+      const depositor = notAdmin.address;
+      const adminRole = await feePool.DEFAULT_ADMIN_ROLE();
+
+      await expect(
+        feePool.connect(notAdmin).revokeDepositorRole(depositor)
+      ).to.be.revertedWith(
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${adminRole}`
+      );
+    });
+
+    it('Should revoke the depositor role from an address', async () => {
+      const depositorRole = await feePool.DEPOSITORS_ROLE();
+      const depositor = notAdmin.address;
+      const hasRoleBefore = await feePool.hasRole(depositorRole, depositor);
+      const [_, revokeEvent] = await callAndReturnEvents(
+        feePool.revokeDepositorRole,
+        [depositor]
+      );
+      const hasRoleAfter = await feePool.hasRole(depositorRole, depositor);
+
+      expect(hasRoleBefore).to.equal(true);
+      expect(hasRoleAfter).to.equal(false);
+      expect(revokeEvent.eventSignature).to.equal(
+        'RevokeDepositorRole(address)'
+      );
+      expect(revokeEvent.args.depositor).to.equal(depositor);
+    });
+
+    it('Should revert if address is not a depositor', async () => {
+      const depositorRole = await feePool.DEPOSITORS_ROLE();
+      const invalidDepositor1 = notAdmin.address;
+      const invalidDepositor2 = zeroAddress;
+      const depositor1HasRole = await feePool.hasRole(depositorRole, invalidDepositor1);
+
+      expect(depositor1HasRole).to.equal(false);
+      await expect(
+        feePool.revokeDepositorRole(invalidDepositor1)
+      ).to.be.revertedWith('NotDepositor()');
+      await expect(
+        feePool.revokeDepositorRole(invalidDepositor2)
+      ).to.be.revertedWith('NotDepositor()');
     });
   });
 
