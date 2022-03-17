@@ -137,6 +137,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     error ZeroAddress();
     error ZeroAmount();
+    error InvalidFee();
     error EmptyString();
     error BeforeLockExpiry();
     error InsufficientBalance();
@@ -221,10 +222,13 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     /** 
         @notice Set fee
-        @param  f       Fees     Fee enum
+        @param  f       Fees    Fee enum
         @param  amount  uint16  Fee amount
      */
     function setFee(Fees f, uint16 amount) external onlyOwner {
+        // Fees cannot be greater than 5%
+        if (amount > 50000) revert InvalidFee();
+
         emit SetFee(f, amount);
 
         if (f == Fees.Deposit) {
