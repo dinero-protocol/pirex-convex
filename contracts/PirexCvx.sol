@@ -434,15 +434,24 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         for (uint256 j; j < cLen; ++j) {
             if (c[j].amount == 0) continue;
 
-            // Actual amount of tokens received (after factoring in fees and existing balance)
-            uint256 actualAmount = ERC20(c[j].token).balanceOf(tAddr) -
+            // Tokens actually received (after factoring in token fees and existing balance)
+            uint256 received = ERC20(c[j].token).balanceOf(tAddr) -
                 balancesBefore[j];
-            uint256 snapshotRewardAmount = (actualAmount * snapshotSupply) /
+            uint256 rewardFee = (received * fees[Fees.Reward]) /
+                FEE_DENOMINATOR;
+            uint256 rewards = received - rewardFee;
+            uint256 snapshotRewardAmount = (rewards * snapshotSupply) /
                 combinedSupply;
 
             e.rewards.push(c[j].token);
             e.snapshotRewards.push(snapshotRewardAmount);
-            e.futuresRewards.push(actualAmount - snapshotRewardAmount);
+            e.futuresRewards.push(rewards - snapshotRewardAmount);
+
+            ERC20(c[j].token).safeIncreaseAllowance(
+                address(feePool),
+                rewardFee
+            );
+            feePool.distributeFees(c[j].token, rewardFee);
         }
     }
 
@@ -642,11 +651,10 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
         emit ClaimVotiumReward(token, index, amount, snapshotId);
 
-        // Used for determining reward amounts for rpCVX token holders for this epoch
-        uint256 epochRpCvxSupply = rpCvx.totalSupply(currentEpoch);
+        ERC20 t = ERC20(token);
 
         // Used for calculating the actual token amount received
-        uint256 prevBalance = ERC20(token).balanceOf(address(this));
+        uint256 prevBalance = t.balanceOf(address(this));
 
         // Validates `token`, `index`, `amount`, and `merkleProof`
         votiumMultiMerkleStash.claim(
@@ -657,21 +665,25 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
             merkleProof
         );
 
-        // Token amount after fees
-        uint256 actualAmount = ERC20(token).balanceOf(address(this)) -
-            prevBalance;
+        // Tokens actually received (after factoring in token fees and existing balance)
+        uint256 received = t.balanceOf(address(this)) - prevBalance;
+        uint256 rewardFee = (received * fees[Fees.Reward]) / FEE_DENOMINATOR;
+        uint256 rewards = received - rewardFee;
 
         // Rewards for snapshot balances, proportionate to the snapshot pCVX + rpCVX supply
         // E.g. if snapshot supply makes up 50% of that, then snapshotters receive 50% of rewards
-        uint256 snapshotRewardsAmount = (actualAmount * snapshotSupply) /
-            (snapshotSupply + epochRpCvxSupply);
+        uint256 snapshotRewardsAmount = (rewards * snapshotSupply) /
+            (snapshotSupply + rpCvx.totalSupply(currentEpoch));
 
         // Add reward token address and snapshot/futuresRewards amounts (same index for all)
         epochs[currentEpoch].rewards.push(token);
         epochs[currentEpoch].snapshotRewards.push(snapshotRewardsAmount);
         epochs[currentEpoch].futuresRewards.push(
-            actualAmount - snapshotRewardsAmount
+            rewards - snapshotRewardsAmount
         );
+
+        t.safeIncreaseAllowance(address(feePool), rewardFee);
+        feePool.distributeFees(token, rewardFee);
     }
 
     /**

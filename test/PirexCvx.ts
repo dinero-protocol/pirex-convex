@@ -1171,9 +1171,33 @@ describe('PirexCvx', () => {
       const snapshotIdBefore = await pCvx.getCurrentSnapshotId();
       const cvxCrvBalanceBefore = await cvxCrvToken.balanceOf(pCvx.address);
       const crvBalanceBefore = await crv.balanceOf(pCvx.address);
+      const treasuryCrvBalanceBefore = await crv.balanceOf(treasury.address);
+      const revenueLockersCrvBalanceBefore = await crv.balanceOf(
+        revenueLockers.address
+      );
+      const contributorsCrvBalanceBefore = await crv.balanceOf(
+        contributors.address
+      );
+      const treasuryCvxCrvBalanceBefore = await cvxCrvToken.balanceOf(
+        treasury.address
+      );
+      const revenueLockersCvxCrvBalanceBefore = await cvxCrvToken.balanceOf(
+        revenueLockers.address
+      );
+      const contributorsCvxCrvBalanceBefore = await cvxCrvToken.balanceOf(
+        contributors.address
+      );
       const [claimableCrv, claimableCvxCrv] = await cvxLocker.claimableRewards(
         pCvx.address
       );
+      const rewardFeePercent = await pCvx.fees(feesEnum.reward);
+      const FEE_DENOMINATOR = await pCvx.FEE_DENOMINATOR();
+      const crvRewardFee = claimableCrv.amount
+        .mul(rewardFeePercent)
+        .div(FEE_DENOMINATOR);
+      const cvxCrvRewardFee = claimableCvxCrv.amount
+        .mul(rewardFeePercent)
+        .div(FEE_DENOMINATOR);
       const events = await callAndReturnEvents(
         pCvx.performEpochMaintenance,
         []
@@ -1184,6 +1208,44 @@ describe('PirexCvx', () => {
       const snapshotIdAfter = await pCvx.getCurrentSnapshotId();
       const cvxCrvBalanceAfter = await cvxCrvToken.balanceOf(pCvx.address);
       const crvBalanceAfter = await crv.balanceOf(pCvx.address);
+      const treasuryCrvBalanceAfter = await crv.balanceOf(treasury.address);
+      const revenueLockersCrvBalanceAfter = await crv.balanceOf(
+        revenueLockers.address
+      );
+      const contributorsCrvBalanceAfter = await crv.balanceOf(
+        contributors.address
+      );
+      const treasuryCvxCrvBalanceAfter = await cvxCrvToken.balanceOf(
+        treasury.address
+      );
+      const revenueLockersCvxCrvBalanceAfter = await cvxCrvToken.balanceOf(
+        revenueLockers.address
+      );
+      const contributorsCvxCrvBalanceAfter = await cvxCrvToken.balanceOf(
+        contributors.address
+      );
+      const treasuryPercent = await feePool.treasuryPercent();
+      const revenueLockersPercent = await feePool.revenueLockersPercent();
+      const contributorsPercent = await feePool.contributorsPercent();
+      const PERCENT_DENOMINATOR = await feePool.PERCENT_DENOMINATOR();
+      const expectedTreasuryCrvFees = crvRewardFee
+        .mul(treasuryPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedRevenueLockersCrvFees = crvRewardFee
+        .mul(revenueLockersPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedContributorsCrvFees = crvRewardFee
+        .mul(contributorsPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedTreasuryCvxCrvFees = cvxCrvRewardFee
+        .mul(treasuryPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedRevenueLockersCvxCrvFees = cvxCrvRewardFee
+        .mul(revenueLockersPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedContributorsCvxCrvFees = cvxCrvRewardFee
+        .mul(contributorsPercent)
+        .div(PERCENT_DENOMINATOR);
 
       expect(epochBefore.snapshotId).to.equal(0);
       expect(epochBefore.rewards.length).to.equal(0);
@@ -1201,11 +1263,111 @@ describe('PirexCvx', () => {
       expect(crvBalanceAfter.gt(crvBalanceBefore)).to.be.equal(true);
       expect(cvxCrvBalanceAfter.gt(cvxCrvBalanceBefore)).to.be.equal(true);
       expect(
-        crvBalanceAfter.gte(crvBalanceBefore.add(claimableCrv.amount))
+        crvBalanceAfter.gte(
+          crvBalanceBefore.add(claimableCrv.amount.sub(crvRewardFee))
+        )
       ).to.equal(true);
       expect(
-        cvxCrvBalanceAfter.gte(cvxCrvBalanceBefore.add(claimableCvxCrv.amount))
+        cvxCrvBalanceAfter.gte(
+          cvxCrvBalanceBefore.add(claimableCvxCrv.amount.sub(cvxCrvRewardFee))
+        )
       ).to.be.equal(true);
+      expect(treasuryCrvBalanceAfter).to.not.equal(treasuryCrvBalanceBefore);
+      expect(
+        treasuryCrvBalanceAfter.gt(
+          treasuryCrvBalanceBefore.add(expectedTreasuryCrvFees)
+        )
+      ).to.be.equal(true);
+      expect(
+        treasuryCrvBalanceAfter.lt(
+          treasuryCrvBalanceBefore
+            .add(expectedTreasuryCrvFees)
+            .mul(101)
+            .div(100)
+        )
+      ).to.equal(true);
+      expect(revenueLockersCrvBalanceAfter).to.not.equal(
+        revenueLockersCrvBalanceBefore
+      );
+      expect(
+        revenueLockersCrvBalanceAfter.gt(
+          revenueLockersCrvBalanceBefore.add(expectedRevenueLockersCrvFees)
+        )
+      ).to.equal(true);
+      expect(
+        revenueLockersCrvBalanceAfter.lt(
+          revenueLockersCrvBalanceBefore
+            .add(expectedRevenueLockersCrvFees)
+            .mul(101)
+            .div(100)
+        )
+      ).to.equal(true);
+      expect(contributorsCrvBalanceAfter).to.not.equal(
+        contributorsCrvBalanceBefore
+      );
+      expect(
+        contributorsCrvBalanceAfter.gt(
+          contributorsCrvBalanceBefore.add(expectedContributorsCrvFees)
+        )
+      ).to.equal(true);
+      expect(
+        contributorsCrvBalanceAfter.lt(
+          contributorsCrvBalanceBefore
+            .add(expectedContributorsCrvFees)
+            .mul(101)
+            .div(100)
+        )
+      ).to.equal(true);
+      expect(treasuryCvxCrvBalanceAfter).to.not.equal(
+        treasuryCvxCrvBalanceBefore
+      );
+      expect(
+        treasuryCvxCrvBalanceAfter.gt(
+          treasuryCvxCrvBalanceBefore.add(expectedTreasuryCvxCrvFees)
+        )
+      ).to.equal(true);
+      expect(
+        treasuryCvxCrvBalanceAfter.lt(
+          treasuryCvxCrvBalanceBefore
+            .add(expectedTreasuryCvxCrvFees)
+            .mul(101)
+            .div(100)
+        )
+      ).to.equal(true);
+      expect(revenueLockersCvxCrvBalanceAfter).to.not.equal(
+        revenueLockersCvxCrvBalanceBefore
+      );
+      expect(
+        revenueLockersCvxCrvBalanceAfter.gt(
+          revenueLockersCvxCrvBalanceBefore.add(
+            expectedRevenueLockersCvxCrvFees
+          )
+        )
+      ).to.equal(true);
+      expect(
+        revenueLockersCvxCrvBalanceAfter.lt(
+          revenueLockersCvxCrvBalanceBefore
+            .add(expectedRevenueLockersCvxCrvFees)
+            .mul(101)
+            .div(100)
+        )
+      ).to.equal(true);
+      expect(contributorsCvxCrvBalanceAfter).to.not.equal(
+        contributorsCvxCrvBalanceBefore
+      );
+      expect(
+        contributorsCvxCrvBalanceAfter.gt(
+          contributorsCvxCrvBalanceBefore.add(expectedContributorsCvxCrvFees)
+        )
+      ).to.equal(true);
+      expect(
+        contributorsCvxCrvBalanceAfter.lt(
+          contributorsCvxCrvBalanceBefore
+            .add(expectedContributorsCvxCrvFees)
+            .mul(101)
+            .div(100)
+        )
+      ).to.equal(true);
       expect(snapshotEvent.eventSignature).to.equal('Snapshot(uint256)');
       expect(snapshotEvent.args.id).to.equal(snapshotIdAfter);
       expect(performEvent.eventSignature).to.equal(
@@ -1315,6 +1477,24 @@ describe('PirexCvx', () => {
       const epochRpCvxSupply = await (
         await getRpCvx(await pCvx.rpCvx())
       ).totalSupply(currentEpoch);
+      const rewardFee = await pCvx.fees(feesEnum.reward);
+      const FEE_DENOMINATOR = await pCvx.FEE_DENOMINATOR();
+      const cvxFee = amounts[0].mul(rewardFee).div(FEE_DENOMINATOR);
+      const crvFee = amounts[1].mul(rewardFee).div(FEE_DENOMINATOR);
+      const treasuryCvxBalanceBefore = await cvx.balanceOf(treasury.address);
+      const revenueLockersCvxBalanceBefore = await cvx.balanceOf(
+        revenueLockers.address
+      );
+      const contributorsCvxBalanceBefore = await cvx.balanceOf(
+        contributors.address
+      );
+      const treasuryCrvBalanceBefore = await crv.balanceOf(treasury.address);
+      const revenueLockersCrvBalanceBefore = await crv.balanceOf(
+        revenueLockers.address
+      );
+      const contributorsCrvBalanceBefore = await crv.balanceOf(
+        contributors.address
+      );
       const cvxClaimEvents = await callAndReturnEvents(pCvx.claimVotiumReward, [
         tokens[0],
         index,
@@ -1337,23 +1517,101 @@ describe('PirexCvx', () => {
       const votiumSnapshotRewards = snapshotRewards.slice(2);
       const votiumFuturesRewards = futuresRewards.slice(2);
       const expectedVotiumSnapshotRewards = {
-        amounts: amounts.map((amount: BigNumber) =>
-          amount.mul(snapshotSupply).div(snapshotSupply.add(epochRpCvxSupply))
-        ),
+        amounts: amounts.map((amount: BigNumber) => {
+          const rewards = amount
+            .mul(toBN(FEE_DENOMINATOR).sub(rewardFee))
+            .div(FEE_DENOMINATOR);
+
+          return rewards
+            .mul(snapshotSupply)
+            .div(snapshotSupply.add(epochRpCvxSupply));
+        }),
       };
       const expectedVotiumFuturesRewards = {
-        amounts: amounts.map((amount: BigNumber, idx: number) =>
-          amount.sub(expectedVotiumSnapshotRewards.amounts[idx])
-        ),
-      };
+        amounts: amounts.map((amount: BigNumber, idx: number) => {
+          const rewards = amount
+            .mul(toBN(FEE_DENOMINATOR).sub(rewardFee))
+            .div(FEE_DENOMINATOR);
 
-      expect(epoch.rewards.includes(tokens[0])).to.deep.equal(true);
-      expect(epoch.rewards.includes(tokens[1])).to.deep.equal(true);
+          return rewards.sub(expectedVotiumSnapshotRewards.amounts[idx]);
+        }),
+      };
+      const treasuryCvxBalanceAfter = await cvx.balanceOf(treasury.address);
+      const revenueLockersCvxBalanceAfter = await cvx.balanceOf(
+        revenueLockers.address
+      );
+      const contributorsCvxBalanceAfter = await cvx.balanceOf(
+        contributors.address
+      );
+      const treasuryCrvBalanceAfter = await crv.balanceOf(treasury.address);
+      const revenueLockersCrvBalanceAfter = await crv.balanceOf(
+        revenueLockers.address
+      );
+      const contributorsCrvBalanceAfter = await crv.balanceOf(
+        contributors.address
+      );
+      const treasuryPercent = await feePool.treasuryPercent();
+      const revenueLockersPercent = await feePool.revenueLockersPercent();
+      const contributorsPercent = await feePool.contributorsPercent();
+      const PERCENT_DENOMINATOR = await feePool.PERCENT_DENOMINATOR();
+      const expectedTreasuryCvxFees = cvxFee
+        .mul(treasuryPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedRevenueLockersCvxFees = cvxFee
+        .mul(revenueLockersPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedContributorsCvxFees = cvxFee
+        .mul(contributorsPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedTreasuryCrvFees = crvFee
+        .mul(treasuryPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedRevenueLockersCrvFees = crvFee
+        .mul(revenueLockersPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedContributorsCrvFees = crvFee
+        .mul(contributorsPercent)
+        .div(PERCENT_DENOMINATOR);
+
+      expect(epoch.rewards.includes(tokens[0])).to.equal(true);
+      expect(epoch.rewards.includes(tokens[1])).to.equal(true);
       expect(votiumSnapshotRewards).to.deep.equal(
         expectedVotiumSnapshotRewards.amounts
       );
       expect(votiumFuturesRewards).to.deep.equal(
         expectedVotiumFuturesRewards.amounts
+      );
+      expect(treasuryCvxBalanceAfter).to.not.equal(treasuryCvxBalanceBefore);
+      expect(treasuryCvxBalanceAfter).to.equal(
+        treasuryCvxBalanceBefore.add(expectedTreasuryCvxFees)
+      );
+      expect(revenueLockersCvxBalanceAfter).to.not.equal(
+        revenueLockersCvxBalanceBefore
+      );
+      expect(revenueLockersCvxBalanceAfter).to.equal(
+        revenueLockersCvxBalanceBefore.add(expectedRevenueLockersCvxFees)
+      );
+      expect(contributorsCvxBalanceAfter).to.not.equal(
+        contributorsCvxBalanceBefore
+      );
+      expect(contributorsCvxBalanceAfter).to.equal(
+        contributorsCvxBalanceBefore.add(expectedContributorsCvxFees)
+      );
+      expect(treasuryCrvBalanceAfter).to.not.equal(treasuryCrvBalanceBefore);
+      expect(treasuryCrvBalanceAfter).to.equal(
+        treasuryCrvBalanceBefore.add(expectedTreasuryCrvFees)
+      );
+      expect(revenueLockersCrvBalanceAfter).to.not.equal(
+        revenueLockersCrvBalanceBefore
+      );
+      expect(revenueLockersCrvBalanceAfter).to.equal(
+        revenueLockersCrvBalanceBefore.add(expectedRevenueLockersCrvFees)
+      );
+      expect(contributorsCrvBalanceAfter).to.not.equal(
+        contributorsCrvBalanceBefore
+      );
+      expect(contributorsCrvBalanceAfter).to.equal(
+        contributorsCrvBalanceBefore.add(expectedContributorsCrvFees)
       );
       expect(cvxClaimEvent.eventSignature).to.equal(
         'ClaimVotiumReward(address,uint256,uint256,uint256)'
