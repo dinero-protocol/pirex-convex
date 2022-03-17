@@ -18,13 +18,18 @@ import {
   PirexCvx,
   MultiMerkleStash,
   Crv,
+  FeePool,
 } from '../typechain-types';
 import { BalanceTree } from '../lib/merkle';
 
 describe('PirexCvx', () => {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
+  let treasury: SignerWithAddress;
+  let revenueLockers: SignerWithAddress;
+  let contributors: SignerWithAddress;
   let pCvx: PirexCvx;
+  let feePool: FeePool;
   let cvx: ConvexToken;
   let crv: Crv;
   let cvxCrvToken: any;
@@ -42,10 +47,11 @@ describe('PirexCvx', () => {
   const contractEnum = {
     cvxLocker: 0,
     cvxDelegateRegistry: 1,
-    upCvx: 2,
-    vpCvx: 3,
-    rpCvx: 4,
-    spCvxImplementation: 5,
+    feePool: 2,
+    upCvx: 3,
+    vpCvx: 4,
+    rpCvx: 5,
+    spCvxImplementation: 6,
   };
   const futuresEnum = {
     vote: 0,
@@ -83,7 +89,8 @@ describe('PirexCvx', () => {
     await ethers.getContractAt('ERC1155PresetMinterSupply', address);
 
   before(async () => {
-    [admin, notAdmin] = await ethers.getSigners();
+    [admin, notAdmin, treasury, revenueLockers, contributors] =
+      await ethers.getSigners();
     ({
       cvx,
       crv,
@@ -92,12 +99,16 @@ describe('PirexCvx', () => {
       cvxDelegateRegistry,
       votiumMultiMerkleStash,
     } = await setUpConvex());
+    feePool = await (
+      await ethers.getContractFactory('FeePool')
+    ).deploy(treasury.address, revenueLockers.address, contributors.address);
     pCvx = await (
       await ethers.getContractFactory('PirexCvx')
     ).deploy(
       cvx.address,
       cvxLocker.address,
       cvxDelegateRegistry.address,
+      feePool.address,
       votiumMultiMerkleStash.address
     );
   });
@@ -122,6 +133,7 @@ describe('PirexCvx', () => {
       const _CVX = await pCvx.CVX();
       const _cvxLocker = await pCvx.cvxLocker();
       const _cvxDelegateRegistry = await pCvx.cvxDelegateRegistry();
+      const _feePool = await pCvx.feePool();
       const _votiumMultiMerkleStash = await pCvx.votiumMultiMerkleStash();
       const upCvx = await pCvx.upCvx();
       const vpCvx = await pCvx.vpCvx();
@@ -137,6 +149,8 @@ describe('PirexCvx', () => {
       expect(_cvxLocker).to.not.equal(zeroAddress);
       expect(_cvxDelegateRegistry).to.equal(cvxDelegateRegistry.address);
       expect(_cvxDelegateRegistry).to.not.equal(zeroAddress);
+      expect(_feePool).to.equal(feePool.address);
+      expect(_feePool).to.not.equal(zeroAddress);
       expect(_votiumMultiMerkleStash).to.equal(votiumMultiMerkleStash.address);
       expect(_votiumMultiMerkleStash).to.not.equal(zeroAddress);
       expect(upCvx).to.not.equal(zeroAddress);
@@ -207,6 +221,24 @@ describe('PirexCvx', () => {
       expect(cvxDelegateRegistryBefore).to.equal(
         await pCvx.cvxDelegateRegistry()
       );
+    });
+
+    it('Should set feePool', async () => {
+      const feePoolBefore = await pCvx.feePool();
+      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+        contractEnum.feePool,
+        admin.address,
+      ]);
+      const feePoolAfter = await pCvx.feePool();
+
+      await pCvx.setContract(contractEnum.feePool, feePoolBefore);
+
+      expect(feePoolBefore).to.not.equal(feePoolAfter);
+      expect(feePoolAfter).to.equal(admin.address);
+      expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
+      expect(setEvent.args.c).to.equal(contractEnum.feePool);
+      expect(setEvent.args.contractAddress).to.equal(admin.address);
+      expect(feePoolBefore).to.equal(await pCvx.feePool());
     });
 
     it('Should set upCvx', async () => {

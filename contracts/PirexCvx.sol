@@ -12,6 +12,7 @@ import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 import {StakedPirexCvx} from "./StakedPirexCvx.sol";
+import {FeePool} from "./FeePool.sol";
 
 contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     using SafeERC20 for ERC20;
@@ -43,6 +44,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     enum Contract {
         CvxLocker,
         CvxDelegateRegistry,
+        FeePool,
         UpCvx,
         VpCvx,
         RpCvx,
@@ -71,6 +73,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     ICvxLocker public cvxLocker;
     ICvxDelegateRegistry public cvxDelegateRegistry;
+    FeePool public feePool;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
     ERC1155PresetMinterSupply public upCvx;
     ERC1155PresetMinterSupply public vpCvx;
@@ -154,6 +157,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         address _CVX,
         address _cvxLocker,
         address _cvxDelegateRegistry,
+        address _feePool,
         address _votiumMultiMerkleStash
     ) ERC20("Pirex CVX", "pCVX") {
         // Start snapshot id from 1 and set it to simplify snapshot-taking determination
@@ -167,6 +171,9 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
         if (_cvxDelegateRegistry == address(0)) revert ZeroAddress();
         cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
+
+        if (_feePool == address(0)) revert ZeroAddress();
+        feePool = FeePool(_feePool);
 
         if (_votiumMultiMerkleStash == address(0)) revert ZeroAddress();
         votiumMultiMerkleStash = IVotiumMultiMerkleStash(
@@ -199,6 +206,11 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
         if (c == Contract.CvxDelegateRegistry) {
             cvxDelegateRegistry = ICvxDelegateRegistry(contractAddress);
+            return;
+        }
+
+        if (c == Contract.FeePool) {
+            feePool = FeePool(contractAddress);
             return;
         }
 
