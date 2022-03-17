@@ -169,15 +169,18 @@ contract FeePool is AccessControl, ReentrancyGuard {
         ERC20 t = ERC20(token);
 
         // Favoring push over pull to reduce accounting complexity for different tokens
-        t.safeTransfer(
+        t.safeTransferFrom(
+            msg.sender,
             treasury,
             (amount * treasuryPercent) / PERCENT_DENOMINATOR
         );
-        t.safeTransfer(
+        t.safeTransferFrom(
+            msg.sender,
             revenueLockers,
             (amount * revenueLockersPercent) / PERCENT_DENOMINATOR
         );
-        t.safeTransfer(
+        t.safeTransferFrom(
+            msg.sender,
             contributors,
             (amount * contributorsPercent) / PERCENT_DENOMINATOR
         );

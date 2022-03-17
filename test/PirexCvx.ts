@@ -111,6 +111,8 @@ describe('PirexCvx', () => {
       feePool.address,
       votiumMultiMerkleStash.address
     );
+
+    await feePool.grantFeeDistributorRole(pCvx.address);
   });
 
   describe('initial state', () => {
@@ -547,11 +549,21 @@ describe('PirexCvx', () => {
 
     it('Should deposit CVX', async () => {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
+      const treasuryCvxBalanceBefore = await cvx.balanceOf(treasury.address);
+      const revenueLockersCvxBalanceBefore = await cvx.balanceOf(
+        revenueLockers.address
+      );
+      const contributorsCvxBalanceBefore = await cvx.balanceOf(
+        contributors.address
+      );
       const lockedBalanceBefore = await cvxLocker.lockedBalanceOf(pCvx.address);
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
       const msgSender = admin.address;
       const to = admin.address;
       const depositAmount = toBN(10e18);
+      const depositFee = depositAmount
+        .mul(await pCvx.fees(feesEnum.deposit))
+        .div(await pCvx.FEE_DENOMINATOR());
 
       // Necessary since pCVX transfers CVX to itself before locking
       await cvx.approve(pCvx.address, depositAmount);
@@ -564,14 +576,46 @@ describe('PirexCvx', () => {
       const depositEvent = events[1];
       const transferEvent = events[2];
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
+      const treasuryCvxBalanceAfter = await cvx.balanceOf(treasury.address);
+      const revenueLockersCvxBalanceAfter = await cvx.balanceOf(
+        revenueLockers.address
+      );
+      const contributorsCvxBalanceAfter = await cvx.balanceOf(
+        contributors.address
+      );
       const lockedBalanceAfter = await cvxLocker.lockedBalanceOf(pCvx.address);
       const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
+      const expectedTreasuryFee = depositFee
+        .mul(await feePool.treasuryPercent())
+        .div(await feePool.PERCENT_DENOMINATOR());
+      const expectedRevenueLockersFee = depositFee
+        .mul(await feePool.revenueLockersPercent())
+        .div(await feePool.PERCENT_DENOMINATOR());
+      const expectedContributorsFee = depositFee
+        .mul(await feePool.contributorsPercent())
+        .div(await feePool.PERCENT_DENOMINATOR());
 
       depositEpoch = await pCvx.getCurrentEpoch();
 
       expect(cvxBalanceAfter).to.equal(cvxBalanceBefore.sub(depositAmount));
+      expect(treasuryCvxBalanceAfter).to.not.equal(treasuryCvxBalanceBefore);
+      expect(treasuryCvxBalanceAfter).to.equal(
+        treasuryCvxBalanceBefore.add(expectedTreasuryFee)
+      );
+      expect(revenueLockersCvxBalanceAfter).to.not.equal(
+        revenueLockersCvxBalanceBefore
+      );
+      expect(revenueLockersCvxBalanceAfter).to.equal(
+        revenueLockersCvxBalanceBefore.add(expectedRevenueLockersFee)
+      );
+      expect(contributorsCvxBalanceAfter).to.not.equal(
+        contributorsCvxBalanceBefore
+      );
+      expect(contributorsCvxBalanceAfter).to.equal(
+        contributorsCvxBalanceBefore.add(expectedContributorsFee)
+      );
       expect(lockedBalanceAfter).to.equal(
-        lockedBalanceBefore.add(depositAmount)
+        lockedBalanceBefore.add(depositAmount.sub(depositFee))
       );
       expect(pCvxBalanceAfter).to.equal(pCvxBalanceBefore.add(depositAmount));
       expect(mintEvent.eventSignature).to.equal(
