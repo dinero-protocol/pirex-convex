@@ -16,11 +16,8 @@ contract FeePool is AccessControl, ReentrancyGuard {
     }
 
     uint8 public immutable PERCENT_DENOMINATOR = 100;
-    bytes32 public immutable TREASURY_ROLE = bytes32(bytes("TREASURY"));
-    bytes32 public immutable REVENUE_LOCKERS_ROLE =
-        bytes32(bytes("REVENUE_LOCKERS"));
-    bytes32 public immutable CONTRIBUTORS_ROLE = bytes32(bytes("CONTRIBUTORS"));
-    bytes32 public immutable DEPOSITORS_ROLE = bytes32(bytes("DEPOSITORS"));
+    bytes32 public immutable FEE_DISTRIBUTOR_ROLE =
+        bytes32(bytes("FEE_DISTRIBUTOR"));
 
     // Configurable fee recipient addresses
     address public treasury;
@@ -32,18 +29,19 @@ contract FeePool is AccessControl, ReentrancyGuard {
     uint8 public revenueLockersPercent = 50;
     uint8 public contributorsPercent = 25;
 
-    event GrantDepositorRole(address depositor);
-    event RevokeDepositorRole(address depositor);
+    event GrantFeeDistributorRole(address distributor);
+    event RevokeFeeDistributorRole(address distributor);
     event SetFeeRecipient(FeeRecipient f, address recipient);
     event SetFeePercents(
         uint8 _treasuryPercent,
         uint8 _revenueLockersPercent,
         uint8 _contributorsPercent
     );
+    event DepositFee(address token, uint256 amount);
 
     error ZeroAddress();
     error ZeroAmount();
-    error NotDepositor();
+    error NotFeeDistributor();
     error InvalidFeePercent();
 
     /**
@@ -66,39 +64,37 @@ contract FeePool is AccessControl, ReentrancyGuard {
         contributors = _contributors;
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(TREASURY_ROLE, _treasury);
-        _grantRole(REVENUE_LOCKERS_ROLE, _revenueLockers);
-        _grantRole(CONTRIBUTORS_ROLE, _contributors);
     }
 
     /**
-        @notice Grant the depositor role to an address
-        @param  depositor  address  Address to grant the depositor role
+        @notice Grant the distributor role to an address
+        @param  distributor  address  Address to grant the distributor role
      */
-    function grantDepositorRole(address depositor)
+    function grantFeeDistributorRole(address distributor)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
-        if (depositor == address(0)) revert ZeroAddress();
-        
-        _grantRole(DEPOSITORS_ROLE, depositor);
+        if (distributor == address(0)) revert ZeroAddress();
 
-        emit GrantDepositorRole(depositor);
+        _grantRole(FEE_DISTRIBUTOR_ROLE, distributor);
+
+        emit GrantFeeDistributorRole(distributor);
     }
 
     /**
-     @notice Revoke the depositor role from an address
-     @param  depositor  address  Address to revoke the depositor role
+     @notice Revoke the distributor role from an address
+     @param  distributor  address  Address to revoke the distributor role
   */
-    function revokeDepositorRole(address depositor)
+    function revokeFeeDistributorRole(address distributor)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
-        if (hasRole(DEPOSITORS_ROLE, depositor) == false) revert NotDepositor();
+        if (hasRole(FEE_DISTRIBUTOR_ROLE, distributor) == false)
+            revert NotFeeDistributor();
 
-        _revokeRole(DEPOSITORS_ROLE, depositor);
+        _revokeRole(FEE_DISTRIBUTOR_ROLE, distributor);
 
-        emit RevokeDepositorRole(depositor);
+        emit RevokeFeeDistributorRole(distributor);
     }
 
     /** 
@@ -115,22 +111,16 @@ contract FeePool is AccessControl, ReentrancyGuard {
         emit SetFeeRecipient(f, recipient);
 
         if (f == FeeRecipient.Treasury) {
-            _revokeRole(TREASURY_ROLE, treasury);
             treasury = recipient;
-            _grantRole(TREASURY_ROLE, recipient);
             return;
         }
 
         if (f == FeeRecipient.RevenueLockers) {
-            _revokeRole(REVENUE_LOCKERS_ROLE, revenueLockers);
             revenueLockers = recipient;
-            _grantRole(REVENUE_LOCKERS_ROLE, recipient);
             return;
         }
 
-        _revokeRole(CONTRIBUTORS_ROLE, contributors);
         contributors = recipient;
-        _grantRole(CONTRIBUTORS_ROLE, recipient);
     }
 
     /** 
@@ -158,6 +148,38 @@ contract FeePool is AccessControl, ReentrancyGuard {
             _treasuryPercent,
             _revenueLockersPercent,
             _contributorsPercent
+        );
+    }
+
+    /** 
+        @notice Distribute fees
+        @param  token   address  Fee token
+        @param  amount  uint256  Fee token amount
+     */
+    function distributeFees(address token, uint256 amount)
+        external
+        nonReentrant
+        onlyRole(FEE_DISTRIBUTOR_ROLE)
+    {
+        if (token == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+
+        emit DepositFee(token, amount);
+
+        ERC20 t = ERC20(token);
+
+        // Favoring push over pull to reduce accounting complexity for different tokens
+        t.safeTransfer(
+            treasury,
+            (amount * treasuryPercent) / PERCENT_DENOMINATOR
+        );
+        t.safeTransfer(
+            revenueLockers,
+            (amount * revenueLockersPercent) / PERCENT_DENOMINATOR
+        );
+        t.safeTransfer(
+            contributors,
+            (amount * contributorsPercent) / PERCENT_DENOMINATOR
         );
     }
 }
