@@ -12,7 +12,7 @@ import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 import {StakedPirexCvx} from "./StakedPirexCvx.sol";
-import {FeePool} from "./FeePool.sol";
+import {PirexFees} from "./PirexFees.sol";
 
 contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     using SafeERC20 for ERC20;
@@ -44,7 +44,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     enum Contract {
         CvxLocker,
         CvxDelegateRegistry,
-        FeePool,
+        PirexFees,
         UpCvx,
         VpCvx,
         RpCvx,
@@ -73,7 +73,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     ICvxLocker public cvxLocker;
     ICvxDelegateRegistry public cvxDelegateRegistry;
-    FeePool public feePool;
+    PirexFees public pirexFees;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
     ERC1155PresetMinterSupply public upCvx;
     ERC1155PresetMinterSupply public vpCvx;
@@ -157,7 +157,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         address _CVX,
         address _cvxLocker,
         address _cvxDelegateRegistry,
-        address _feePool,
+        address _pirexFees,
         address _votiumMultiMerkleStash
     ) ERC20("Pirex CVX", "pCVX") {
         // Start snapshot id from 1 and set it to simplify snapshot-taking determination
@@ -172,8 +172,8 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         if (_cvxDelegateRegistry == address(0)) revert ZeroAddress();
         cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
 
-        if (_feePool == address(0)) revert ZeroAddress();
-        feePool = FeePool(_feePool);
+        if (_pirexFees == address(0)) revert ZeroAddress();
+        pirexFees = PirexFees(_pirexFees);
 
         if (_votiumMultiMerkleStash == address(0)) revert ZeroAddress();
         votiumMultiMerkleStash = IVotiumMultiMerkleStash(
@@ -209,8 +209,8 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
             return;
         }
 
-        if (c == Contract.FeePool) {
-            feePool = FeePool(contractAddress);
+        if (c == Contract.PirexFees) {
+            pirexFees = PirexFees(contractAddress);
             return;
         }
 
@@ -427,8 +427,9 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         uint256 currentEpoch = getCurrentEpoch();
         Epoch storage e = epochs[currentEpoch];
         uint256 snapshotSupply = totalSupplyAt(e.snapshotId);
-        uint256 epochRpCvxSupply = rpCvx.totalSupply(currentEpoch);
-        uint256 combinedSupply = snapshotSupply + epochRpCvxSupply;
+        uint256 combinedSupply = snapshotSupply +
+            rpCvx.totalSupply(currentEpoch);
+        address pirexFeesAddr = address(pirexFees);
 
         // Calculate the rewards for both pCVX/snapshot and rpCVX/futures holders
         for (uint256 j; j < cLen; ++j) {
@@ -447,11 +448,9 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
             e.snapshotRewards.push(snapshotRewardAmount);
             e.futuresRewards.push(rewards - snapshotRewardAmount);
 
-            ERC20(c[j].token).safeIncreaseAllowance(
-                address(feePool),
-                rewardFee
-            );
-            feePool.distributeFees(c[j].token, rewardFee);
+            // Distribute fees
+            ERC20(c[j].token).safeIncreaseAllowance(pirexFeesAddr, rewardFee);
+            pirexFees.distributeFees(c[j].token, rewardFee);
         }
     }
 
@@ -473,9 +472,9 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
         uint256 depositFee = (amount * fees[Fees.Deposit]) / FEE_DENOMINATOR;
 
-        // Allow feePool to distribute the deposit fee
-        CVX.safeIncreaseAllowance(address(feePool), depositFee);
-        feePool.distributeFees(address(CVX), depositFee);
+        // Allow pirexFees to distribute the deposit fee
+        CVX.safeIncreaseAllowance(address(pirexFees), depositFee);
+        pirexFees.distributeFees(address(CVX), depositFee);
 
         // Lock post-fee CVX amount
         _lock(amount - depositFee);
@@ -682,8 +681,9 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
             rewards - snapshotRewardsAmount
         );
 
-        t.safeIncreaseAllowance(address(feePool), rewardFee);
-        feePool.distributeFees(token, rewardFee);
+        // Distribute fees
+        t.safeIncreaseAllowance(address(pirexFees), rewardFee);
+        pirexFees.distributeFees(token, rewardFee);
     }
 
     /**
