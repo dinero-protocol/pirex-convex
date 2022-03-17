@@ -19,6 +19,7 @@ import {
   MultiMerkleStash,
   Crv,
   PirexFees,
+  CvxRewardPool,
 } from '../typechain-types';
 import { BalanceTree } from '../lib/merkle';
 
@@ -35,6 +36,7 @@ describe('PirexCvx', () => {
   let cvxCrvToken: any;
   let cvxLocker: CvxLocker;
   let cvxDelegateRegistry: DelegateRegistry;
+  let cvxRewardPool: CvxRewardPool;
   let votiumMultiMerkleStash: MultiMerkleStash;
 
   let depositEpoch: BigNumber;
@@ -47,11 +49,12 @@ describe('PirexCvx', () => {
   const contractEnum = {
     cvxLocker: 0,
     cvxDelegateRegistry: 1,
-    pirexFees: 2,
-    upCvx: 3,
-    vpCvx: 4,
-    rpCvx: 5,
-    spCvxImplementation: 6,
+    cvxRewardPool: 2,
+    pirexFees: 3,
+    upCvx: 4,
+    vpCvx: 5,
+    rpCvx: 6,
+    spCvxImplementation: 7,
   };
   const futuresEnum = {
     vote: 0,
@@ -96,6 +99,7 @@ describe('PirexCvx', () => {
       crv,
       cvxCrvToken,
       cvxLocker,
+      cvxRewardPool,
       cvxDelegateRegistry,
       votiumMultiMerkleStash,
     } = await setUpConvex());
@@ -108,6 +112,7 @@ describe('PirexCvx', () => {
       cvx.address,
       cvxLocker.address,
       cvxDelegateRegistry.address,
+      cvxRewardPool.address,
       pirexFees.address,
       votiumMultiMerkleStash.address
     );
@@ -135,6 +140,7 @@ describe('PirexCvx', () => {
       const _CVX = await pCvx.CVX();
       const _cvxLocker = await pCvx.cvxLocker();
       const _cvxDelegateRegistry = await pCvx.cvxDelegateRegistry();
+      const _cvxRewardPool = await pCvx.cvxRewardPool();
       const _pirexFees = await pCvx.pirexFees();
       const _votiumMultiMerkleStash = await pCvx.votiumMultiMerkleStash();
       const upCvx = await pCvx.upCvx();
@@ -151,6 +157,7 @@ describe('PirexCvx', () => {
       expect(_cvxLocker).to.not.equal(zeroAddress);
       expect(_cvxDelegateRegistry).to.equal(cvxDelegateRegistry.address);
       expect(_cvxDelegateRegistry).to.not.equal(zeroAddress);
+      expect(_cvxRewardPool).to.equal(cvxRewardPool.address);
       expect(_pirexFees).to.equal(pirexFees.address);
       expect(_pirexFees).to.not.equal(zeroAddress);
       expect(_votiumMultiMerkleStash).to.equal(votiumMultiMerkleStash.address);
@@ -223,6 +230,24 @@ describe('PirexCvx', () => {
       expect(cvxDelegateRegistryBefore).to.equal(
         await pCvx.cvxDelegateRegistry()
       );
+    });
+
+    it('Should set cvxRewardPool', async () => {
+      const cvxRewardPoolBefore = await pCvx.cvxRewardPool();
+      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+        contractEnum.cvxRewardPool,
+        admin.address,
+      ]);
+      const cvxRewardPoolAfter = await pCvx.cvxRewardPool();
+
+      await pCvx.setContract(contractEnum.cvxRewardPool, cvxRewardPoolBefore);
+
+      expect(cvxRewardPoolBefore).to.not.equal(cvxRewardPoolAfter);
+      expect(cvxRewardPoolAfter).to.equal(admin.address);
+      expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
+      expect(setEvent.args.c).to.equal(contractEnum.cvxRewardPool);
+      expect(setEvent.args.contractAddress).to.equal(admin.address);
+      expect(cvxRewardPoolBefore).to.equal(await pCvx.cvxRewardPool());
     });
 
     it('Should set pirexFees', async () => {

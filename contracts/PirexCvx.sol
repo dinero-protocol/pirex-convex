@@ -11,6 +11,7 @@ import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
+import {ICvxRewardPool} from "./interfaces/ICvxRewardPool.sol";
 import {StakedPirexCvx} from "./StakedPirexCvx.sol";
 import {PirexFees} from "./PirexFees.sol";
 
@@ -44,6 +45,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     enum Contract {
         CvxLocker,
         CvxDelegateRegistry,
+        CvxRewardPool,
         PirexFees,
         UpCvx,
         VpCvx,
@@ -73,6 +75,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     ICvxLocker public cvxLocker;
     ICvxDelegateRegistry public cvxDelegateRegistry;
+    ICvxRewardPool public cvxRewardPool;
     PirexFees public pirexFees;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
     ERC1155PresetMinterSupply public upCvx;
@@ -109,6 +112,8 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         uint256 amount,
         Futures indexed f
     );
+    event StakeCvx(uint256 amount);
+    event UnstakeCvx(uint256 amount);
     event Deposit(address indexed to, uint256 amount);
     event InitiateRedemption(address indexed to, uint256 amount);
     event Redeem(uint256 indexed epoch, address indexed to, uint256 amount);
@@ -157,6 +162,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         address _CVX,
         address _cvxLocker,
         address _cvxDelegateRegistry,
+        address _cvxRewardPool,
         address _pirexFees,
         address _votiumMultiMerkleStash
     ) ERC20("Pirex CVX", "pCVX") {
@@ -171,6 +177,9 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
         if (_cvxDelegateRegistry == address(0)) revert ZeroAddress();
         cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
+
+        if (_cvxRewardPool == address(0)) revert ZeroAddress();
+        cvxRewardPool = ICvxRewardPool(_cvxRewardPool);
 
         if (_pirexFees == address(0)) revert ZeroAddress();
         pirexFees = PirexFees(_pirexFees);
@@ -206,6 +215,11 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
         if (c == Contract.CvxDelegateRegistry) {
             cvxDelegateRegistry = ICvxDelegateRegistry(contractAddress);
+            return;
+        }
+
+        if (c == Contract.CvxRewardPool) {
+            cvxRewardPool = ICvxRewardPool(contractAddress);
             return;
         }
 
@@ -452,6 +466,31 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
             ERC20(c[j].token).safeIncreaseAllowance(pirexFeesAddr, rewardFee);
             pirexFees.distributeFees(c[j].token, rewardFee);
         }
+    }
+
+    /**
+        @notice Stake CVX
+        @param  amount  uint256  Amount of CVX to stake
+     */
+    function _stake(uint256 amount) internal {
+        if (amount == 0) revert ZeroAmount();
+
+        emit StakeCvx(amount);
+
+        CVX.safeIncreaseAllowance(address(cvxRewardPool), amount);
+        cvxRewardPool.stake(amount);
+    }
+
+    /**
+        @notice Unstake CVX
+        @param  amount  uint256  Amount of CVX to unstake
+     */
+    function _unstake(uint256 amount) internal {
+        if (amount == 0) revert ZeroAmount();
+
+        emit UnstakeCvx(amount);
+
+        cvxRewardPool.withdraw(amount, false);
     }
 
     /**
