@@ -9,6 +9,12 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract FeePool is AccessControl, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
+    enum FeeRecipient {
+        Treasury,
+        RevenueLockers,
+        Contributors
+    }
+
     uint8 public immutable PERCENT_DENOMINATOR = 100;
     bytes32 public immutable TREASURY_ROLE = bytes32(bytes("TREASURY"));
     bytes32 public immutable REVENUE_LOCKERS_ROLE =
@@ -24,12 +30,6 @@ contract FeePool is AccessControl, ReentrancyGuard {
     uint8 public treasuryPercent = 25;
     uint8 public revenueLockersPercent = 50;
     uint8 public contributorsPercent = 25;
-
-    enum FeeRecipient {
-        Treasury,
-        RevenueLockers,
-        Contributors
-    }
 
     event SetFeeRecipient(FeeRecipient f, address recipient);
     event SetFeePercents(
