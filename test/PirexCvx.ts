@@ -18,7 +18,7 @@ import {
   PirexCvx,
   MultiMerkleStash,
   Crv,
-  FeePool,
+  PirexFees,
 } from '../typechain-types';
 import { BalanceTree } from '../lib/merkle';
 
@@ -29,7 +29,7 @@ describe('PirexCvx', () => {
   let revenueLockers: SignerWithAddress;
   let contributors: SignerWithAddress;
   let pCvx: PirexCvx;
-  let feePool: FeePool;
+  let pirexFees: PirexFees;
   let cvx: ConvexToken;
   let crv: Crv;
   let cvxCrvToken: any;
@@ -47,7 +47,7 @@ describe('PirexCvx', () => {
   const contractEnum = {
     cvxLocker: 0,
     cvxDelegateRegistry: 1,
-    feePool: 2,
+    pirexFees: 2,
     upCvx: 3,
     vpCvx: 4,
     rpCvx: 5,
@@ -99,8 +99,8 @@ describe('PirexCvx', () => {
       cvxDelegateRegistry,
       votiumMultiMerkleStash,
     } = await setUpConvex());
-    feePool = await (
-      await ethers.getContractFactory('FeePool')
+    pirexFees = await (
+      await ethers.getContractFactory('PirexFees')
     ).deploy(treasury.address, revenueLockers.address, contributors.address);
     pCvx = await (
       await ethers.getContractFactory('PirexCvx')
@@ -108,11 +108,11 @@ describe('PirexCvx', () => {
       cvx.address,
       cvxLocker.address,
       cvxDelegateRegistry.address,
-      feePool.address,
+      pirexFees.address,
       votiumMultiMerkleStash.address
     );
 
-    await feePool.grantFeeDistributorRole(pCvx.address);
+    await pirexFees.grantFeeDistributorRole(pCvx.address);
   });
 
   describe('initial state', () => {
@@ -135,7 +135,7 @@ describe('PirexCvx', () => {
       const _CVX = await pCvx.CVX();
       const _cvxLocker = await pCvx.cvxLocker();
       const _cvxDelegateRegistry = await pCvx.cvxDelegateRegistry();
-      const _feePool = await pCvx.feePool();
+      const _pirexFees = await pCvx.pirexFees();
       const _votiumMultiMerkleStash = await pCvx.votiumMultiMerkleStash();
       const upCvx = await pCvx.upCvx();
       const vpCvx = await pCvx.vpCvx();
@@ -151,8 +151,8 @@ describe('PirexCvx', () => {
       expect(_cvxLocker).to.not.equal(zeroAddress);
       expect(_cvxDelegateRegistry).to.equal(cvxDelegateRegistry.address);
       expect(_cvxDelegateRegistry).to.not.equal(zeroAddress);
-      expect(_feePool).to.equal(feePool.address);
-      expect(_feePool).to.not.equal(zeroAddress);
+      expect(_pirexFees).to.equal(pirexFees.address);
+      expect(_pirexFees).to.not.equal(zeroAddress);
       expect(_votiumMultiMerkleStash).to.equal(votiumMultiMerkleStash.address);
       expect(_votiumMultiMerkleStash).to.not.equal(zeroAddress);
       expect(upCvx).to.not.equal(zeroAddress);
@@ -225,22 +225,22 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should set feePool', async () => {
-      const feePoolBefore = await pCvx.feePool();
+    it('Should set pirexFees', async () => {
+      const pirexFeesBefore = await pCvx.pirexFees();
       const setEvent = await callAndReturnEvent(pCvx.setContract, [
-        contractEnum.feePool,
+        contractEnum.pirexFees,
         admin.address,
       ]);
-      const feePoolAfter = await pCvx.feePool();
+      const pirexFeesAfter = await pCvx.pirexFees();
 
-      await pCvx.setContract(contractEnum.feePool, feePoolBefore);
+      await pCvx.setContract(contractEnum.pirexFees, pirexFeesBefore);
 
-      expect(feePoolBefore).to.not.equal(feePoolAfter);
-      expect(feePoolAfter).to.equal(admin.address);
+      expect(pirexFeesBefore).to.not.equal(pirexFeesAfter);
+      expect(pirexFeesAfter).to.equal(admin.address);
       expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
-      expect(setEvent.args.c).to.equal(contractEnum.feePool);
+      expect(setEvent.args.c).to.equal(contractEnum.pirexFees);
       expect(setEvent.args.contractAddress).to.equal(admin.address);
-      expect(feePoolBefore).to.equal(await pCvx.feePool());
+      expect(pirexFeesBefore).to.equal(await pCvx.pirexFees());
     });
 
     it('Should set upCvx', async () => {
@@ -586,14 +586,14 @@ describe('PirexCvx', () => {
       const lockedBalanceAfter = await cvxLocker.lockedBalanceOf(pCvx.address);
       const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
       const expectedTreasuryFee = depositFee
-        .mul(await feePool.treasuryPercent())
-        .div(await feePool.PERCENT_DENOMINATOR());
+        .mul(await pirexFees.treasuryPercent())
+        .div(await pirexFees.PERCENT_DENOMINATOR());
       const expectedRevenueLockersFee = depositFee
-        .mul(await feePool.revenueLockersPercent())
-        .div(await feePool.PERCENT_DENOMINATOR());
+        .mul(await pirexFees.revenueLockersPercent())
+        .div(await pirexFees.PERCENT_DENOMINATOR());
       const expectedContributorsFee = depositFee
-        .mul(await feePool.contributorsPercent())
-        .div(await feePool.PERCENT_DENOMINATOR());
+        .mul(await pirexFees.contributorsPercent())
+        .div(await pirexFees.PERCENT_DENOMINATOR());
 
       depositEpoch = await pCvx.getCurrentEpoch();
 
@@ -1224,10 +1224,10 @@ describe('PirexCvx', () => {
       const contributorsCvxCrvBalanceAfter = await cvxCrvToken.balanceOf(
         contributors.address
       );
-      const treasuryPercent = await feePool.treasuryPercent();
-      const revenueLockersPercent = await feePool.revenueLockersPercent();
-      const contributorsPercent = await feePool.contributorsPercent();
-      const PERCENT_DENOMINATOR = await feePool.PERCENT_DENOMINATOR();
+      const treasuryPercent = await pirexFees.treasuryPercent();
+      const revenueLockersPercent = await pirexFees.revenueLockersPercent();
+      const contributorsPercent = await pirexFees.contributorsPercent();
+      const PERCENT_DENOMINATOR = await pirexFees.PERCENT_DENOMINATOR();
       const expectedTreasuryCrvFees = crvRewardFee
         .mul(treasuryPercent)
         .div(PERCENT_DENOMINATOR);
@@ -1550,10 +1550,10 @@ describe('PirexCvx', () => {
       const contributorsCrvBalanceAfter = await crv.balanceOf(
         contributors.address
       );
-      const treasuryPercent = await feePool.treasuryPercent();
-      const revenueLockersPercent = await feePool.revenueLockersPercent();
-      const contributorsPercent = await feePool.contributorsPercent();
-      const PERCENT_DENOMINATOR = await feePool.PERCENT_DENOMINATOR();
+      const treasuryPercent = await pirexFees.treasuryPercent();
+      const revenueLockersPercent = await pirexFees.revenueLockersPercent();
+      const contributorsPercent = await pirexFees.contributorsPercent();
+      const PERCENT_DENOMINATOR = await pirexFees.PERCENT_DENOMINATOR();
       const expectedTreasuryCvxFees = cvxFee
         .mul(treasuryPercent)
         .div(PERCENT_DENOMINATOR);

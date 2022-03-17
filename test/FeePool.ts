@@ -3,15 +3,15 @@ import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { uniq } from 'lodash';
 import { callAndReturnEvents } from './helpers';
-import { FeePool } from '../typechain-types';
+import { PirexFees } from '../typechain-types';
 
-describe('FeePool', () => {
+describe('PirexFees', () => {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let treasury: SignerWithAddress;
   let revenueLockers: SignerWithAddress;
   let contributors: SignerWithAddress;
-  let feePool: FeePool;
+  let pirexFees: PirexFees;
 
   const zeroAddress = '0x0000000000000000000000000000000000000000';
   const feeRecipientEnum = {
@@ -23,18 +23,18 @@ describe('FeePool', () => {
   before(async () => {
     [admin, notAdmin, treasury, revenueLockers, contributors] =
       await ethers.getSigners();
-    feePool = await (
-      await ethers.getContractFactory('FeePool')
+    pirexFees = await (
+      await ethers.getContractFactory('PirexFees')
     ).deploy(treasury.address, revenueLockers.address, contributors.address);
   });
 
   describe('initial state', () => {
     it('Should have predefined state variables', async () => {
-      const PERCENT_DENOMINATOR = await feePool.PERCENT_DENOMINATOR();
-      const FEE_DISTRIBUTOR_ROLE = await feePool.FEE_DISTRIBUTOR_ROLE();
-      const treasuryPercent = await feePool.treasuryPercent();
-      const revenueLockersPercent = await feePool.revenueLockersPercent();
-      const contributorsPercent = await feePool.contributorsPercent();
+      const PERCENT_DENOMINATOR = await pirexFees.PERCENT_DENOMINATOR();
+      const FEE_DISTRIBUTOR_ROLE = await pirexFees.FEE_DISTRIBUTOR_ROLE();
+      const treasuryPercent = await pirexFees.treasuryPercent();
+      const revenueLockersPercent = await pirexFees.revenueLockersPercent();
+      const contributorsPercent = await pirexFees.contributorsPercent();
 
       expect(PERCENT_DENOMINATOR).to.equal(100);
       expect(FEE_DISTRIBUTOR_ROLE).to.equal(
@@ -48,20 +48,20 @@ describe('FeePool', () => {
 
   describe('constructor', () => {
     it('Should set up contract state', async () => {
-      const _treasury = await feePool.treasury();
-      const _revenueLockers = await feePool.revenueLockers();
-      const _contributors = await feePool.contributors();
-      const DEFAULT_ADMIN_ROLE = await feePool.DEFAULT_ADMIN_ROLE();
-      const FEE_DISTRIBUTOR_ROLE = await feePool.FEE_DISTRIBUTOR_ROLE();
-      const adminHasRole = await feePool.hasRole(
+      const _treasury = await pirexFees.treasury();
+      const _revenueLockers = await pirexFees.revenueLockers();
+      const _contributors = await pirexFees.contributors();
+      const DEFAULT_ADMIN_ROLE = await pirexFees.DEFAULT_ADMIN_ROLE();
+      const FEE_DISTRIBUTOR_ROLE = await pirexFees.FEE_DISTRIBUTOR_ROLE();
+      const adminHasRole = await pirexFees.hasRole(
         DEFAULT_ADMIN_ROLE,
         admin.address
       );
-      const notAdminHasAdminRole = await feePool.hasRole(
+      const notAdminHasAdminRole = await pirexFees.hasRole(
         DEFAULT_ADMIN_ROLE,
         notAdmin.address
       );
-      const notAdminHasDepositorsRole = await feePool.hasRole(
+      const notAdminHasDepositorsRole = await pirexFees.hasRole(
         FEE_DISTRIBUTOR_ROLE,
         notAdmin.address
       );
@@ -82,30 +82,30 @@ describe('FeePool', () => {
       const invalidDepositor = zeroAddress;
 
       await expect(
-        feePool.grantFeeDistributorRole(invalidDepositor)
+        pirexFees.grantFeeDistributorRole(invalidDepositor)
       ).to.be.revertedWith('ZeroAddress()');
     });
 
     it('Should revert if called by non-admin', async () => {
       const distributor = notAdmin.address;
-      const adminRole = await feePool.DEFAULT_ADMIN_ROLE();
+      const adminRole = await pirexFees.DEFAULT_ADMIN_ROLE();
 
       await expect(
-        feePool.connect(notAdmin).grantFeeDistributorRole(distributor)
+        pirexFees.connect(notAdmin).grantFeeDistributorRole(distributor)
       ).to.be.revertedWith(
         `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${adminRole}`
       );
     });
 
     it('Should grant the distributor role to an address', async () => {
-      const distributorRole = await feePool.FEE_DISTRIBUTOR_ROLE();
+      const distributorRole = await pirexFees.FEE_DISTRIBUTOR_ROLE();
       const distributor = notAdmin.address;
-      const hasRoleBefore = await feePool.hasRole(distributorRole, distributor);
+      const hasRoleBefore = await pirexFees.hasRole(distributorRole, distributor);
       const [, grantEvent] = await callAndReturnEvents(
-        feePool.grantFeeDistributorRole,
+        pirexFees.grantFeeDistributorRole,
         [distributor]
       );
-      const hasRoleAfter = await feePool.hasRole(distributorRole, distributor);
+      const hasRoleAfter = await pirexFees.hasRole(distributorRole, distributor);
 
       expect(hasRoleBefore).to.equal(false);
       expect(hasRoleAfter).to.equal(true);
@@ -119,24 +119,24 @@ describe('FeePool', () => {
   describe('revokeFeeDistributorRole', () => {
     it('Should revert if called by non-admin', async () => {
       const distributor = notAdmin.address;
-      const adminRole = await feePool.DEFAULT_ADMIN_ROLE();
+      const adminRole = await pirexFees.DEFAULT_ADMIN_ROLE();
 
       await expect(
-        feePool.connect(notAdmin).revokeFeeDistributorRole(distributor)
+        pirexFees.connect(notAdmin).revokeFeeDistributorRole(distributor)
       ).to.be.revertedWith(
         `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${adminRole}`
       );
     });
 
     it('Should revoke the fee distributor role from an address', async () => {
-      const distributorRole = await feePool.FEE_DISTRIBUTOR_ROLE();
+      const distributorRole = await pirexFees.FEE_DISTRIBUTOR_ROLE();
       const distributor = notAdmin.address;
-      const hasRoleBefore = await feePool.hasRole(distributorRole, distributor);
+      const hasRoleBefore = await pirexFees.hasRole(distributorRole, distributor);
       const [, revokeEvent] = await callAndReturnEvents(
-        feePool.revokeFeeDistributorRole,
+        pirexFees.revokeFeeDistributorRole,
         [distributor]
       );
-      const hasRoleAfter = await feePool.hasRole(distributorRole, distributor);
+      const hasRoleAfter = await pirexFees.hasRole(distributorRole, distributor);
 
       expect(hasRoleBefore).to.equal(true);
       expect(hasRoleAfter).to.equal(false);
@@ -147,20 +147,20 @@ describe('FeePool', () => {
     });
 
     it('Should revert if address is not a distributor', async () => {
-      const distributorRole = await feePool.FEE_DISTRIBUTOR_ROLE();
+      const distributorRole = await pirexFees.FEE_DISTRIBUTOR_ROLE();
       const invalidDistributor1 = notAdmin.address;
       const invalidDistributor2 = zeroAddress;
-      const distributor1HasRole = await feePool.hasRole(
+      const distributor1HasRole = await pirexFees.hasRole(
         distributorRole,
         invalidDistributor1
       );
 
       expect(distributor1HasRole).to.equal(false);
       await expect(
-        feePool.revokeFeeDistributorRole(invalidDistributor1)
+        pirexFees.revokeFeeDistributorRole(invalidDistributor1)
       ).to.be.revertedWith('NotFeeDistributor()');
       await expect(
-        feePool.revokeFeeDistributorRole(invalidDistributor2)
+        pirexFees.revokeFeeDistributorRole(invalidDistributor2)
       ).to.be.revertedWith('NotFeeDistributor()');
     });
   });
@@ -170,7 +170,7 @@ describe('FeePool', () => {
       const invalidF = feeRecipientEnum.contributors + 1;
 
       await expect(
-        feePool.setFeeRecipient(invalidF, admin.address)
+        pirexFees.setFeeRecipient(invalidF, admin.address)
       ).to.be.revertedWith(
         'Transaction reverted: function was called with incorrect parameters'
       );
@@ -181,17 +181,17 @@ describe('FeePool', () => {
       const invalidRecipient = zeroAddress;
 
       await expect(
-        feePool.setFeeRecipient(f, invalidRecipient)
+        pirexFees.setFeeRecipient(f, invalidRecipient)
       ).to.be.revertedWith('ZeroAddress()');
     });
 
     it('Should revert if not called by admin', async () => {
       const f = feeRecipientEnum.treasury;
       const recipient = admin.address;
-      const adminRole = await feePool.DEFAULT_ADMIN_ROLE();
+      const adminRole = await pirexFees.DEFAULT_ADMIN_ROLE();
 
       await expect(
-        feePool.connect(notAdmin).setFeeRecipient(f, recipient)
+        pirexFees.connect(notAdmin).setFeeRecipient(f, recipient)
       ).to.be.revertedWith(
         `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${adminRole}`
       );
@@ -199,15 +199,15 @@ describe('FeePool', () => {
 
     it('Should set treasury', async () => {
       const newTreasury = notAdmin.address;
-      const treasuryBefore = await feePool.treasury();
-      const [setEvent] = await callAndReturnEvents(feePool.setFeeRecipient, [
+      const treasuryBefore = await pirexFees.treasury();
+      const [setEvent] = await callAndReturnEvents(pirexFees.setFeeRecipient, [
         feeRecipientEnum.treasury,
         newTreasury,
       ]);
-      const treasuryAfter = await feePool.treasury();
+      const treasuryAfter = await pirexFees.treasury();
 
       // Revert change to appropriate value for future tests
-      await feePool.setFeeRecipient(feeRecipientEnum.treasury, treasuryBefore);
+      await pirexFees.setFeeRecipient(feeRecipientEnum.treasury, treasuryBefore);
 
       expect(treasuryBefore).to.equal(treasury.address);
       expect(treasuryBefore).to.not.equal(treasuryAfter);
@@ -219,19 +219,19 @@ describe('FeePool', () => {
       expect(setEvent.args.recipient).to.equal(notAdmin.address);
 
       // Test change reversion
-      expect(treasuryBefore).to.equal(await feePool.treasury());
+      expect(treasuryBefore).to.equal(await pirexFees.treasury());
     });
 
     it('Should set revenueLockers', async () => {
       const newRevenueLockers = notAdmin.address;
-      const revenueLockersBefore = await feePool.revenueLockers();
-      const [setEvent] = await callAndReturnEvents(feePool.setFeeRecipient, [
+      const revenueLockersBefore = await pirexFees.revenueLockers();
+      const [setEvent] = await callAndReturnEvents(pirexFees.setFeeRecipient, [
         feeRecipientEnum.revenueLockers,
         newRevenueLockers,
       ]);
-      const revenueLockersAfter = await feePool.revenueLockers();
+      const revenueLockersAfter = await pirexFees.revenueLockers();
 
-      await feePool.setFeeRecipient(
+      await pirexFees.setFeeRecipient(
         feeRecipientEnum.revenueLockers,
         revenueLockersBefore
       );
@@ -244,19 +244,19 @@ describe('FeePool', () => {
       );
       expect(setEvent.args.f).to.equal(feeRecipientEnum.revenueLockers);
       expect(setEvent.args.recipient).to.equal(notAdmin.address);
-      expect(revenueLockersBefore).to.equal(await feePool.revenueLockers());
+      expect(revenueLockersBefore).to.equal(await pirexFees.revenueLockers());
     });
 
     it('Should set contributors', async () => {
       const newContributors = notAdmin.address;
-      const contributorsBefore = await feePool.contributors();
-      const [setEvent] = await callAndReturnEvents(feePool.setFeeRecipient, [
+      const contributorsBefore = await pirexFees.contributors();
+      const [setEvent] = await callAndReturnEvents(pirexFees.setFeeRecipient, [
         feeRecipientEnum.contributors,
         newContributors,
       ]);
-      const contributorsAfter = await feePool.contributors();
+      const contributorsAfter = await pirexFees.contributors();
 
-      await feePool.setFeeRecipient(
+      await pirexFees.setFeeRecipient(
         feeRecipientEnum.contributors,
         contributorsBefore
       );
@@ -269,7 +269,7 @@ describe('FeePool', () => {
       );
       expect(setEvent.args.f).to.equal(feeRecipientEnum.contributors);
       expect(setEvent.args.recipient).to.equal(notAdmin.address);
-      expect(contributorsBefore).to.equal(await feePool.contributors());
+      expect(contributorsBefore).to.equal(await pirexFees.contributors());
     });
   });
 
@@ -282,7 +282,7 @@ describe('FeePool', () => {
       };
 
       await expect(
-        feePool.setFeePercents(
+        pirexFees.setFeePercents(
           invalidPercents.treasury,
           invalidPercents.revenueLockers,
           invalidPercents.contributors
@@ -291,7 +291,7 @@ describe('FeePool', () => {
     });
 
     it('Should revert if not called by admin', async () => {
-      const adminRole = await feePool.DEFAULT_ADMIN_ROLE();
+      const adminRole = await pirexFees.DEFAULT_ADMIN_ROLE();
       const percents = {
         treasury: 40,
         revenueLockers: 40,
@@ -299,7 +299,7 @@ describe('FeePool', () => {
       };
 
       await expect(
-        feePool
+        pirexFees
           .connect(notAdmin)
           .setFeePercents(
             percents.treasury,
@@ -318,19 +318,19 @@ describe('FeePool', () => {
         contributors: 20,
       };
       const percentsBefore = {
-        treasury: await feePool.treasuryPercent(),
-        revenueLockers: await feePool.revenueLockersPercent(),
-        contributors: await feePool.contributorsPercent(),
+        treasury: await pirexFees.treasuryPercent(),
+        revenueLockers: await pirexFees.revenueLockersPercent(),
+        contributors: await pirexFees.contributorsPercent(),
       };
-      const [setEvent] = await callAndReturnEvents(feePool.setFeePercents, [
+      const [setEvent] = await callAndReturnEvents(pirexFees.setFeePercents, [
         percents.treasury,
         percents.revenueLockers,
         percents.contributors,
       ]);
       const percentsAfter = {
-        treasury: await feePool.treasuryPercent(),
-        revenueLockers: await feePool.revenueLockersPercent(),
-        contributors: await feePool.contributorsPercent(),
+        treasury: await pirexFees.treasuryPercent(),
+        revenueLockers: await pirexFees.revenueLockersPercent(),
+        contributors: await pirexFees.contributorsPercent(),
       };
 
       expect(percents).to.not.deep.equal(percentsBefore);
