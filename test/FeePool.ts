@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { uniq } from 'lodash';
-import { callAndReturnEvents, toBN } from './helpers';
+import { callAndReturnEvents } from './helpers';
 import { FeePool } from '../typechain-types';
 
 describe('FeePool', () => {
@@ -12,6 +12,8 @@ describe('FeePool', () => {
   let revenueLockers: SignerWithAddress;
   let contributors: SignerWithAddress;
   let feePool: FeePool;
+
+  console.log('test');
 
   const zeroAddress = '0x0000000000000000000000000000000000000000';
   const feeRecipientEnum = {
