@@ -13,8 +13,6 @@ describe('FeePool', () => {
   let contributors: SignerWithAddress;
   let feePool: FeePool;
 
-  console.log('test');
-
   const zeroAddress = '0x0000000000000000000000000000000000000000';
   const feeRecipientEnum = {
     treasury: 0,
