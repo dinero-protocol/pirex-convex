@@ -144,6 +144,7 @@ export const setUpConvex = async () => {
     rewardFactory,
     baseRewardPool,
     cvxLocker,
+    cvxRewardPool,
     cvxStakingProxy,
     votiumMultiMerkleStash,
     votiumAddressRegistry,
