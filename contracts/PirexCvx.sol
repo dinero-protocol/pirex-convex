@@ -462,8 +462,14 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         // Transfer CVX to self and approve for locking
         CVX.safeTransferFrom(msg.sender, address(this), amount);
 
-        // Lock CVX
-        _lock(amount);
+        uint256 depositFee = (amount * fees[Fees.Deposit]) / FEE_DENOMINATOR;
+
+        // Allow feePool to distribute the deposit fee
+        CVX.safeIncreaseAllowance(address(feePool), depositFee);
+        feePool.distributeFees(address(CVX), depositFee);
+
+        // Lock post-fee CVX amount
+        _lock(amount - depositFee);
     }
 
     /**
