@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import {ERC4626VaultUpgradeable} from "./ERC4626VaultUpgradeable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC4626Upgradeable} from "./ERC4626Upgradeable.sol";
 
-contract StakedPirexCvx is ERC4626VaultUpgradeable {
+contract StakedPirexCvx is ERC4626Upgradeable {
     uint256 public stakeExpiry;
 
     event Initialize(
@@ -40,12 +40,16 @@ contract StakedPirexCvx is ERC4626VaultUpgradeable {
         emit Initialize(_stakeExpiry, address(_underlying), _name, _symbol);
     }
 
+    function totalAssets() public view override returns (uint256) {
+        return asset.balanceOf(address(this));
+    }
+
     /**
         @notice Check underlying amount and timestamp
-        @param  underlyingAmount  uint256  CVX amount
+        @param  assets  uint256  CVX amount
      */
-    function beforeWithdraw(uint256 underlyingAmount) internal view override {
-        if (underlyingAmount == 0) revert ZeroAmount();
+    function beforeWithdraw(uint256 assets, uint256) internal view override {
+        if (assets == 0) revert ZeroAmount();
         if (stakeExpiry > block.timestamp) revert BeforeStakeExpiry();
     }
 }

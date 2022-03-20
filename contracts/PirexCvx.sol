@@ -461,7 +461,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         );
 
         // Transfer pCVX to vault and mint shares for `to`
-        s.deposit(to, amount);
+        s.deposit(amount, to);
 
         _mintFutures(rounds, to, amount, f);
     }
@@ -487,7 +487,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         ERC20(vault).safeTransferFrom(msg.sender, address(this), amount);
 
         // Burn upCVX and transfer pCVX to `to`
-        StakedPirexCvx(vault).redeem(to, amount);
+        StakedPirexCvx(vault).redeem(amount, to, address(this));
     }
 
     /**
