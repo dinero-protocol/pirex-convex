@@ -47,14 +47,16 @@ describe('PirexCvx', () => {
   const zeroAddress = '0x0000000000000000000000000000000000000000';
   const epochDuration = toBN(1209600);
   const contractEnum = {
+    pirexFees: 0,
+    upCvx: 1,
+    vpCvx: 2,
+    rpCvx: 3,
+    spCvxImplementation: 4,
+  };
+  const convexContractEnum = {
     cvxLocker: 0,
     cvxDelegateRegistry: 1,
     cvxRewardPool: 2,
-    pirexFees: 3,
-    upCvx: 4,
-    vpCvx: 5,
-    rpCvx: 6,
-    spCvxImplementation: 7,
   };
   const futuresEnum = {
     vote: 0,
@@ -176,78 +178,16 @@ describe('PirexCvx', () => {
       const invalidAddress = zeroAddress;
 
       await expect(
-        pCvx.setContract(contractEnum.cvxLocker, invalidAddress)
+        pCvx.setContract(contractEnum.pirexFees, invalidAddress)
       ).to.be.revertedWith('ZeroAddress()');
     });
 
     it('Should revert if not called by owner', async () => {
-      const _cvxLocker = admin.address;
+      const contractAddr = admin.address;
 
       await expect(
-        pCvx.connect(notAdmin).setContract(contractEnum.cvxLocker, _cvxLocker)
+        pCvx.connect(notAdmin).setContract(contractEnum.pirexFees, contractAddr)
       ).to.be.revertedWith('Ownable: caller is not the owner');
-    });
-
-    it('Should set cvxLocker', async () => {
-      const cvxLockerBefore = await pCvx.cvxLocker();
-      const setEvent = await callAndReturnEvent(pCvx.setContract, [
-        contractEnum.cvxLocker,
-        admin.address,
-      ]);
-      const cvxLockerAfter = await pCvx.cvxLocker();
-
-      // Revert change to appropriate value for future tests
-      await pCvx.setContract(contractEnum.cvxLocker, cvxLockerBefore);
-
-      expect(cvxLockerBefore).to.not.equal(cvxLockerAfter);
-      expect(cvxLockerAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
-      expect(setEvent.args.c).to.equal(contractEnum.cvxLocker);
-      expect(setEvent.args.contractAddress).to.equal(admin.address);
-
-      // Test change reversion
-      expect(cvxLockerBefore).to.equal(await pCvx.cvxLocker());
-    });
-
-    it('Should set cvxDelegateRegistry', async () => {
-      const cvxDelegateRegistryBefore = await pCvx.cvxDelegateRegistry();
-      const setEvent = await callAndReturnEvent(pCvx.setContract, [
-        contractEnum.cvxDelegateRegistry,
-        admin.address,
-      ]);
-      const cvxDelegateRegistryAfter = await pCvx.cvxDelegateRegistry();
-
-      await pCvx.setContract(
-        contractEnum.cvxDelegateRegistry,
-        cvxDelegateRegistryBefore
-      );
-
-      expect(cvxDelegateRegistryBefore).to.not.equal(cvxDelegateRegistryAfter);
-      expect(cvxDelegateRegistryAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
-      expect(setEvent.args.c).to.equal(contractEnum.cvxDelegateRegistry);
-      expect(setEvent.args.contractAddress).to.equal(admin.address);
-      expect(cvxDelegateRegistryBefore).to.equal(
-        await pCvx.cvxDelegateRegistry()
-      );
-    });
-
-    it('Should set cvxRewardPool', async () => {
-      const cvxRewardPoolBefore = await pCvx.cvxRewardPool();
-      const setEvent = await callAndReturnEvent(pCvx.setContract, [
-        contractEnum.cvxRewardPool,
-        admin.address,
-      ]);
-      const cvxRewardPoolAfter = await pCvx.cvxRewardPool();
-
-      await pCvx.setContract(contractEnum.cvxRewardPool, cvxRewardPoolBefore);
-
-      expect(cvxRewardPoolBefore).to.not.equal(cvxRewardPoolAfter);
-      expect(cvxRewardPoolAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
-      expect(setEvent.args.c).to.equal(contractEnum.cvxRewardPool);
-      expect(setEvent.args.contractAddress).to.equal(admin.address);
-      expect(cvxRewardPoolBefore).to.equal(await pCvx.cvxRewardPool());
     });
 
     it('Should set pirexFees', async () => {
@@ -343,6 +283,91 @@ describe('PirexCvx', () => {
       expect(spCvxImplementationBefore).to.equal(
         await pCvx.spCvxImplementation()
       );
+    });
+  });
+
+  describe('setConvexContract', () => {
+    it('Should revert if contractAddress is zero address', async () => {
+      const invalidAddress = zeroAddress;
+
+      await expect(
+        pCvx.setConvexContract(convexContractEnum.cvxLocker, invalidAddress)
+      ).to.be.revertedWith('ZeroAddress()');
+    });
+
+    it('Should revert if not called by owner', async () => {
+      const _cvxLocker = admin.address;
+
+      await expect(
+        pCvx
+          .connect(notAdmin)
+          .setConvexContract(convexContractEnum.cvxLocker, _cvxLocker)
+      ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('Should set cvxLocker', async () => {
+      const cvxLockerBefore = await pCvx.cvxLocker();
+      const setEvent = await callAndReturnEvent(pCvx.setConvexContract, [
+        convexContractEnum.cvxLocker,
+        admin.address,
+      ]);
+      const cvxLockerAfter = await pCvx.cvxLocker();
+
+      // Revert change to appropriate value for future tests
+      await pCvx.setConvexContract(convexContractEnum.cvxLocker, cvxLockerBefore);
+
+      expect(cvxLockerBefore).to.not.equal(cvxLockerAfter);
+      expect(cvxLockerAfter).to.equal(admin.address);
+      expect(setEvent.eventSignature).to.equal('SetConvexContract(uint8,address)');
+      expect(setEvent.args.c).to.equal(convexContractEnum.cvxLocker);
+      expect(setEvent.args.contractAddress).to.equal(admin.address);
+
+      // Test change reversion
+      expect(cvxLockerBefore).to.equal(await pCvx.cvxLocker());
+    });
+
+    it('Should set cvxDelegateRegistry', async () => {
+      const cvxDelegateRegistryBefore = await pCvx.cvxDelegateRegistry();
+      const setEvent = await callAndReturnEvent(pCvx.setConvexContract, [
+        convexContractEnum.cvxDelegateRegistry,
+        admin.address,
+      ]);
+      const cvxDelegateRegistryAfter = await pCvx.cvxDelegateRegistry();
+
+      await pCvx.setConvexContract(
+        convexContractEnum.cvxDelegateRegistry,
+        cvxDelegateRegistryBefore
+      );
+
+      expect(cvxDelegateRegistryBefore).to.not.equal(cvxDelegateRegistryAfter);
+      expect(cvxDelegateRegistryAfter).to.equal(admin.address);
+      expect(setEvent.eventSignature).to.equal('SetConvexContract(uint8,address)');
+      expect(setEvent.args.c).to.equal(convexContractEnum.cvxDelegateRegistry);
+      expect(setEvent.args.contractAddress).to.equal(admin.address);
+      expect(cvxDelegateRegistryBefore).to.equal(
+        await pCvx.cvxDelegateRegistry()
+      );
+    });
+
+    it('Should set cvxRewardPool', async () => {
+      const cvxRewardPoolBefore = await pCvx.cvxRewardPool();
+      const setEvent = await callAndReturnEvent(pCvx.setConvexContract, [
+        convexContractEnum.cvxRewardPool,
+        admin.address,
+      ]);
+      const cvxRewardPoolAfter = await pCvx.cvxRewardPool();
+
+      await pCvx.setConvexContract(
+        convexContractEnum.cvxRewardPool,
+        cvxRewardPoolBefore
+      );
+
+      expect(cvxRewardPoolBefore).to.not.equal(cvxRewardPoolAfter);
+      expect(cvxRewardPoolAfter).to.equal(admin.address);
+      expect(setEvent.eventSignature).to.equal('SetConvexContract(uint8,address)');
+      expect(setEvent.args.c).to.equal(convexContractEnum.cvxRewardPool);
+      expect(setEvent.args.contractAddress).to.equal(admin.address);
+      expect(cvxRewardPoolBefore).to.equal(await pCvx.cvxRewardPool());
     });
   });
 
@@ -486,10 +511,10 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('removeVoteDelegate', () => {
+  describe('clearVoteDelegate', () => {
     it('Should revert if not called by owner', async () => {
       await expect(
-        pCvx.connect(notAdmin).removeVoteDelegate()
+        pCvx.connect(notAdmin).clearVoteDelegate()
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
@@ -500,7 +525,7 @@ describe('PirexCvx', () => {
         pCvx.address,
         _delegationSpace
       );
-      const events = await callAndReturnEvents(pCvx.removeVoteDelegate, []);
+      const events = await callAndReturnEvents(pCvx.clearVoteDelegate, []);
       const removeEvent = events[0];
       const voteDelegateAfter = await pCvx.voteDelegate();
       const convexDelegateAfter = await cvxDelegateRegistry.delegation(
@@ -514,7 +539,7 @@ describe('PirexCvx', () => {
       expect(voteDelegateAfter).to.equal(zeroAddress);
       expect(convexDelegateAfter).to.not.equal(convexDelegateBefore);
       expect(convexDelegateAfter).to.equal(zeroAddress);
-      expect(removeEvent.eventSignature).to.equal('RemoveVoteDelegate()');
+      expect(removeEvent.eventSignature).to.equal('ClearVoteDelegate()');
     });
   });
 
