@@ -1,21 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {ERC20Snapshot} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
-import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
-import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
+import {PirexCvxConvex} from "./PirexCvxConvex.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
-import {ICvxRewardPool} from "./interfaces/ICvxRewardPool.sol";
 import {StakedPirexCvx} from "./StakedPirexCvx.sol";
 import {PirexFees} from "./PirexFees.sol";
 
-contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
+contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     using SafeERC20 for ERC20;
 
     /**
@@ -43,9 +40,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     // Configurable contracts
     enum Contract {
-        CvxLocker,
-        CvxDelegateRegistry,
-        CvxRewardPool,
         PirexFees,
         UpCvx,
         VpCvx,
@@ -59,8 +53,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         Reward
     }
 
-    ERC20 public immutable CVX;
-
     // Seconds between Convex voting rounds (2 weeks)
     uint32 public immutable EPOCH_DURATION = 1209600;
 
@@ -73,9 +65,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     // Fee denominator
     uint32 public immutable FEE_DENOMINATOR = 1000000;
 
-    ICvxLocker public cvxLocker;
-    ICvxDelegateRegistry public cvxDelegateRegistry;
-    ICvxRewardPool public cvxRewardPool;
     PirexFees public pirexFees;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
     ERC1155PresetMinterSupply public upCvx;
@@ -86,15 +75,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     address public spCvxImplementation;
     address[] public spCvx;
 
-    // Convex Snapshot space
-    bytes32 public delegationSpace = bytes32(bytes("cvx.eth"));
-
-    // Protocol-owned EOA that is delegated vlCVX votes
-    address public voteDelegate;
-
-    // The amount of CVX that needs to remain unlocked for redemptions
-    uint256 public cvxOutstanding;
-
     // Epochs mapped to epoch details
     mapping(uint256 => Epoch) private epochs;
 
@@ -103,17 +83,12 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
 
     event SetContract(Contract c, address contractAddress);
     event SetFee(Fees f, uint16 amount);
-    event SetDelegationSpace(string _delegationSpace);
-    event SetVoteDelegate(address _voteDelegate);
-    event RemoveVoteDelegate();
     event MintFutures(
         uint8 rounds,
         address indexed to,
         uint256 amount,
         Futures indexed f
     );
-    event StakeCvx(uint256 amount);
-    event UnstakeCvx(uint256 amount);
     event Deposit(address indexed to, uint256 amount);
     event InitiateRedemption(address indexed to, uint256 amount);
     event Redeem(uint256 indexed epoch, address indexed to, uint256 amount);
@@ -143,10 +118,7 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     event ClaimFuturesRewards(uint256 epoch, address to, address[] rewards);
     event PerformEpochMaintenance(uint256 epoch, uint256 snapshotId);
 
-    error ZeroAddress();
-    error ZeroAmount();
     error InvalidFee();
-    error EmptyString();
     error BeforeLockExpiry();
     error InsufficientBalance();
     error AlreadyClaimed();
@@ -156,6 +128,8 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         @param  _CVX                     address  CVX address    
         @param  _cvxLocker               address  CvxLocker address
         @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
+        @param  _cvxRewardPool           address  CvxRewardPool address
+        @param  _pirexFees               address  PirexFees address
         @param  _votiumMultiMerkleStash  address  VotiumMultiMerkleStash address
      */
     constructor(
@@ -165,21 +139,12 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         address _cvxRewardPool,
         address _pirexFees,
         address _votiumMultiMerkleStash
-    ) ERC20("Pirex CVX", "pCVX") {
+    )
+        ERC20("Pirex CVX", "pCVX")
+        PirexCvxConvex(_CVX, _cvxLocker, _cvxDelegateRegistry, _cvxRewardPool)
+    {
         // Start snapshot id from 1 and set it to simplify snapshot-taking determination
         epochs[getCurrentEpoch()].snapshotId = _snapshot();
-
-        if (_CVX == address(0)) revert ZeroAddress();
-        CVX = ERC20(_CVX);
-
-        if (_cvxLocker == address(0)) revert ZeroAddress();
-        cvxLocker = ICvxLocker(_cvxLocker);
-
-        if (_cvxDelegateRegistry == address(0)) revert ZeroAddress();
-        cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
-
-        if (_cvxRewardPool == address(0)) revert ZeroAddress();
-        cvxRewardPool = ICvxRewardPool(_cvxRewardPool);
 
         if (_pirexFees == address(0)) revert ZeroAddress();
         pirexFees = PirexFees(_pirexFees);
@@ -207,21 +172,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         if (contractAddress == address(0)) revert ZeroAddress();
 
         emit SetContract(c, contractAddress);
-
-        if (c == Contract.CvxLocker) {
-            cvxLocker = ICvxLocker(contractAddress);
-            return;
-        }
-
-        if (c == Contract.CvxDelegateRegistry) {
-            cvxDelegateRegistry = ICvxDelegateRegistry(contractAddress);
-            return;
-        }
-
-        if (c == Contract.CvxRewardPool) {
-            cvxRewardPool = ICvxRewardPool(contractAddress);
-            return;
-        }
 
         if (c == Contract.PirexFees) {
             pirexFees = PirexFees(contractAddress);
@@ -265,45 +215,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         fees[Fees.Reward] = amount;
     }
 
-    /** 
-        @notice Set delegationSpace
-        @param  _delegationSpace  string  Convex Snapshot delegation space
-     */
-    function setDelegationSpace(string memory _delegationSpace)
-        external
-        onlyOwner
-    {
-        bytes memory d = bytes(_delegationSpace);
-        if (d.length == 0) revert EmptyString();
-        delegationSpace = bytes32(d);
-
-        emit SetDelegationSpace(_delegationSpace);
-    }
-
-    /**
-        @notice Set vote delegate
-        @param  _voteDelegate  address  Account to delegate votes to
-     */
-    function setVoteDelegate(address _voteDelegate) external onlyOwner {
-        if (_voteDelegate == address(0)) revert ZeroAddress();
-        voteDelegate = _voteDelegate;
-
-        emit SetVoteDelegate(_voteDelegate);
-
-        cvxDelegateRegistry.setDelegate(delegationSpace, _voteDelegate);
-    }
-
-    /**
-        @notice Remove vote delegate
-     */
-    function removeVoteDelegate() external onlyOwner {
-        voteDelegate = address(0);
-
-        emit RemoveVoteDelegate();
-
-        cvxDelegateRegistry.clearDelegate(delegationSpace);
-    }
-
     /**
         @notice Get current epoch
         @return uint256  Current epoch
@@ -313,19 +224,19 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
     }
 
     /**
-        @notice Get spCvx
-        @return address[]  StakedPirexCvx vault addresses
-     */
-    function getSpCvx() external view returns (address[] memory) {
-        return spCvx;
-    }
-
-    /**
         @notice Get current snapshot id
         @return uint256  Current snapshot id
      */
     function getCurrentSnapshotId() external view returns (uint256) {
         return _getCurrentSnapshotId();
+    }
+
+    /**
+        @notice Get spCvx
+        @return address[]  StakedPirexCvx vault addresses
+     */
+    function getSpCvx() external view returns (address[] memory) {
+        return spCvx;
     }
 
     /**
@@ -349,40 +260,6 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         Epoch storage e = epochs[epoch];
 
         return (e.snapshotId, e.rewards, e.snapshotRewards, e.futuresRewards);
-    }
-
-    /**
-        @notice Lock CVX
-        @param  amount  uint256  CVX amount
-     */
-    function _lock(uint256 amount) internal {
-        CVX.safeIncreaseAllowance(address(cvxLocker), amount);
-        cvxLocker.lock(address(this), amount, 0);
-    }
-
-    /**
-        @notice Unlock CVX
-     */
-    function _unlock() internal {
-        (, uint256 unlockable, , ) = cvxLocker.lockedBalances(address(this));
-
-        if (unlockable != 0)
-            cvxLocker.processExpiredLocks(false, 0, address(this));
-    }
-
-    /**
-        @notice Unlock CVX and relock excess
-     */
-    function _relock() internal {
-        _unlock();
-
-        uint256 balance = CVX.balanceOf(address(this));
-
-        if (balance > cvxOutstanding) {
-            unchecked {
-                _lock(balance - cvxOutstanding);
-            }
-        }
     }
 
     /**
@@ -420,23 +297,13 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         @notice Claim misc. rewards (e.g. Convex platform fees)
      */
     function _claimMiscRewards() internal {
-        address tAddr = address(this);
-
-        // Get claimable rewards
-        ICvxLocker.EarnedData[] memory c = cvxLocker.claimableRewards(tAddr);
-
+        // Get claimable rewards and balances
+        ConvexReward[] memory c = _claimableRewards();
         uint256 cLen = c.length;
-        uint256[] memory balancesBefore = new uint256[](cLen);
+        address addr = address(this);
 
-        // Get the current balances for each token to calculate the amount received
-        for (uint256 i; i < cLen; ++i) {
-            if (c[i].amount == 0) continue;
-
-            balancesBefore[i] = ERC20(c[i].token).balanceOf(tAddr);
-        }
-
-        // Get rewards
-        cvxLocker.getReward(tAddr, false);
+        // Claim rewards from Convex
+        _getReward();
 
         uint256 currentEpoch = getCurrentEpoch();
         Epoch storage e = epochs[currentEpoch];
@@ -446,51 +313,28 @@ contract PirexCvx is Ownable, ReentrancyGuard, ERC20Snapshot {
         address pirexFeesAddr = address(pirexFees);
 
         // Calculate the rewards for both pCVX/snapshot and rpCVX/futures holders
-        for (uint256 j; j < cLen; ++j) {
-            if (c[j].amount == 0) continue;
+        for (uint8 i; i < cLen; ++i) {
+            if (c[i].amount == 0) continue;
+
+            address t = c[i].token;
 
             // Tokens actually received (after factoring in token fees and existing balance)
-            uint256 received = ERC20(c[j].token).balanceOf(tAddr) -
-                balancesBefore[j];
+            uint256 received = ERC20(t).balanceOf(addr) - c[i].balance;
+
             uint256 rewardFee = (received * fees[Fees.Reward]) /
                 FEE_DENOMINATOR;
             uint256 rewards = received - rewardFee;
             uint256 snapshotRewardAmount = (rewards * snapshotSupply) /
                 combinedSupply;
 
-            e.rewards.push(c[j].token);
+            e.rewards.push(t);
             e.snapshotRewards.push(snapshotRewardAmount);
             e.futuresRewards.push(rewards - snapshotRewardAmount);
 
             // Distribute fees
-            ERC20(c[j].token).safeIncreaseAllowance(pirexFeesAddr, rewardFee);
-            pirexFees.distributeFees(c[j].token, rewardFee);
+            ERC20(t).safeIncreaseAllowance(pirexFeesAddr, rewardFee);
+            pirexFees.distributeFees(t, rewardFee);
         }
-    }
-
-    /**
-        @notice Stake CVX
-        @param  amount  uint256  Amount of CVX to stake
-     */
-    function _stake(uint256 amount) internal {
-        if (amount == 0) revert ZeroAmount();
-
-        emit StakeCvx(amount);
-
-        CVX.safeIncreaseAllowance(address(cvxRewardPool), amount);
-        cvxRewardPool.stake(amount);
-    }
-
-    /**
-        @notice Unstake CVX
-        @param  amount  uint256  Amount of CVX to unstake
-     */
-    function _unstake(uint256 amount) internal {
-        if (amount == 0) revert ZeroAmount();
-
-        emit UnstakeCvx(amount);
-
-        cvxRewardPool.withdraw(amount, false);
     }
 
     /**
