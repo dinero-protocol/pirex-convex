@@ -314,11 +314,16 @@ describe('PirexCvx', () => {
       const cvxLockerAfter = await pCvx.cvxLocker();
 
       // Revert change to appropriate value for future tests
-      await pCvx.setConvexContract(convexContractEnum.cvxLocker, cvxLockerBefore);
+      await pCvx.setConvexContract(
+        convexContractEnum.cvxLocker,
+        cvxLockerBefore
+      );
 
       expect(cvxLockerBefore).to.not.equal(cvxLockerAfter);
       expect(cvxLockerAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal('SetConvexContract(uint8,address)');
+      expect(setEvent.eventSignature).to.equal(
+        'SetConvexContract(uint8,address)'
+      );
       expect(setEvent.args.c).to.equal(convexContractEnum.cvxLocker);
       expect(setEvent.args.contractAddress).to.equal(admin.address);
 
@@ -341,7 +346,9 @@ describe('PirexCvx', () => {
 
       expect(cvxDelegateRegistryBefore).to.not.equal(cvxDelegateRegistryAfter);
       expect(cvxDelegateRegistryAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal('SetConvexContract(uint8,address)');
+      expect(setEvent.eventSignature).to.equal(
+        'SetConvexContract(uint8,address)'
+      );
       expect(setEvent.args.c).to.equal(convexContractEnum.cvxDelegateRegistry);
       expect(setEvent.args.contractAddress).to.equal(admin.address);
       expect(cvxDelegateRegistryBefore).to.equal(
@@ -364,7 +371,9 @@ describe('PirexCvx', () => {
 
       expect(cvxRewardPoolBefore).to.not.equal(cvxRewardPoolAfter);
       expect(cvxRewardPoolAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal('SetConvexContract(uint8,address)');
+      expect(setEvent.eventSignature).to.equal(
+        'SetConvexContract(uint8,address)'
+      );
       expect(setEvent.args.c).to.equal(convexContractEnum.cvxRewardPool);
       expect(setEvent.args.contractAddress).to.equal(admin.address);
       expect(cvxRewardPoolBefore).to.equal(await pCvx.cvxRewardPool());
@@ -644,6 +653,7 @@ describe('PirexCvx', () => {
       const expectedContributorsFee = depositFee
         .mul(await pirexFees.contributorsPercent())
         .div(await pirexFees.PERCENT_DENOMINATOR());
+      const postFeeAmount = depositAmount.sub(depositFee);
 
       depositEpoch = await pCvx.getCurrentEpoch();
 
@@ -665,18 +675,21 @@ describe('PirexCvx', () => {
         contributorsCvxBalanceBefore.add(expectedContributorsFee)
       );
       expect(lockedBalanceAfter).to.equal(
-        lockedBalanceBefore.add(depositAmount.sub(depositFee))
+        lockedBalanceBefore.add(postFeeAmount)
       );
-      expect(pCvxBalanceAfter).to.equal(pCvxBalanceBefore.add(depositAmount));
+      expect(pCvxBalanceAfter).to.equal(pCvxBalanceBefore.add(postFeeAmount));
       expect(mintEvent.eventSignature).to.equal(
         'Transfer(address,address,uint256)'
       );
       expect(mintEvent.args.from).to.equal(zeroAddress);
       expect(mintEvent.args.to).to.equal(to);
-      expect(mintEvent.args.value).to.equal(depositAmount);
-      expect(depositEvent.eventSignature).to.equal('Deposit(address,uint256)');
+      expect(mintEvent.args.value).to.equal(postFeeAmount);
+      expect(depositEvent.eventSignature).to.equal(
+        'Deposit(address,uint256,uint256)'
+      );
       expect(depositEvent.args.to).to.equal(to);
-      expect(depositEvent.args.amount).to.equal(depositAmount);
+      expect(depositEvent.args.shares).to.equal(postFeeAmount);
+      expect(depositEvent.args.fee).to.equal(depositFee);
       expect(transferEvent.eventSignature).to.equal(
         'Transfer(address,address,uint256)'
       );
