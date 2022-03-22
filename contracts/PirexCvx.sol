@@ -9,6 +9,7 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
 import {PirexCvxConvex} from "./PirexCvxConvex.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
+import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {StakedPirexCvx} from "./StakedPirexCvx.sol";
 import {PirexFees} from "./PirexFees.sol";
 
@@ -59,9 +60,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     // Seconds before upCVX can be redeemed for CVX (17 weeks)
     uint32 public immutable UNLOCKING_DURATION = 10281600;
 
-    // Number of futures rounds to mint when a redemption is initiated
-    uint8 public immutable REDEMPTION_FUTURES_ROUNDS = 8;
-
     // Fee denominator
     uint32 public immutable FEE_DENOMINATOR = 1000000;
 
@@ -80,6 +78,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     // Fees (e.g. 5000 / 1000000 = 0.5%)
     mapping(Fees => uint16) public fees;
+
+    // Convex unlock timestamps mapped to amount being redeemed
+    mapping(uint256 => uint256) public redemptions;
 
     event SetContract(Contract c, address contractAddress);
     event SetFee(Fees f, uint16 amount);
@@ -123,6 +124,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     error InsufficientBalance();
     error AlreadyClaimed();
     error MaintenanceRequired();
+    error InsufficientRedemptionAllowance();
 
     /**
         @param  _CVX                     address  CVX address    
@@ -366,16 +368,35 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Initiate CVX redemption
-        @param  to      address  upCVX recipient
-        @param  amount  uint256  pCVX/upCVX amount
-        @param  f       enum     Futures
+        @param  lockIndex  uint8    Locked balance index
+        @param  to         address  upCVX recipient
+        @param  amount     uint256  pCVX/upCVX amount
+        @param  f          enum     Futures
      */
     function initiateRedemption(
+        uint8 lockIndex,
         address to,
         uint256 amount,
         Futures f
     ) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
+
+        (, , , ICvxLocker.LockedBalance[] memory lockData) = cvxLocker
+            .lockedBalances(address(this));
+
+        ICvxLocker.LockedBalance memory l = lockData[lockIndex];
+        uint256 unlockAmount = l.amount;
+        uint256 unlockTime = l.unlockTime;
+
+        // Check if there is a sufficient amount of CVX being unlocked for redemption
+        if (amount > unlockAmount) revert InsufficientRedemptionAllowance();
+
+        // Check if there is any available after redemption initiations by others
+        if (amount > (unlockAmount - redemptions[unlockTime]))
+            revert InsufficientRedemptionAllowance();
+
+        // Increment redemptions for this specific unlock for future allowance checks
+        redemptions[unlockTime] += amount;
 
         // Burn pCVX - validates `to`
         _burn(msg.sender, amount);
@@ -386,10 +407,26 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         emit InitiateRedemption(to, amount);
 
         // Mint upCVX associated with the current epoch - validates `to`
-        upCvx.mint(to, getCurrentEpoch(), amount, "");
+        upCvx.mint(to, unlockTime, amount, "");
+
+        // Determine how many futures notes rounds to mint
+        uint256 remainingTime = unlockTime - block.timestamp;
+        uint8 rounds = uint8(remainingTime / EPOCH_DURATION);
+
+        // Check if the lock was in the first week/half of an epoch
+        // Handle case where remaining time is between 1 and 2 weeks
+        if (
+            unlockTime % EPOCH_DURATION != 0 &&
+            remainingTime < EPOCH_DURATION &&
+            remainingTime > (EPOCH_DURATION / 2)
+        ) {
+            // Rounds is zero if remainingTime is between 1 and 2 weeks
+            // Increment by 1 since user should receive 1 round of rewards
+            ++rounds;
+        }
 
         // Mint vpCVX or rpCVX
-        _mintFutures(REDEMPTION_FUTURES_ROUNDS, to, amount, f);
+        _mintFutures(rounds, to, amount, f);
     }
 
     /**
