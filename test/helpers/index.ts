@@ -1,6 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { BigNumber } from 'ethers';
 import { ethers } from 'hardhat';
+import { expect } from 'chai';
 
 export const callAndReturnEvent = async (
   fn: any,
@@ -15,6 +16,13 @@ export async function callAndReturnEvents(fn: any, fnArgs: any): Promise<any> {
   const { events } = await (await fn(...fnArgs)).wait();
 
   return events;
+}
+
+export function validateEvent(event: any, signature: string, args: any) {
+  expect(event.eventSignature).to.equal(signature);
+  Object.keys(args).forEach((k) => {
+    expect(event.args[k]).to.equal(args[k], `at ${k} in ${event.eventSignature}`);
+  });
 }
 
 export async function increaseBlockTimestamp(time: number) {
