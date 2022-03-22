@@ -14,6 +14,8 @@ describe('PirexFees', () => {
   let pirexFees: PirexFees;
 
   const zeroAddress = '0x0000000000000000000000000000000000000000';
+  let feeDistributorRole: string;
+  let adminRole: string;
   const feeRecipientEnum = {
     treasury: 0,
     revenueLockers: 1,
@@ -30,14 +32,14 @@ describe('PirexFees', () => {
 
   describe('initial state', () => {
     it('Should have predefined state variables', async () => {
-      const PERCENT_DENOMINATOR = await pirexFees.PERCENT_DENOMINATOR();
-      const FEE_DISTRIBUTOR_ROLE = await pirexFees.FEE_DISTRIBUTOR_ROLE();
+      feeDistributorRole = await pirexFees.FEE_DISTRIBUTOR_ROLE();
+      const percentDenominator = await pirexFees.PERCENT_DENOMINATOR();
       const treasuryPercent = await pirexFees.treasuryPercent();
       const revenueLockersPercent = await pirexFees.revenueLockersPercent();
       const contributorsPercent = await pirexFees.contributorsPercent();
 
-      expect(PERCENT_DENOMINATOR).to.equal(100);
-      expect(FEE_DISTRIBUTOR_ROLE).to.equal(
+      expect(percentDenominator).to.equal(100);
+      expect(feeDistributorRole).to.equal(
         ethers.utils.formatBytes32String('FEE_DISTRIBUTOR')
       );
       expect(treasuryPercent).to.equal(25);
@@ -51,21 +53,20 @@ describe('PirexFees', () => {
       const _treasury = await pirexFees.treasury();
       const _revenueLockers = await pirexFees.revenueLockers();
       const _contributors = await pirexFees.contributors();
-      const DEFAULT_ADMIN_ROLE = await pirexFees.DEFAULT_ADMIN_ROLE();
-      const FEE_DISTRIBUTOR_ROLE = await pirexFees.FEE_DISTRIBUTOR_ROLE();
+      adminRole = await pirexFees.DEFAULT_ADMIN_ROLE();
       const adminHasRole = await pirexFees.hasRole(
-        DEFAULT_ADMIN_ROLE,
+        adminRole,
         admin.address
       );
       const notAdminHasAdminRole = await pirexFees.hasRole(
-        DEFAULT_ADMIN_ROLE,
+        adminRole,
         notAdmin.address
       );
       const notAdminHasDepositorsRole = await pirexFees.hasRole(
-        FEE_DISTRIBUTOR_ROLE,
+        feeDistributorRole,
         notAdmin.address
       );
-      const roles = [DEFAULT_ADMIN_ROLE, FEE_DISTRIBUTOR_ROLE];
+      const roles = [adminRole, feeDistributorRole];
 
       expect(_treasury).to.equal(treasury.address);
       expect(_revenueLockers).to.equal(revenueLockers.address);
@@ -88,7 +89,6 @@ describe('PirexFees', () => {
 
     it('Should revert if called by non-admin', async () => {
       const distributor = notAdmin.address;
-      const adminRole = await pirexFees.DEFAULT_ADMIN_ROLE();
 
       await expect(
         pirexFees.connect(notAdmin).grantFeeDistributorRole(distributor)
@@ -98,10 +98,9 @@ describe('PirexFees', () => {
     });
 
     it('Should grant the distributor role to an address', async () => {
-      const distributorRole = await pirexFees.FEE_DISTRIBUTOR_ROLE();
       const distributor = notAdmin.address;
       const hasRoleBefore = await pirexFees.hasRole(
-        distributorRole,
+        feeDistributorRole,
         distributor
       );
       const [, grantEvent] = await callAndReturnEvents(
@@ -109,7 +108,7 @@ describe('PirexFees', () => {
         [distributor]
       );
       const hasRoleAfter = await pirexFees.hasRole(
-        distributorRole,
+        feeDistributorRole,
         distributor
       );
 
@@ -124,7 +123,6 @@ describe('PirexFees', () => {
   describe('revokeFeeDistributorRole', () => {
     it('Should revert if called by non-admin', async () => {
       const distributor = notAdmin.address;
-      const adminRole = await pirexFees.DEFAULT_ADMIN_ROLE();
 
       await expect(
         pirexFees.connect(notAdmin).revokeFeeDistributorRole(distributor)
@@ -134,10 +132,9 @@ describe('PirexFees', () => {
     });
 
     it('Should revoke the fee distributor role from an address', async () => {
-      const distributorRole = await pirexFees.FEE_DISTRIBUTOR_ROLE();
       const distributor = notAdmin.address;
       const hasRoleBefore = await pirexFees.hasRole(
-        distributorRole,
+        feeDistributorRole,
         distributor
       );
       const [, revokeEvent] = await callAndReturnEvents(
@@ -145,7 +142,7 @@ describe('PirexFees', () => {
         [distributor]
       );
       const hasRoleAfter = await pirexFees.hasRole(
-        distributorRole,
+        feeDistributorRole,
         distributor
       );
 
@@ -157,11 +154,10 @@ describe('PirexFees', () => {
     });
 
     it('Should revert if address is not a distributor', async () => {
-      const distributorRole = await pirexFees.FEE_DISTRIBUTOR_ROLE();
       const invalidDistributor1 = notAdmin.address;
       const invalidDistributor2 = zeroAddress;
       const distributor1HasRole = await pirexFees.hasRole(
-        distributorRole,
+        feeDistributorRole,
         invalidDistributor1
       );
 
@@ -198,7 +194,6 @@ describe('PirexFees', () => {
     it('Should revert if not called by admin', async () => {
       const f = feeRecipientEnum.treasury;
       const recipient = admin.address;
-      const adminRole = await pirexFees.DEFAULT_ADMIN_ROLE();
 
       await expect(
         pirexFees.connect(notAdmin).setFeeRecipient(f, recipient)
@@ -301,7 +296,6 @@ describe('PirexFees', () => {
     });
 
     it('Should revert if not called by admin', async () => {
-      const adminRole = await pirexFees.DEFAULT_ADMIN_ROLE();
       const percents = {
         treasury: 40,
         revenueLockers: 40,
