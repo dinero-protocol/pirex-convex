@@ -9,7 +9,6 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
 import {PirexCvxConvex} from "./PirexCvxConvex.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
-import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {StakedPirexCvx} from "./StakedPirexCvx.sol";
 import {PirexFees} from "./PirexFees.sol";
 
@@ -122,7 +121,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     event PerformEpochMaintenance(uint256 epoch, uint256 snapshotId);
 
     error InvalidFee();
-    error BeforeLockExpiry();
+    error BeforeUnlock();
     error InsufficientBalance();
     error AlreadyClaimed();
     error MaintenanceRequired();
@@ -383,32 +382,24 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     ) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
 
-        (, , , ICvxLocker.LockedBalance[] memory lockData) = cvxLocker
-            .lockedBalances(address(this));
+        (uint256 lockAmount, uint256 unlockTime) = _getLockData(lockIndex);
 
-        ICvxLocker.LockedBalance memory l = lockData[lockIndex];
-        uint256 unlockAmount = l.amount;
-        uint256 unlockTime = l.unlockTime;
-
-        // Check if there is a sufficient amount of CVX being unlocked for redemption
-        if (amount > unlockAmount) revert InsufficientRedemptionAllowance();
-
-        // Check if there is any available after redemption initiations by others
-        if (amount > (unlockAmount - redemptions[unlockTime]))
-            revert InsufficientRedemptionAllowance();
-
-        // Increment redemptions for this specific unlock for future allowance checks
+        // Increment redemptions for this unlock time to prevent over-redeeming
         redemptions[unlockTime] += amount;
+
+        // Check if there is any sufficient allowance after factoring in redemptions by others
+        if (redemptions[unlockTime] > lockAmount)
+            revert InsufficientRedemptionAllowance();
 
         // Burn pCVX - validates `to`
         _burn(msg.sender, amount);
 
         // Track amount that needs to remain unlocked for redemptions
-        cvxOutstanding += amount;
+        outstandingRedemptions += amount;
 
         emit InitiateRedemption(msg.sender, to, amount, unlockTime);
 
-        // Mint upCVX associated with the current epoch - validates `to`
+        // Mint upCVX associated with the unlock time - validates `to`
         upCvx.mint(to, unlockTime, amount, "");
 
         // Determine how many futures notes rounds to mint
@@ -422,7 +413,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             remainingTime < EPOCH_DURATION &&
             remainingTime > (EPOCH_DURATION / 2)
         ) {
-            // Rounds is zero if remainingTime is between 1 and 2 weeks
+            // Rounds is 0 if remainingTime is between 1 and 2 weeks
             // Increment by 1 since user should receive 1 round of rewards
             ++rounds;
         }
@@ -442,17 +433,17 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address to,
         uint256 amount
     ) external nonReentrant {
-        // Revert if token cannot be redeemed yet
-        if (unlockTime > block.timestamp) revert BeforeLockExpiry();
+        // Revert if CVX has not been unlocked and cannot be redeemed yet
+        if (unlockTime > block.timestamp) revert BeforeUnlock();
         if (amount == 0) revert ZeroAmount();
 
         emit Redeem(unlockTime, to, amount);
 
-        // Unlock and relock if balance is greater than cvxOutstanding
+        // Unlock and relock if balance is greater than outstandingRedemptions
         _relock();
 
         // Subtract redemption amount from outstanding CVX amount
-        cvxOutstanding -= amount;
+        outstandingRedemptions -= amount;
 
         // Validates `to`
         upCvx.burn(msg.sender, unlockTime, amount);
