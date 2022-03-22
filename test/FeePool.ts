@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { uniq } from 'lodash';
-import { callAndReturnEvents } from './helpers';
+import { callAndReturnEvents, validateEvent } from './helpers';
 import { PirexFees } from '../typechain-types';
 
 describe('PirexFees', () => {
@@ -100,19 +100,24 @@ describe('PirexFees', () => {
     it('Should grant the distributor role to an address', async () => {
       const distributorRole = await pirexFees.FEE_DISTRIBUTOR_ROLE();
       const distributor = notAdmin.address;
-      const hasRoleBefore = await pirexFees.hasRole(distributorRole, distributor);
+      const hasRoleBefore = await pirexFees.hasRole(
+        distributorRole,
+        distributor
+      );
       const [, grantEvent] = await callAndReturnEvents(
         pirexFees.grantFeeDistributorRole,
         [distributor]
       );
-      const hasRoleAfter = await pirexFees.hasRole(distributorRole, distributor);
+      const hasRoleAfter = await pirexFees.hasRole(
+        distributorRole,
+        distributor
+      );
 
       expect(hasRoleBefore).to.equal(false);
       expect(hasRoleAfter).to.equal(true);
-      expect(grantEvent.eventSignature).to.equal(
-        'GrantFeeDistributorRole(address)'
-      );
-      expect(grantEvent.args.distributor).to.equal(notAdmin.address);
+      validateEvent(grantEvent, 'GrantFeeDistributorRole(address)', {
+        distributor: notAdmin.address,
+      });
     });
   });
 
@@ -131,19 +136,24 @@ describe('PirexFees', () => {
     it('Should revoke the fee distributor role from an address', async () => {
       const distributorRole = await pirexFees.FEE_DISTRIBUTOR_ROLE();
       const distributor = notAdmin.address;
-      const hasRoleBefore = await pirexFees.hasRole(distributorRole, distributor);
+      const hasRoleBefore = await pirexFees.hasRole(
+        distributorRole,
+        distributor
+      );
       const [, revokeEvent] = await callAndReturnEvents(
         pirexFees.revokeFeeDistributorRole,
         [distributor]
       );
-      const hasRoleAfter = await pirexFees.hasRole(distributorRole, distributor);
+      const hasRoleAfter = await pirexFees.hasRole(
+        distributorRole,
+        distributor
+      );
 
       expect(hasRoleBefore).to.equal(true);
       expect(hasRoleAfter).to.equal(false);
-      expect(revokeEvent.eventSignature).to.equal(
-        'RevokeFeeDistributorRole(address)'
-      );
-      expect(revokeEvent.args.distributor).to.equal(distributor);
+      validateEvent(revokeEvent, 'RevokeFeeDistributorRole(address)', {
+        distributor,
+      });
     });
 
     it('Should revert if address is not a distributor', async () => {
@@ -207,16 +217,18 @@ describe('PirexFees', () => {
       const treasuryAfter = await pirexFees.treasury();
 
       // Revert change to appropriate value for future tests
-      await pirexFees.setFeeRecipient(feeRecipientEnum.treasury, treasuryBefore);
+      await pirexFees.setFeeRecipient(
+        feeRecipientEnum.treasury,
+        treasuryBefore
+      );
 
       expect(treasuryBefore).to.equal(treasury.address);
       expect(treasuryBefore).to.not.equal(treasuryAfter);
       expect(treasuryAfter).to.equal(notAdmin.address);
-      expect(setEvent.eventSignature).to.equal(
-        'SetFeeRecipient(uint8,address)'
-      );
-      expect(setEvent.args.f).to.equal(feeRecipientEnum.treasury);
-      expect(setEvent.args.recipient).to.equal(notAdmin.address);
+      validateEvent(setEvent, 'SetFeeRecipient(uint8,address)', {
+        f: feeRecipientEnum.treasury,
+        recipient: notAdmin.address,
+      });
 
       // Test change reversion
       expect(treasuryBefore).to.equal(await pirexFees.treasury());
@@ -239,11 +251,10 @@ describe('PirexFees', () => {
       expect(revenueLockersBefore).to.equal(revenueLockers.address);
       expect(revenueLockersBefore).to.not.equal(revenueLockersAfter);
       expect(revenueLockersAfter).to.equal(notAdmin.address);
-      expect(setEvent.eventSignature).to.equal(
-        'SetFeeRecipient(uint8,address)'
-      );
-      expect(setEvent.args.f).to.equal(feeRecipientEnum.revenueLockers);
-      expect(setEvent.args.recipient).to.equal(notAdmin.address);
+      validateEvent(setEvent, 'SetFeeRecipient(uint8,address)', {
+        f: feeRecipientEnum.revenueLockers,
+        recipient: notAdmin.address,
+      });
       expect(revenueLockersBefore).to.equal(await pirexFees.revenueLockers());
     });
 
@@ -264,11 +275,10 @@ describe('PirexFees', () => {
       expect(contributorsBefore).to.equal(contributors.address);
       expect(contributorsBefore).to.not.equal(contributorsAfter);
       expect(contributorsAfter).to.equal(notAdmin.address);
-      expect(setEvent.eventSignature).to.equal(
-        'SetFeeRecipient(uint8,address)'
-      );
-      expect(setEvent.args.f).to.equal(feeRecipientEnum.contributors);
-      expect(setEvent.args.recipient).to.equal(notAdmin.address);
+      validateEvent(setEvent, 'SetFeeRecipient(uint8,address)', {
+        f: feeRecipientEnum.contributors,
+        recipient: notAdmin.address,
+      });
       expect(contributorsBefore).to.equal(await pirexFees.contributors());
     });
   });
@@ -335,16 +345,11 @@ describe('PirexFees', () => {
 
       expect(percents).to.not.deep.equal(percentsBefore);
       expect(percents).to.deep.equal(percentsAfter);
-      expect(setEvent.eventSignature).to.equal(
-        'SetFeePercents(uint8,uint8,uint8)'
-      );
-      expect(setEvent.args._treasuryPercent).to.equal(percents.treasury);
-      expect(setEvent.args._revenueLockersPercent).to.equal(
-        percents.revenueLockers
-      );
-      expect(setEvent.args._contributorsPercent).to.equal(
-        percents.contributors
-      );
+      validateEvent(setEvent, 'SetFeePercents(uint8,uint8,uint8)', {
+        _treasuryPercent: percents.treasury,
+        _revenueLockersPercent: percents.revenueLockers,
+        _contributorsPercent: percents.contributors,
+      });
     });
   });
 });
