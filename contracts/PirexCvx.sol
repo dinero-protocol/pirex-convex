@@ -54,10 +54,10 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     // Seconds between Convex voting rounds (2 weeks)
-    uint32 public immutable EPOCH_DURATION = 1209600;
+    uint32 public constant EPOCH_DURATION = 1209600;
 
     // Fee denominator
-    uint32 public immutable FEE_DENOMINATOR = 1000000;
+    uint32 public constant FEE_DENOMINATOR = 1000000;
 
     PirexFees public pirexFees;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
