@@ -54,10 +54,7 @@ describe('PirexFees', () => {
       const _revenueLockers = await pirexFees.revenueLockers();
       const _contributors = await pirexFees.contributors();
       adminRole = await pirexFees.DEFAULT_ADMIN_ROLE();
-      const adminHasRole = await pirexFees.hasRole(
-        adminRole,
-        admin.address
-      );
+      const adminHasRole = await pirexFees.hasRole(adminRole, admin.address);
       const notAdminHasAdminRole = await pirexFees.hasRole(
         adminRole,
         notAdmin.address
@@ -369,9 +366,7 @@ describe('PirexFees', () => {
 
       await expect(
         pirexFees.distributeFees(rewardAddress, amount)
-      ).to.be.revertedWith(
-        'ZeroAddress()'
-      );
+      ).to.be.revertedWith('ZeroAddress()');
     });
 
     it('Should revert if the amount is invalid', async () => {
@@ -381,9 +376,7 @@ describe('PirexFees', () => {
 
       await expect(
         pirexFees.distributeFees(rewardAddress, amount)
-      ).to.be.revertedWith(
-        'ZeroAmount()'
-      );
+      ).to.be.revertedWith('ZeroAmount()');
 
       // Revoke the temporary role
       await pirexFees.revokeFeeDistributorRole(depositor);
