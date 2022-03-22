@@ -778,7 +778,7 @@ describe('PirexCvx', () => {
       const upCvx = await getUpCvx(await pCvx.upCvx());
       const currentEpoch = await pCvx.getCurrentEpoch();
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
-      const cvxOutstandingBefore = await pCvx.cvxOutstanding();
+      const outstandingRedemptionsBefore = await pCvx.outstandingRedemptions();
       const upCvxBalanceBefore = await upCvx.balanceOf(
         admin.address,
         unlockTime
@@ -797,7 +797,7 @@ describe('PirexCvx', () => {
       const initiateEvent = events[1];
       const mintFuturesEvent = events[3];
       const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
-      const cvxOutstandingAfter = await pCvx.cvxOutstanding();
+      const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
       const upCvxBalanceAfter = await upCvx.balanceOf(
         admin.address,
         unlockTime
@@ -807,7 +807,7 @@ describe('PirexCvx', () => {
       let expectedRewardsRounds = remainingTime.div(epochDuration);
 
       if (
-        toBN(unlockTime).mod(epochDuration) &&
+        !toBN(unlockTime).mod(epochDuration).isZero() &&
         remainingTime.lt(epochDuration) &&
         remainingTime.gt(epochDuration.div(2))
       ) {
@@ -823,8 +823,8 @@ describe('PirexCvx', () => {
       expect(pCvxBalanceAfter).to.equal(
         pCvxBalanceBefore.sub(redemptionAmount)
       );
-      expect(cvxOutstandingAfter).to.equal(
-        cvxOutstandingBefore.add(redemptionAmount)
+      expect(outstandingRedemptionsAfter).to.equal(
+        outstandingRedemptionsBefore.add(redemptionAmount)
       );
       expect(upCvxBalanceAfter).to.equal(
         upCvxBalanceBefore.add(redemptionAmount)
@@ -879,7 +879,7 @@ describe('PirexCvx', () => {
 
       await expect(
         pCvx.redeem(redemptionUnlockTime, to, amount)
-      ).to.be.revertedWith('BeforeLockExpiry()');
+      ).to.be.revertedWith('BeforeUnlock()');
     });
 
     it('Should revert if amount is zero', async () => {
@@ -937,18 +937,20 @@ describe('PirexCvx', () => {
       const { locked: lockedBefore } = await cvxLocker.lockedBalances(
         pCvx.address
       );
-      const cvxOutstandingBefore = await pCvx.cvxOutstanding();
-      const upCvxTotalSupplyBefore = await upCvx.totalSupply(redemptionUnlockTime);
+      const outstandingRedemptionsBefore = await pCvx.outstandingRedemptions();
+      const upCvxTotalSupplyBefore = await upCvx.totalSupply(
+        redemptionUnlockTime
+      );
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const to = admin.address;
       const amount = upCvxBalanceBefore.div(2);
 
-      // Expected values post-relock and cvxOutstanding decrementing
-      const expectedRelock = unlockableBefore.sub(cvxOutstandingBefore);
-      const expectedCvxOutstanding = cvxOutstandingBefore.sub(amount);
-      const expectedPirexCvxBalance = cvxOutstandingBefore.sub(amount);
+      // Expected values post-relock and outstandingRedemptions decrementing
+      const expectedRelock = unlockableBefore.sub(outstandingRedemptionsBefore);
+      const expectedCvxOutstanding = outstandingRedemptionsBefore.sub(amount);
+      const expectedPirexCvxBalance = outstandingRedemptionsBefore.sub(amount);
       const expectedLocked = lockedBefore.add(
-        unlockableBefore.sub(cvxOutstandingBefore)
+        unlockableBefore.sub(outstandingRedemptionsBefore)
       );
 
       // Expected values post-burn
@@ -971,14 +973,16 @@ describe('PirexCvx', () => {
       const { locked: lockedAfter } = await cvxLocker.lockedBalances(
         pCvx.address
       );
-      const cvxOutstandingAfter = await pCvx.cvxOutstanding();
-      const upCvxTotalSupplyAfter = await upCvx.totalSupply(redemptionUnlockTime);
+      const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
+      const upCvxTotalSupplyAfter = await upCvx.totalSupply(
+        redemptionUnlockTime
+      );
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const pirexCvxBalanceAfter = await cvx.balanceOf(pCvx.address);
 
       expect(expectedRelock).to.equal(lockedAfter.sub(lockedBefore));
       expect(expectedRelock).to.not.equal(0);
-      expect(expectedCvxOutstanding).to.equal(cvxOutstandingAfter);
+      expect(expectedCvxOutstanding).to.equal(outstandingRedemptionsAfter);
       expect(expectedCvxOutstanding).to.not.equal(0);
       expect(expectedPirexCvxBalance).to.equal(pirexCvxBalanceAfter);
       expect(expectedPirexCvxBalance).to.not.equal(0);
