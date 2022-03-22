@@ -44,6 +44,7 @@ describe('PirexCvx', () => {
   let unlockDuration: number;
   let feeDenominator: number;
   let redemptionFutureRounds: number;
+  let feePercentDenominator: number;
 
   const delegationSpace = 'cvx.eth';
   const delegationSpaceBytes32 =
@@ -124,6 +125,7 @@ describe('PirexCvx', () => {
     );
 
     await pirexFees.grantFeeDistributorRole(pCvx.address);
+    feePercentDenominator = await pirexFees.PERCENT_DENOMINATOR();
   });
 
   describe('initial state', () => {
@@ -658,13 +660,13 @@ describe('PirexCvx', () => {
       const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
       const expectedTreasuryFee = depositFee
         .mul(await pirexFees.treasuryPercent())
-        .div(await pirexFees.PERCENT_DENOMINATOR());
+        .div(feePercentDenominator);
       const expectedRevenueLockersFee = depositFee
         .mul(await pirexFees.revenueLockersPercent())
-        .div(await pirexFees.PERCENT_DENOMINATOR());
+        .div(feePercentDenominator);
       const expectedContributorsFee = depositFee
         .mul(await pirexFees.contributorsPercent())
-        .div(await pirexFees.PERCENT_DENOMINATOR());
+        .div(feePercentDenominator);
       const postFeeAmount = depositAmount.sub(depositFee);
 
       depositEpoch = await pCvx.getCurrentEpoch();
@@ -1294,25 +1296,24 @@ describe('PirexCvx', () => {
       const treasuryPercent = await pirexFees.treasuryPercent();
       const revenueLockersPercent = await pirexFees.revenueLockersPercent();
       const contributorsPercent = await pirexFees.contributorsPercent();
-      const PERCENT_DENOMINATOR = await pirexFees.PERCENT_DENOMINATOR();
       const expectedTreasuryCrvFees = crvRewardFee
         .mul(treasuryPercent)
-        .div(PERCENT_DENOMINATOR);
+        .div(feePercentDenominator);
       const expectedRevenueLockersCrvFees = crvRewardFee
         .mul(revenueLockersPercent)
-        .div(PERCENT_DENOMINATOR);
+        .div(feePercentDenominator);
       const expectedContributorsCrvFees = crvRewardFee
         .mul(contributorsPercent)
-        .div(PERCENT_DENOMINATOR);
+        .div(feePercentDenominator);
       const expectedTreasuryCvxCrvFees = cvxCrvRewardFee
         .mul(treasuryPercent)
-        .div(PERCENT_DENOMINATOR);
+        .div(feePercentDenominator);
       const expectedRevenueLockersCvxCrvFees = cvxCrvRewardFee
         .mul(revenueLockersPercent)
-        .div(PERCENT_DENOMINATOR);
+        .div(feePercentDenominator);
       const expectedContributorsCvxCrvFees = cvxCrvRewardFee
         .mul(contributorsPercent)
-        .div(PERCENT_DENOMINATOR);
+        .div(feePercentDenominator);
 
       expect(epochBefore.snapshotId).to.equal(0);
       expect(epochBefore.rewards.length).to.equal(0);
@@ -1619,25 +1620,24 @@ describe('PirexCvx', () => {
       const treasuryPercent = await pirexFees.treasuryPercent();
       const revenueLockersPercent = await pirexFees.revenueLockersPercent();
       const contributorsPercent = await pirexFees.contributorsPercent();
-      const PERCENT_DENOMINATOR = await pirexFees.PERCENT_DENOMINATOR();
       const expectedTreasuryCvxFees = cvxFee
         .mul(treasuryPercent)
-        .div(PERCENT_DENOMINATOR);
+        .div(feePercentDenominator);
       const expectedRevenueLockersCvxFees = cvxFee
         .mul(revenueLockersPercent)
-        .div(PERCENT_DENOMINATOR);
+        .div(feePercentDenominator);
       const expectedContributorsCvxFees = cvxFee
         .mul(contributorsPercent)
-        .div(PERCENT_DENOMINATOR);
+        .div(feePercentDenominator);
       const expectedTreasuryCrvFees = crvFee
         .mul(treasuryPercent)
-        .div(PERCENT_DENOMINATOR);
+        .div(feePercentDenominator);
       const expectedRevenueLockersCrvFees = crvFee
         .mul(revenueLockersPercent)
-        .div(PERCENT_DENOMINATOR);
+        .div(feePercentDenominator);
       const expectedContributorsCrvFees = crvFee
         .mul(contributorsPercent)
-        .div(PERCENT_DENOMINATOR);
+        .div(feePercentDenominator);
 
       expect(epoch.rewards.includes(tokens[0])).to.equal(true);
       expect(epoch.rewards.includes(tokens[1])).to.equal(true);
