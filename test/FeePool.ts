@@ -346,4 +346,47 @@ describe('PirexFees', () => {
       });
     });
   });
+
+  describe('distributeFees', () => {
+    it('Should revert if called by non distributor', async () => {
+      const rewardAddress = admin.address;
+      const amount = 1;
+
+      await expect(
+        pirexFees.distributeFees(rewardAddress, amount)
+      ).to.be.revertedWith(
+        `AccessControl: account ${admin.address.toLowerCase()} is missing role ${feeDistributorRole}`
+      );
+    });
+
+    it('Should revert if the token address is invalid', async () => {
+      const rewardAddress = zeroAddress;
+      const depositor = admin.address;
+      const amount = 1;
+
+      // Temporarily grant distributor role for testing
+      await pirexFees.grantFeeDistributorRole(depositor);
+
+      await expect(
+        pirexFees.distributeFees(rewardAddress, amount)
+      ).to.be.revertedWith(
+        'ZeroAddress()'
+      );
+    });
+
+    it('Should revert if the amount is invalid', async () => {
+      const rewardAddress = notAdmin.address;
+      const depositor = admin.address;
+      const amount = 0;
+
+      await expect(
+        pirexFees.distributeFees(rewardAddress, amount)
+      ).to.be.revertedWith(
+        'ZeroAmount()'
+      );
+
+      // Revoke the temporary role
+      await pirexFees.revokeFeeDistributorRole(depositor);
+    });
+  });
 });
