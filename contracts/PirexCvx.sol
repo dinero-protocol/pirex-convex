@@ -54,16 +54,16 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     // Seconds between Convex voting rounds (2 weeks)
-    uint32 public immutable EPOCH_DURATION = 1209600;
+    uint32 public constant EPOCH_DURATION = 1209600;
 
     // Seconds before upCVX can be redeemed for CVX (17 weeks)
-    uint32 public immutable UNLOCKING_DURATION = 10281600;
+    uint32 public constant UNLOCKING_DURATION = 10281600;
 
     // Number of futures rounds to mint when a redemption is initiated
-    uint8 public immutable REDEMPTION_FUTURES_ROUNDS = 8;
+    uint8 public constant REDEMPTION_FUTURES_ROUNDS = 8;
 
     // Fee denominator
-    uint32 public immutable FEE_DENOMINATOR = 1000000;
+    uint32 public constant FEE_DENOMINATOR = 1000000;
 
     PirexFees public pirexFees;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
