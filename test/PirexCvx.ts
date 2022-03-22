@@ -398,10 +398,21 @@ describe('PirexCvx', () => {
       await expect(pCvx.setFee(invalidF, amount)).to.be.reverted;
     });
 
+    it('Should revert if amount is larger than 50000', async () => {
+      const f = feesEnum.deposit;
+      const invalidAmount = 50001;
+
+      await expect(pCvx.setFee(f, invalidAmount)).to.be.revertedWith(
+        'InvalidFee()'
+      );
+    });
+
     it('Should revert if amount is not uint16', async () => {
       const f = feesEnum.deposit;
       const invalidAmount = 2 ** 16;
 
+      // This would actually revert before the tx is even sent out (due to invalid data type)
+      // without triggering InvalidFee() revert
       await expect(pCvx.setFee(f, invalidAmount)).to.be.reverted;
     });
 
