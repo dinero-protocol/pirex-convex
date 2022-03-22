@@ -41,6 +41,9 @@ describe('PirexCvx', () => {
   let votiumMultiMerkleStash: MultiMerkleStash;
 
   let depositEpoch: BigNumber;
+  let unlockDuration: number;
+  let feeDenominator: number;
+  let redemptionFutureRounds: number;
 
   const delegationSpace = 'cvx.eth';
   const delegationSpaceBytes32 =
@@ -125,14 +128,16 @@ describe('PirexCvx', () => {
 
   describe('initial state', () => {
     it('Should have predefined state variables', async () => {
-      const EPOCH_DURATION = await pCvx.EPOCH_DURATION();
-      const UNLOCKING_DURATION = await pCvx.UNLOCKING_DURATION();
-      const REDEMPTION_FUTURES_ROUNDS = await pCvx.REDEMPTION_FUTURES_ROUNDS();
+      unlockDuration = await pCvx.UNLOCKING_DURATION();
+      redemptionFutureRounds = await pCvx.REDEMPTION_FUTURES_ROUNDS();
+      feeDenominator = await pCvx.FEE_DENOMINATOR();
+      const pirexEpochDuration = await pCvx.EPOCH_DURATION();
       const _delegationSpace = await pCvx.delegationSpace();
 
-      expect(EPOCH_DURATION).to.equal(1209600);
-      expect(UNLOCKING_DURATION).to.equal(10281600);
-      expect(REDEMPTION_FUTURES_ROUNDS).to.equal(8);
+      expect(pirexEpochDuration).to.equal(1209600);
+      expect(unlockDuration).to.equal(10281600);
+      expect(redemptionFutureRounds).to.equal(8);
+      expect(feeDenominator).to.equal(1000000);
       expect(_delegationSpace).to.equal(delegationSpaceBytes32);
     });
   });
@@ -629,7 +634,7 @@ describe('PirexCvx', () => {
       const depositAmount = toBN(10e18);
       const depositFee = depositAmount
         .mul(await pCvx.fees(feesEnum.deposit))
-        .div(await pCvx.FEE_DENOMINATOR());
+        .div(feeDenominator);
 
       // Necessary since pCVX transfers CVX to itself before locking
       await cvx.approve(pCvx.address, depositAmount);
@@ -782,7 +787,6 @@ describe('PirexCvx', () => {
         futuresEnum.reward,
         currentEpoch
       );
-      const REDEMPTION_FUTURES_ROUNDS = await pCvx.REDEMPTION_FUTURES_ROUNDS();
 
       expect(pCvxBalanceAfter).to.equal(
         pCvxBalanceBefore.sub(redemptionAmount)
@@ -808,7 +812,7 @@ describe('PirexCvx', () => {
         mintFuturesEvent,
         'MintFutures(uint8,address,uint256,uint8)',
         {
-          rounds: REDEMPTION_FUTURES_ROUNDS,
+          rounds: redemptionFutureRounds,
           to,
           amount: redemptionAmount,
           f,
@@ -851,15 +855,12 @@ describe('PirexCvx', () => {
       const amount = toBN(1e18);
       const upCvx = await getUpCvx(await pCvx.upCvx());
       const upCvxBalance = await upCvx.balanceOf(admin.address, invalidEpoch);
-      const UNLOCKING_DURATION = await pCvx.UNLOCKING_DURATION();
 
       await upCvx.setApprovalForAll(pCvx.address, true);
-      await increaseBlockTimestamp(Number(UNLOCKING_DURATION));
+      await increaseBlockTimestamp(unlockDuration);
 
       const { timestamp } = await ethers.provider.getBlock('latest');
-      const afterLockExpiry = invalidEpoch
-        .add(UNLOCKING_DURATION)
-        .lt(timestamp);
+      const afterLockExpiry = invalidEpoch.add(unlockDuration).lt(timestamp);
 
       expect(upCvxBalance).to.equal(0);
       expect(afterLockExpiry).to.equal(true);
@@ -1029,9 +1030,7 @@ describe('PirexCvx', () => {
       const expectedPCvxBalance = pCvxBalanceBefore.sub(amount);
 
       // Expected values post-initialize
-      const expectedStakeExpiry = currentEpoch.add(
-        rounds.mul(await pCvx.EPOCH_DURATION())
-      );
+      const expectedStakeExpiry = currentEpoch.add(rounds.mul(epochDuration));
       const expectedUnderlyingBalance = amount;
       const expectedShareBalance = amount;
 
@@ -1260,13 +1259,12 @@ describe('PirexCvx', () => {
         pCvx.address
       );
       const rewardFeePercent = await pCvx.fees(feesEnum.reward);
-      const FEE_DENOMINATOR = await pCvx.FEE_DENOMINATOR();
       const crvRewardFee = claimableCrv.amount
         .mul(rewardFeePercent)
-        .div(FEE_DENOMINATOR);
+        .div(feeDenominator);
       const cvxCrvRewardFee = claimableCvxCrv.amount
         .mul(rewardFeePercent)
-        .div(FEE_DENOMINATOR);
+        .div(feeDenominator);
       const events = await callAndReturnEvents(
         pCvx.performEpochMaintenance,
         []
@@ -1547,9 +1545,8 @@ describe('PirexCvx', () => {
         await getRpCvx(await pCvx.rpCvx())
       ).totalSupply(currentEpoch);
       const rewardFee = await pCvx.fees(feesEnum.reward);
-      const FEE_DENOMINATOR = await pCvx.FEE_DENOMINATOR();
-      const cvxFee = amounts[0].mul(rewardFee).div(FEE_DENOMINATOR);
-      const crvFee = amounts[1].mul(rewardFee).div(FEE_DENOMINATOR);
+      const cvxFee = amounts[0].mul(rewardFee).div(feeDenominator);
+      const crvFee = amounts[1].mul(rewardFee).div(feeDenominator);
       const treasuryCvxBalanceBefore = await cvx.balanceOf(treasury.address);
       const revenueLockersCvxBalanceBefore = await cvx.balanceOf(
         revenueLockers.address
@@ -1588,8 +1585,8 @@ describe('PirexCvx', () => {
       const expectedVotiumSnapshotRewards = {
         amounts: amounts.map((amount: BigNumber) => {
           const rewards = amount
-            .mul(toBN(FEE_DENOMINATOR).sub(rewardFee))
-            .div(FEE_DENOMINATOR);
+            .mul(toBN(feeDenominator).sub(rewardFee))
+            .div(feeDenominator);
 
           return rewards
             .mul(snapshotSupply)
@@ -1599,8 +1596,8 @@ describe('PirexCvx', () => {
       const expectedVotiumFuturesRewards = {
         amounts: amounts.map((amount: BigNumber, idx: number) => {
           const rewards = amount
-            .mul(toBN(FEE_DENOMINATOR).sub(rewardFee))
-            .div(FEE_DENOMINATOR);
+            .mul(toBN(feeDenominator).sub(rewardFee))
+            .div(feeDenominator);
 
           return rewards.sub(expectedVotiumSnapshotRewards.amounts[idx]);
         }),
