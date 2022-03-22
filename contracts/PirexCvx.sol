@@ -57,9 +57,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     // Seconds between Convex voting rounds (2 weeks)
     uint32 public immutable EPOCH_DURATION = 1209600;
 
-    // Seconds before upCVX can be redeemed for CVX (17 weeks)
-    uint32 public immutable UNLOCKING_DURATION = 10281600;
-
     // Fee denominator
     uint32 public immutable FEE_DENOMINATOR = 1000000;
 
@@ -436,21 +433,20 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Redeem CVX
-        @param  epoch   uint256  Epoch
-        @param  to      address  CVX recipient
-        @param  amount  uint256  upCVX/CVX amount
+        @param  unlockTime  uint256  CVX unlock timestamp
+        @param  to          address  CVX recipient
+        @param  amount      uint256  upCVX/CVX amount
      */
     function redeem(
-        uint256 epoch,
+        uint256 unlockTime,
         address to,
         uint256 amount
     ) external nonReentrant {
-        // Revert if token cannot be unlocked yet
-        if (epoch + UNLOCKING_DURATION > block.timestamp)
-            revert BeforeLockExpiry();
+        // Revert if token cannot be redeemed yet
+        if (unlockTime > block.timestamp) revert BeforeLockExpiry();
         if (amount == 0) revert ZeroAmount();
 
-        emit Redeem(epoch, to, amount);
+        emit Redeem(unlockTime, to, amount);
 
         // Unlock and relock if balance is greater than cvxOutstanding
         _relock();
@@ -459,7 +455,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         cvxOutstanding -= amount;
 
         // Validates `to`
-        upCvx.burn(msg.sender, epoch, amount);
+        upCvx.burn(msg.sender, unlockTime, amount);
 
         // Validates `to`
         CVX.safeTransfer(to, amount);
