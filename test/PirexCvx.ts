@@ -10,6 +10,7 @@ import {
   callAndReturnEvents,
   toBN,
   increaseBlockTimestamp,
+  validateEvent,
 } from './helpers';
 import {
   ConvexToken,
@@ -202,9 +203,14 @@ describe('PirexCvx', () => {
 
       expect(pirexFeesBefore).to.not.equal(pirexFeesAfter);
       expect(pirexFeesAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
-      expect(setEvent.args.c).to.equal(contractEnum.pirexFees);
-      expect(setEvent.args.contractAddress).to.equal(admin.address);
+      validateEvent(
+        setEvent,
+        'SetContract(uint8,address)',
+        {
+          contractAddress: admin.address,
+          c: contractEnum.pirexFees,
+        },
+      );
       expect(pirexFeesBefore).to.equal(await pCvx.pirexFees());
     });
 
@@ -220,9 +226,14 @@ describe('PirexCvx', () => {
 
       expect(upCvxBefore).to.not.equal(upCvxAfter);
       expect(upCvxAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
-      expect(setEvent.args.c).to.equal(contractEnum.upCvx);
-      expect(setEvent.args.contractAddress).to.equal(admin.address);
+      validateEvent(
+        setEvent,
+        'SetContract(uint8,address)',
+        {
+          contractAddress: admin.address,
+          c: contractEnum.upCvx,
+        },
+      );
       expect(upCvxBefore).to.equal(await pCvx.upCvx());
     });
 
@@ -238,9 +249,14 @@ describe('PirexCvx', () => {
 
       expect(vpCvxBefore).to.not.equal(vpCvxAfter);
       expect(vpCvxAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
-      expect(setEvent.args.c).to.equal(contractEnum.vpCvx);
-      expect(setEvent.args.contractAddress).to.equal(admin.address);
+      validateEvent(
+        setEvent,
+        'SetContract(uint8,address)',
+        {
+          contractAddress: admin.address,
+          c: contractEnum.vpCvx,
+        },
+      );
       expect(vpCvxBefore).to.equal(await pCvx.vpCvx());
     });
 
@@ -256,9 +272,14 @@ describe('PirexCvx', () => {
 
       expect(rpCvxBefore).to.not.equal(rpCvxAfter);
       expect(rpCvxAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
-      expect(setEvent.args.c).to.equal(contractEnum.rpCvx);
-      expect(setEvent.args.contractAddress).to.equal(admin.address);
+      validateEvent(
+        setEvent,
+        'SetContract(uint8,address)',
+        {
+          contractAddress: admin.address,
+          c: contractEnum.rpCvx,
+        },
+      );
       expect(rpCvxBefore).to.equal(await pCvx.rpCvx());
     });
 
@@ -277,9 +298,14 @@ describe('PirexCvx', () => {
 
       expect(spCvxImplementationBefore).to.not.equal(spCvxImplementationAfter);
       expect(spCvxImplementationAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal('SetContract(uint8,address)');
-      expect(setEvent.args.c).to.equal(contractEnum.spCvxImplementation);
-      expect(setEvent.args.contractAddress).to.equal(admin.address);
+      validateEvent(
+        setEvent,
+        'SetContract(uint8,address)',
+        {
+          contractAddress: admin.address,
+          c: contractEnum.spCvxImplementation,
+        },
+      );
       expect(spCvxImplementationBefore).to.equal(
         await pCvx.spCvxImplementation()
       );
@@ -321,11 +347,14 @@ describe('PirexCvx', () => {
 
       expect(cvxLockerBefore).to.not.equal(cvxLockerAfter);
       expect(cvxLockerAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal(
-        'SetConvexContract(uint8,address)'
+      validateEvent(
+        setEvent,
+        'SetConvexContract(uint8,address)',
+        {
+          contractAddress: admin.address,
+          c: convexContractEnum.cvxLocker,
+        },
       );
-      expect(setEvent.args.c).to.equal(convexContractEnum.cvxLocker);
-      expect(setEvent.args.contractAddress).to.equal(admin.address);
 
       // Test change reversion
       expect(cvxLockerBefore).to.equal(await pCvx.cvxLocker());
@@ -346,11 +375,14 @@ describe('PirexCvx', () => {
 
       expect(cvxDelegateRegistryBefore).to.not.equal(cvxDelegateRegistryAfter);
       expect(cvxDelegateRegistryAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal(
-        'SetConvexContract(uint8,address)'
+      validateEvent(
+        setEvent,
+        'SetConvexContract(uint8,address)',
+        {
+          contractAddress: admin.address,
+          c: convexContractEnum.cvxDelegateRegistry,
+        },
       );
-      expect(setEvent.args.c).to.equal(convexContractEnum.cvxDelegateRegistry);
-      expect(setEvent.args.contractAddress).to.equal(admin.address);
       expect(cvxDelegateRegistryBefore).to.equal(
         await pCvx.cvxDelegateRegistry()
       );
@@ -371,11 +403,14 @@ describe('PirexCvx', () => {
 
       expect(cvxRewardPoolBefore).to.not.equal(cvxRewardPoolAfter);
       expect(cvxRewardPoolAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal(
-        'SetConvexContract(uint8,address)'
+      validateEvent(
+        setEvent,
+        'SetConvexContract(uint8,address)',
+        {
+          contractAddress: admin.address,
+          c: convexContractEnum.cvxRewardPool,
+        },
       );
-      expect(setEvent.args.c).to.equal(convexContractEnum.cvxRewardPool);
-      expect(setEvent.args.contractAddress).to.equal(admin.address);
       expect(cvxRewardPoolBefore).to.equal(await pCvx.cvxRewardPool());
     });
   });
@@ -416,9 +451,14 @@ describe('PirexCvx', () => {
 
       expect(depositFeeBefore).to.equal(0);
       expect(depositFeeAfter).to.equal(amount);
-      expect(setEvent.eventSignature).to.equal('SetFee(uint8,uint16)');
-      expect(setEvent.args.f).to.equal(feesEnum.deposit);
-      expect(setEvent.args.amount).to.equal(amount);
+      validateEvent(
+        setEvent,
+        'SetFee(uint8,uint16)',
+        {
+          amount,
+          f: feesEnum.deposit,
+        },
+      );
     });
 
     it('Should set the reward fee', async () => {
@@ -433,9 +473,14 @@ describe('PirexCvx', () => {
 
       expect(rewardFeeBefore).to.equal(0);
       expect(rewardFeeAfter).to.equal(amount);
-      expect(setEvent.eventSignature).to.equal('SetFee(uint8,uint16)');
-      expect(setEvent.args.f).to.equal(feesEnum.reward);
-      expect(setEvent.args.amount).to.equal(amount);
+      validateEvent(
+        setEvent,
+        'SetFee(uint8,uint16)',
+        {
+          amount,
+          f: feesEnum.reward,
+        },
+      );
     });
   });
 
@@ -468,8 +513,13 @@ describe('PirexCvx', () => {
 
       expect(delegationSpaceBefore).to.not.equal(delegationSpaceAfter);
       expect(delegationSpaceAfter).to.equal(newDelegationSpaceBytes32);
-      expect(setEvent.eventSignature).to.equal('SetDelegationSpace(string)');
-      expect(setEvent.args._delegationSpace).to.equal(newDelegationSpace);
+      validateEvent(
+        setEvent,
+        'SetDelegationSpace(string)',
+        {
+          _delegationSpace: newDelegationSpace,
+        },
+      );
       expect(delegationSpaceBefore).to.equal(await pCvx.delegationSpace());
     });
   });
@@ -515,8 +565,13 @@ describe('PirexCvx', () => {
       expect(voteDelegateAfter).to.equal(voteDelegate);
       expect(convexDelegateAfter).to.not.equal(convexDelegateBefore);
       expect(convexDelegateAfter).to.equal(voteDelegate);
-      expect(setEvent.eventSignature).to.equal('SetVoteDelegate(address)');
-      expect(setEvent.args._voteDelegate).to.equal(voteDelegate);
+      validateEvent(
+        setEvent,
+        'SetVoteDelegate(address)',
+        {
+          _voteDelegate: voteDelegate,
+        },
+      );
     });
   });
 
@@ -678,24 +733,35 @@ describe('PirexCvx', () => {
         lockedBalanceBefore.add(postFeeAmount)
       );
       expect(pCvxBalanceAfter).to.equal(pCvxBalanceBefore.add(postFeeAmount));
-      expect(mintEvent.eventSignature).to.equal(
-        'Transfer(address,address,uint256)'
+      validateEvent(
+        mintEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: zeroAddress,
+          to,
+          value: postFeeAmount,
+        },
       );
-      expect(mintEvent.args.from).to.equal(zeroAddress);
-      expect(mintEvent.args.to).to.equal(to);
-      expect(mintEvent.args.value).to.equal(postFeeAmount);
-      expect(depositEvent.eventSignature).to.equal(
-        'Deposit(address,uint256,uint256)'
+
+      validateEvent(
+        depositEvent,
+        'Deposit(address,uint256,uint256)',
+        {
+          fee: depositFee,
+          to,
+          shares: postFeeAmount,
+        },
       );
-      expect(depositEvent.args.to).to.equal(to);
-      expect(depositEvent.args.shares).to.equal(postFeeAmount);
-      expect(depositEvent.args.fee).to.equal(depositFee);
-      expect(transferEvent.eventSignature).to.equal(
-        'Transfer(address,address,uint256)'
+
+      validateEvent(
+        transferEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: msgSender,
+          to: pCvx.address,
+          value: depositAmount,
+        },
       );
-      expect(transferEvent.args.from).to.equal(msgSender);
-      expect(transferEvent.args.to).to.equal(pCvx.address);
-      expect(transferEvent.args.value).to.equal(depositAmount);
     });
   });
 
@@ -787,24 +853,35 @@ describe('PirexCvx', () => {
       expect(upCvxBalanceAfter).to.equal(
         upCvxBalanceBefore.add(redemptionAmount)
       );
-      expect(burnEvent.eventSignature).to.equal(
-        'Transfer(address,address,uint256)'
+      validateEvent(
+        burnEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: msgSender,
+          to: zeroAddress,
+          value: redemptionAmount,
+        },
       );
-      expect(burnEvent.args.from).to.equal(msgSender).to.not.equal(zeroAddress);
-      expect(burnEvent.args.to).to.equal(zeroAddress);
-      expect(burnEvent.args.value).to.equal(redemptionAmount);
-      expect(initiateEvent.eventSignature).to.equal(
-        'InitiateRedemption(address,uint256)'
+      expect(burnEvent.args.from).to.not.equal(zeroAddress);
+      validateEvent(
+        initiateEvent,
+        'InitiateRedemption(address,uint256)',
+        {
+          to,
+          amount: redemptionAmount,
+        },
       );
-      expect(initiateEvent.args.to).to.equal(to).to.not.equal(zeroAddress);
-      expect(initiateEvent.args.amount).to.equal(redemptionAmount);
-      expect(mintFuturesEvent.eventSignature).to.equal(
-        'MintFutures(uint8,address,uint256,uint8)'
+      expect(initiateEvent.args.to).to.not.equal(zeroAddress);
+      validateEvent(
+        mintFuturesEvent,
+        'MintFutures(uint8,address,uint256,uint8)',
+        {
+          rounds: REDEMPTION_FUTURES_ROUNDS,
+          to,
+          amount: redemptionAmount,
+          f,
+        },
       );
-      expect(mintFuturesEvent.args.rounds).to.equal(REDEMPTION_FUTURES_ROUNDS);
-      expect(mintFuturesEvent.args.to).to.equal(to);
-      expect(mintFuturesEvent.args.amount).to.equal(redemptionAmount);
-      expect(mintFuturesEvent.args.f).to.equal(f);
       expect(
         every(
           rpCvxBalances,
@@ -934,12 +1011,15 @@ describe('PirexCvx', () => {
       expect(expectedUpCvxBalance).to.not.equal(0);
       expect(expectedCvxBalance).to.equal(cvxBalanceAfter);
       expect(expectedCvxBalance).to.not.equal(0);
-      expect(redeemEvent.eventSignature).to.equal(
-        'Redeem(uint256,address,uint256)'
+      validateEvent(
+        redeemEvent,
+        'Redeem(uint256,address,uint256)',
+        {
+          epoch: depositEpoch,
+          to,
+          amount,
+        },
       );
-      expect(redeemEvent.args.epoch).to.equal(depositEpoch);
-      expect(redeemEvent.args.to).to.equal(to);
-      expect(redeemEvent.args.amount).to.equal(amount);
     });
   });
 
@@ -1057,33 +1137,45 @@ describe('PirexCvx', () => {
       expect(expectedUnderlyingBalance).to.not.equal(0);
       expect(expectedShareBalance).to.equal(shareBalance);
       expect(expectedShareBalance).to.not.equal(0);
-      expect(transferEvent.eventSignature).to.equal(
-        'Transfer(address,address,uint256)'
+      validateEvent(
+        transferEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: admin.address,
+          to: pCvx.address,
+          value: amount,
+        },
       );
-      expect(transferEvent.args.from).to.equal(admin.address);
-      expect(transferEvent.args.to).to.equal(pCvx.address);
-      expect(transferEvent.args.value).to.equal(amount);
-      expect(approveEvent.eventSignature).to.equal(
-        'Approval(address,address,uint256)'
+      validateEvent(
+        approveEvent,
+        'Approval(address,address,uint256)',
+        {
+          owner: pCvx.address,
+          spender: spCvxInstance.address,
+          value: amount,
+        },
       );
-      expect(approveEvent.args.owner).to.equal(pCvx.address);
-      expect(approveEvent.args.spender).to.equal(spCvxInstance.address);
-      expect(approveEvent.args.value).to.equal(amount);
-      expect(stakeEvent.eventSignature).to.equal(
-        'Stake(uint8,address,uint256,uint8,address)'
+      validateEvent(
+        stakeEvent,
+        'Stake(uint8,address,uint256,uint8,address)',
+        {
+          rounds,
+          to,
+          amount,
+          f,
+          vault: spCvxInstance.address,
+        },
       );
-      expect(stakeEvent.args.rounds).to.equal(rounds);
-      expect(stakeEvent.args.to).to.equal(to);
-      expect(stakeEvent.args.amount).to.equal(amount);
-      expect(stakeEvent.args.f).to.equal(f);
-      expect(stakeEvent.args.vault).to.equal(spCvxInstance.address);
-      expect(mintFuturesEvent.eventSignature).to.equal(
-        'MintFutures(uint8,address,uint256,uint8)'
+      validateEvent(
+        mintFuturesEvent,
+        'MintFutures(uint8,address,uint256,uint8)',
+        {
+          rounds,
+          to,
+          amount,
+          f,
+        },
       );
-      expect(mintFuturesEvent.args.rounds).to.equal(rounds);
-      expect(mintFuturesEvent.args.to).to.equal(to);
-      expect(mintFuturesEvent.args.amount).to.equal(amount);
-      expect(mintFuturesEvent.args.f).to.equal(f);
       expect(rpCvxBalances.length).to.equal(rounds);
       expect(every(rpCvxBalances, (r) => r.eq(amount))).to.equal(true);
     });
@@ -1181,18 +1273,24 @@ describe('PirexCvx', () => {
       expect(expectedPCvxBalance).to.not.equal(0);
       expect(expectedShareBalance).to.equal(vaultShareBalanceAfter);
       expect(expectedShareBalance).to.equal(0);
-      expect(unstakeEvent.eventSignature).to.equal(
-        'Unstake(address,address,uint256)'
+      validateEvent(
+        unstakeEvent,
+        'Unstake(address,address,uint256)',
+        {
+          vault: vault.address,
+          to,
+          amount,
+        },
       );
-      expect(unstakeEvent.args.vault).to.equal(vault.address);
-      expect(unstakeEvent.args.to).to.equal(to);
-      expect(unstakeEvent.args.amount).to.equal(amount);
-      expect(transferEvent.eventSignature).to.equal(
-        'Transfer(address,address,uint256)'
+      validateEvent(
+        transferEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: admin.address,
+          to: pCvx.address,
+          value: amount,
+        },
       );
-      expect(transferEvent.args.from).to.equal(admin.address);
-      expect(transferEvent.args.to).to.equal(pCvx.address);
-      expect(transferEvent.args.value).to.equal(amount);
     });
   });
 
@@ -1431,13 +1529,21 @@ describe('PirexCvx', () => {
             .div(100)
         )
       ).to.equal(true);
-      expect(snapshotEvent.eventSignature).to.equal('Snapshot(uint256)');
-      expect(snapshotEvent.args.id).to.equal(snapshotIdAfter);
-      expect(performEvent.eventSignature).to.equal(
-        'PerformEpochMaintenance(uint256,uint256)'
+      validateEvent(
+        snapshotEvent,
+        'Snapshot(uint256)',
+        {
+          id: snapshotIdAfter,
+        },
       );
-      expect(performEvent.args.epoch).to.equal(currentEpoch);
-      expect(performEvent.args.snapshotId).to.equal(snapshotIdAfter);
+      validateEvent(
+        performEvent,
+        'PerformEpochMaintenance(uint256,uint256)',
+        {
+          epoch: currentEpoch,
+          snapshotId: snapshotIdAfter,
+        },
+      );
     });
   });
 
@@ -1676,21 +1782,26 @@ describe('PirexCvx', () => {
       expect(contributorsCrvBalanceAfter).to.equal(
         contributorsCrvBalanceBefore.add(expectedContributorsCrvFees)
       );
-      expect(cvxClaimEvent.eventSignature).to.equal(
-        'ClaimVotiumReward(address,uint256,uint256,uint256)'
+      validateEvent(
+        cvxClaimEvent,
+        'ClaimVotiumReward(address,uint256,uint256,uint256)',
+        {
+          token: tokens[0],
+          index,
+          amount: amounts[0],
+          snapshotId: currentSnapshotId,
+        },
       );
-      expect(cvxClaimEvent.args.token).to.equal(tokens[0]);
-      expect(cvxClaimEvent.args.index).to.equal(index);
-      expect(cvxClaimEvent.args.amount).to.equal(amounts[0]);
-      expect(cvxClaimEvent.args.snapshotId).to.equal(currentSnapshotId);
-
-      expect(crvClaimEvent.eventSignature).to.equal(
-        'ClaimVotiumReward(address,uint256,uint256,uint256)'
+      validateEvent(
+        crvClaimEvent,
+        'ClaimVotiumReward(address,uint256,uint256,uint256)',
+        {
+          token: tokens[1],
+          index,
+          amount: amounts[1],
+          snapshotId: currentSnapshotId,
+        },
       );
-      expect(crvClaimEvent.args.token).to.equal(tokens[1]);
-      expect(crvClaimEvent.args.index).to.equal(index);
-      expect(crvClaimEvent.args.amount).to.equal(amounts[1]);
-      expect(crvClaimEvent.args.snapshotId).to.equal(currentSnapshotId);
     });
   });
 
@@ -1943,12 +2054,15 @@ describe('PirexCvx', () => {
       expect(cvxCrvBalanceAfter).to.equal(
         cvxCrvBalanceBefore.add(expectedClaimAmounts[1])
       );
-      expect(claimEvent.eventSignature).to.equal(
-        'ClaimFuturesRewards(uint256,address,address[])'
+      validateEvent(
+        claimEvent,
+        'ClaimFuturesRewards(uint256,address,address[])',
+        {
+          epoch,
+          to,
+          rewards,
+        },
       );
-      expect(claimEvent.args.epoch).to.equal(epoch);
-      expect(claimEvent.args.to).to.equal(to);
-      expect(claimEvent.args.rewards).to.deep.equal(rewards);
     });
   });
 });

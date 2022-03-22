@@ -19,9 +19,16 @@ export async function callAndReturnEvents(fn: any, fnArgs: any): Promise<any> {
 }
 
 export function validateEvent(event: any, signature: string, args: any) {
+  // Assert the event signature
   expect(event.eventSignature).to.equal(signature);
+  // Assert all the event arguments (supports primitive data types and arrays only)
+  // For arrays, we perform deep equality check instead
   Object.keys(args).forEach((k) => {
-    expect(event.args[k]).to.equal(args[k], `at ${k} in ${event.eventSignature}`);
+    if (Array.isArray(event.args[k])) {
+      expect(event.args[k]).to.deep.equal(args[k], `at ${k} in ${event.eventSignature}`);
+    } else {
+      expect(event.args[k]).to.equal(args[k], `at ${k} in ${event.eventSignature}`);
+    }
   });
 }
 
