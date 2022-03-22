@@ -10,6 +10,7 @@ import {
   callAndReturnEvents,
   toBN,
   increaseBlockTimestamp,
+  randomNumberBetweenRange,
 } from './helpers';
 import {
   ConvexToken,
@@ -126,12 +127,10 @@ describe('PirexCvx', () => {
     it('Should have predefined state variables', async () => {
       const EPOCH_DURATION = await pCvx.EPOCH_DURATION();
       const UNLOCKING_DURATION = await pCvx.UNLOCKING_DURATION();
-      const REDEMPTION_FUTURES_ROUNDS = await pCvx.REDEMPTION_FUTURES_ROUNDS();
       const _delegationSpace = await pCvx.delegationSpace();
 
       expect(EPOCH_DURATION).to.equal(1209600);
       expect(UNLOCKING_DURATION).to.equal(10281600);
-      expect(REDEMPTION_FUTURES_ROUNDS).to.equal(8);
       expect(_delegationSpace).to.equal(delegationSpaceBytes32);
     });
   });
@@ -701,63 +700,98 @@ describe('PirexCvx', () => {
 
   describe('initiateRedemption', () => {
     it('Should revert if amount is zero', async () => {
-      const invalidTo = zeroAddress;
-      const amount = toBN(1e18);
-      const f = futuresEnum.reward;
-
-      await expect(
-        pCvx.initiateRedemption(invalidTo, amount, f)
-      ).to.be.revertedWith('ERC1155: mint to the zero address');
-    });
-
-    it('Should revert if amount is zero', async () => {
+      const lockIndex = 0;
       const to = admin.address;
       const invalidAmount = toBN(0);
       const f = futuresEnum.reward;
 
       await expect(
-        pCvx.initiateRedemption(to, invalidAmount, f)
+        pCvx.initiateRedemption(lockIndex, to, invalidAmount, f)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
-    it('Should revert if pCvx balance is insufficient', async () => {
-      const pCvxbalance = await pCvx.balanceOf(admin.address);
+    it('Should revert if amount is greater than Convex unlock amount', async () => {
+      const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
+      const lockIndex = 0;
       const to = admin.address;
-      const invalidRedemptionAmount = pCvxbalance.add(1);
+      const invalidAmount = toBN(10e18);
       const f = futuresEnum.reward;
 
-      expect(pCvxbalance.lt(invalidRedemptionAmount)).to.equal(true);
+      expect(lockData[lockIndex].amount.lt(invalidAmount)).is.true;
       await expect(
-        pCvx.initiateRedemption(to, invalidRedemptionAmount, f)
+        pCvx.initiateRedemption(lockIndex, to, invalidAmount, f)
+      ).to.be.revertedWith('InsufficientRedemptionAllowance()');
+    });
+
+    it('Should revert if to is zero address', async () => {
+      const lockIndex = 0;
+      const invalidTo = zeroAddress;
+      const amount = toBN(1e18);
+      const f = futuresEnum.reward;
+
+      await expect(
+        pCvx.initiateRedemption(lockIndex, invalidTo, amount, f)
+      ).to.be.revertedWith('ERC1155: mint to the zero address');
+    });
+
+    it('Should revert if pCvx balance is insufficient', async () => {
+      await pCvx.transfer(notAdmin.address, toBN(1e18));
+
+      const pCvxBalance = await pCvx.balanceOf(notAdmin.address);
+      const lockIndex = 0;
+      const to = admin.address;
+      const invalidRedemptionAmount = pCvxBalance.add(1);
+      const f = futuresEnum.reward;
+
+      expect(pCvxBalance.lt(invalidRedemptionAmount)).to.equal(true);
+      await expect(
+        pCvx
+          .connect(notAdmin)
+          .initiateRedemption(lockIndex, to, invalidRedemptionAmount, f)
       ).to.be.revertedWith('ERC20: burn amount exceeds balance');
     });
 
     it('Should revert if futures enum is out of range', async () => {
+      const lockIndex = 0;
       const to = admin.address;
       const redemptionAmount = toBN(1e18);
       const invalidF = futuresEnum.reward + 1;
 
       await expect(
-        pCvx.initiateRedemption(to, redemptionAmount, invalidF)
+        pCvx.initiateRedemption(lockIndex, to, redemptionAmount, invalidF)
       ).to.be.revertedWith(
         'Transaction reverted: function was called with incorrect parameters'
       );
     });
 
     it('Should initiate a redemption', async () => {
+      const { timestamp } = await ethers.provider.getBlock('latest');
+      const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
+      const lockIndex = 0;
+      const { unlockTime } = lockData[0];
+
+      // Increase timestamp between now and unlock time to test futures notes correctness
+      await increaseBlockTimestamp(
+        randomNumberBetweenRange(0, Number(toBN(unlockTime).sub(timestamp)))
+      );
+
+      const { timestamp: timestampAfter } = await ethers.provider.getBlock(
+        'latest'
+      );
       const upCvx = await getUpCvx(await pCvx.upCvx());
       const currentEpoch = await pCvx.getCurrentEpoch();
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
       const cvxOutstandingBefore = await pCvx.cvxOutstanding();
       const upCvxBalanceBefore = await upCvx.balanceOf(
         admin.address,
-        currentEpoch
+        unlockTime
       );
       const msgSender = admin.address;
       const to = admin.address;
       const redemptionAmount = toBN(1e18);
       const f = futuresEnum.reward;
       const events = await callAndReturnEvents(pCvx.initiateRedemption, [
+        lockIndex,
         to,
         redemptionAmount,
         f,
@@ -769,14 +803,25 @@ describe('PirexCvx', () => {
       const cvxOutstandingAfter = await pCvx.cvxOutstanding();
       const upCvxBalanceAfter = await upCvx.balanceOf(
         admin.address,
-        currentEpoch
+        unlockTime
       );
+      const remainingTime = toBN(unlockTime).sub(timestampAfter);
+
+      let expectedRewardsRounds = remainingTime.div(epochDuration);
+
+      if (
+        toBN(unlockTime).mod(epochDuration) &&
+        remainingTime.lt(epochDuration) &&
+        remainingTime.gt(epochDuration.div(2))
+      ) {
+        expectedRewardsRounds = expectedRewardsRounds.add(1);
+      }
+
       const rpCvxBalances = await getFuturesCvxBalances(
-        8,
+        Number(expectedRewardsRounds),
         futuresEnum.reward,
         currentEpoch
       );
-      const REDEMPTION_FUTURES_ROUNDS = await pCvx.REDEMPTION_FUTURES_ROUNDS();
 
       expect(pCvxBalanceAfter).to.equal(
         pCvxBalanceBefore.sub(redemptionAmount)
@@ -794,14 +839,16 @@ describe('PirexCvx', () => {
       expect(burnEvent.args.to).to.equal(zeroAddress);
       expect(burnEvent.args.value).to.equal(redemptionAmount);
       expect(initiateEvent.eventSignature).to.equal(
-        'InitiateRedemption(address,uint256)'
+        'InitiateRedemption(address,address,uint256,uint256)'
       );
+      expect(initiateEvent.args.sender).to.equal(admin.address);
       expect(initiateEvent.args.to).to.equal(to).to.not.equal(zeroAddress);
       expect(initiateEvent.args.amount).to.equal(redemptionAmount);
+      expect(initiateEvent.args.unlockTime).to.equal(unlockTime);
       expect(mintFuturesEvent.eventSignature).to.equal(
         'MintFutures(uint8,address,uint256,uint8)'
       );
-      expect(mintFuturesEvent.args.rounds).to.equal(REDEMPTION_FUTURES_ROUNDS);
+      expect(mintFuturesEvent.args.rounds).to.equal(expectedRewardsRounds);
       expect(mintFuturesEvent.args.to).to.equal(to);
       expect(mintFuturesEvent.args.amount).to.equal(redemptionAmount);
       expect(mintFuturesEvent.args.f).to.equal(f);

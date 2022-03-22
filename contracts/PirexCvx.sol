@@ -91,7 +91,12 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         Futures indexed f
     );
     event Deposit(address indexed to, uint256 shares, uint256 fee);
-    event InitiateRedemption(address indexed to, uint256 amount);
+    event InitiateRedemption(
+        address indexed sender,
+        address indexed to,
+        uint256 amount,
+        uint256 unlockTime
+    );
     event Redeem(uint256 indexed epoch, address indexed to, uint256 amount);
     event Stake(
         uint8 rounds,
@@ -404,7 +409,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Track amount that needs to remain unlocked for redemptions
         cvxOutstanding += amount;
 
-        emit InitiateRedemption(to, amount);
+        emit InitiateRedemption(msg.sender, to, amount, unlockTime);
 
         // Mint upCVX associated with the current epoch - validates `to`
         upCvx.mint(to, unlockTime, amount, "");

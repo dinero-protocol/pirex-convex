@@ -132,7 +132,7 @@ export const setUpConvex = async () => {
   await cvxLocker.addReward(cvxCrvToken.address, admin.address, true);
   await cvxStakingProxy.setApprovals();
   await cvx.mint(admin.address, initialBalanceForAdmin);
-  await crv.mint(admin.address, initialBalanceForAdmin)
+  await crv.mint(admin.address, initialBalanceForAdmin);
   await cvxCrvToken.mint(admin.address, initialBalanceForAdmin);
 
   return {
@@ -150,4 +150,8 @@ export const setUpConvex = async () => {
     votiumAddressRegistry,
     cvxDelegateRegistry,
   };
+};
+
+export const randomNumberBetweenRange = (min: number, max: number) => {
+  return Math.floor(Math.random() * (max - min + 1) + min);
 };
