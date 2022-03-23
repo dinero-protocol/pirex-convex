@@ -140,6 +140,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         @param  _cvxLocker               address  CvxLocker address
         @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
         @param  _cvxRewardPool           address  CvxRewardPool address
+        @param  _cvxCRV                  address  CvxCrvToken address
         @param  _pirexFees               address  PirexFees address
         @param  _votiumMultiMerkleStash  address  VotiumMultiMerkleStash address
      */
@@ -148,11 +149,18 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address _cvxLocker,
         address _cvxDelegateRegistry,
         address _cvxRewardPool,
+        address _cvxCRV,
         address _pirexFees,
         address _votiumMultiMerkleStash
     )
         ERC20("Pirex CVX", "pCVX")
-        PirexCvxConvex(_CVX, _cvxLocker, _cvxDelegateRegistry, _cvxRewardPool)
+        PirexCvxConvex(
+            _CVX,
+            _cvxLocker,
+            _cvxDelegateRegistry,
+            _cvxRewardPool,
+            _cvxCRV
+        )
     {
         // Start snapshot id from 1 and set it to simplify snapshot-taking determination
         epochs[getCurrentEpoch()].snapshotId = _snapshot();
