@@ -26,7 +26,8 @@ contract PirexCvxConvex is Ownable {
     enum ConvexContract {
         CvxLocker,
         CvxDelegateRegistry,
-        CvxRewardPool
+        CvxRewardPool,
+        CvxCrvToken
     }
 
     ERC20 public immutable CVX;
@@ -34,6 +35,7 @@ contract PirexCvxConvex is Ownable {
     ICvxLocker public cvxLocker;
     ICvxDelegateRegistry public cvxDelegateRegistry;
     ICvxRewardPool public cvxRewardPool;
+    ERC20 public cvxCRV;
 
     // Convex Snapshot space
     bytes32 public delegationSpace = bytes32(bytes("cvx.eth"));
@@ -60,12 +62,14 @@ contract PirexCvxConvex is Ownable {
         @param  _cvxLocker               address  CvxLocker address
         @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
         @param  _cvxRewardPool           address  CvxRewardPool address
+        @param  _cvxCRV                  address  CvxCrvToken address
      */
     constructor(
         address _CVX,
         address _cvxLocker,
         address _cvxDelegateRegistry,
-        address _cvxRewardPool
+        address _cvxRewardPool,
+        address _cvxCRV
     ) {
         if (_CVX == address(0)) revert ZeroAddress();
         CVX = ERC20(_CVX);
@@ -78,6 +82,9 @@ contract PirexCvxConvex is Ownable {
 
         if (_cvxRewardPool == address(0)) revert ZeroAddress();
         cvxRewardPool = ICvxRewardPool(_cvxRewardPool);
+
+        if (_cvxCRV == address(0)) revert ZeroAddress();
+        cvxCRV = ERC20(_cvxCRV);
     }
 
     /** 
@@ -103,7 +110,12 @@ contract PirexCvxConvex is Ownable {
             return;
         }
 
-        cvxRewardPool = ICvxRewardPool(contractAddress);
+        if (c == ConvexContract.CvxRewardPool) {
+            cvxRewardPool = ICvxRewardPool(contractAddress);
+            return;
+        }
+
+        cvxCRV = ERC20(contractAddress);
     }
 
     /**

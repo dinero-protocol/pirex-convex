@@ -57,6 +57,7 @@ describe('PirexCvx', () => {
     cvxLocker: 0,
     cvxDelegateRegistry: 1,
     cvxRewardPool: 2,
+    cvxCrvToken: 3,
   };
   const futuresEnum = {
     vote: 0,
@@ -117,6 +118,7 @@ describe('PirexCvx', () => {
       cvxLocker.address,
       cvxDelegateRegistry.address,
       cvxRewardPool.address,
+      cvxCrvToken.address,
       pirexFees.address,
       votiumMultiMerkleStash.address
     );
@@ -141,6 +143,7 @@ describe('PirexCvx', () => {
       const _cvxLocker = await pCvx.cvxLocker();
       const _cvxDelegateRegistry = await pCvx.cvxDelegateRegistry();
       const _cvxRewardPool = await pCvx.cvxRewardPool();
+      const _cvxCRV = await pCvx.cvxCRV();
       const _pirexFees = await pCvx.pirexFees();
       const _votiumMultiMerkleStash = await pCvx.votiumMultiMerkleStash();
       const upCvx = await pCvx.upCvx();
@@ -158,6 +161,7 @@ describe('PirexCvx', () => {
       expect(_cvxDelegateRegistry).to.equal(cvxDelegateRegistry.address);
       expect(_cvxDelegateRegistry).to.not.equal(zeroAddress);
       expect(_cvxRewardPool).to.equal(cvxRewardPool.address);
+      expect(_cvxCRV).to.equal(cvxCrvToken.address);
       expect(_pirexFees).to.equal(pirexFees.address);
       expect(_pirexFees).to.not.equal(zeroAddress);
       expect(_votiumMultiMerkleStash).to.equal(votiumMultiMerkleStash.address);
@@ -375,6 +379,29 @@ describe('PirexCvx', () => {
       expect(setEvent.args.c).to.equal(convexContractEnum.cvxRewardPool);
       expect(setEvent.args.contractAddress).to.equal(admin.address);
       expect(cvxRewardPoolBefore).to.equal(await pCvx.cvxRewardPool());
+    });
+
+    it('Should set cvxCrvToken', async () => {
+      const cvxCrvTokenBefore = await pCvx.cvxCRV();
+      const setEvent = await callAndReturnEvent(pCvx.setConvexContract, [
+        convexContractEnum.cvxCrvToken,
+        admin.address,
+      ]);
+      const cvxCrvTokenAfter = await pCvx.cvxCRV();
+
+      await pCvx.setConvexContract(
+        convexContractEnum.cvxCrvToken,
+        cvxCrvTokenBefore
+      );
+
+      expect(cvxCrvTokenBefore).to.not.equal(cvxCrvTokenAfter);
+      expect(cvxCrvTokenAfter).to.equal(admin.address);
+      expect(setEvent.eventSignature).to.equal(
+        'SetConvexContract(uint8,address)'
+      );
+      expect(setEvent.args.c).to.equal(convexContractEnum.cvxCrvToken);
+      expect(setEvent.args.contractAddress).to.equal(admin.address);
+      expect(cvxCrvTokenBefore).to.equal(await pCvx.cvxCRV());
     });
   });
 
