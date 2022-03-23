@@ -17,6 +17,11 @@ contract PirexCvxConvex is Ownable {
         uint256 balance;
     }
 
+    struct ConvexLock {
+        uint256 amount;
+        uint256 unlockTime;
+    }
+
     // Configurable contracts
     enum ConvexContract {
         CvxLocker,
@@ -37,7 +42,7 @@ contract PirexCvxConvex is Ownable {
     address public voteDelegate;
 
     // The amount of CVX that needs to remain unlocked for redemptions
-    uint256 public cvxOutstanding;
+    uint256 public outstandingRedemptions;
 
     event SetConvexContract(ConvexContract c, address contractAddress);
     event StakeCvx(uint256 amount);
@@ -128,9 +133,9 @@ contract PirexCvxConvex is Ownable {
 
         uint256 balance = CVX.balanceOf(address(this));
 
-        if (balance > cvxOutstanding) {
+        if (balance > outstandingRedemptions) {
             unchecked {
-                _lock(balance - cvxOutstanding);
+                _lock(balance - outstandingRedemptions);
             }
         }
     }
@@ -173,7 +178,7 @@ contract PirexCvxConvex is Ownable {
 
         // Get claimable rewards
         ICvxLocker.EarnedData[] memory c = cvxLocker.claimableRewards(addr);
-        
+
         uint256 cLen = c.length;
         rewards = new ConvexReward[](cLen);
 
@@ -189,9 +194,29 @@ contract PirexCvxConvex is Ownable {
         }
     }
 
+    /** 
+        @notice Claim Convex rewards
+     */
     function _getReward() internal {
         // Claim rewards from Convex
         cvxLocker.getReward(address(this), false);
+    }
+
+    /** 
+        @notice Get Convex lock data at a specific index
+        @param  lockIndex   uint256  Lock data index
+        @return amount      uint256  CVX amount
+        @return unlockTime  uint256  CVX unlock time
+     */
+    function _getLockData(uint256 lockIndex)
+        internal
+        view
+        returns (uint256 amount, uint256 unlockTime)
+    {
+        (, , , ICvxLocker.LockedBalance[] memory lockData) = cvxLocker
+            .lockedBalances(address(this));
+
+        return (lockData[lockIndex].amount, lockData[lockIndex].unlockTime);
     }
 
     /** 
