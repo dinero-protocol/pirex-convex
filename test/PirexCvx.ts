@@ -41,7 +41,6 @@ describe('PirexCvx', () => {
   let cvxRewardPool: CvxRewardPool;
   let votiumMultiMerkleStash: MultiMerkleStash;
 
-  let depositEpoch: BigNumber;
   let feeDenominator: number;
   let feePercentDenominator: number;
   let redemptionUnlockTime: number;
