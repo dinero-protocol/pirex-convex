@@ -16,7 +16,7 @@ contract PirexFees is AccessControl, ReentrancyGuard {
     }
 
     uint8 public constant PERCENT_DENOMINATOR = 100;
-    bytes32 public constant FEE_DISTRIBUTOR_ROLE =
+    bytes32 public immutable FEE_DISTRIBUTOR_ROLE =
         bytes32(bytes("FEE_DISTRIBUTOR"));
 
     // Configurable fee recipient addresses
