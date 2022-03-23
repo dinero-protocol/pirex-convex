@@ -450,6 +450,15 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Validates `to`
         upCvx.burn(msg.sender, unlockTime, amount);
 
+        uint256 balance = CVX.balanceOf(address(this));
+        if (amount > balance) {
+            // Unstake CVX to fulfill redemption
+            _unstake(amount - balance);
+        } else if (amount < balance) {
+            // Stake extraneous balance
+            _stake(balance - amount);
+        }
+
         // Validates `to`
         CVX.safeTransfer(to, amount);
     }

@@ -131,7 +131,8 @@ contract PirexCvxConvex is Ownable {
     function _relock() internal {
         _unlock();
 
-        uint256 balance = CVX.balanceOf(address(this));
+        uint256 balance = CVX.balanceOf(address(this)) +
+            cvxRewardPool.balanceOf(address(this));
 
         if (balance > outstandingRedemptions) {
             unchecked {
@@ -256,5 +257,17 @@ contract PirexCvxConvex is Ownable {
         emit ClearVoteDelegate();
 
         cvxDelegateRegistry.clearDelegate(delegationSpace);
+    }
+
+    /**
+        @notice Relock and stake remainder
+     */
+    function relock() external {
+        _relock();
+
+        uint256 balance = CVX.balanceOf(address(this));
+        if (balance != 0) {
+            _stake(balance);
+        }
     }
 }
