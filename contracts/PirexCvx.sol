@@ -119,6 +119,13 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     );
     event ClaimFuturesRewards(uint256 epoch, address to, address[] rewards);
     event PerformEpochMaintenance(uint256 epoch, uint256 snapshotId);
+    event ExchangeFutures(
+        uint256 epoch,
+        address to,
+        uint256 amount,
+        Futures i,
+        Futures o
+    );
 
     error InvalidFee();
     error BeforeUnlock();
@@ -126,6 +133,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     error AlreadyClaimed();
     error MaintenanceRequired();
     error InsufficientRedemptionAllowance();
+    error PastExchangePeriod();
 
     /**
         @param  _CVX                     address  CVX address    
@@ -675,5 +683,38 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
                 );
             }
         }
+    }
+
+    /**
+        @notice Exchange one futures token for another
+        @param  epoch   uint256  Epoch (ERC1155 token id)
+        @param  to      address  Futures rewards recipient
+        @param  amount  uint256  Futures rewards recipient
+        @param  i       Futures  Futures token to burn
+        @param  o       Futures  Futures token to mint
+    */
+    function exchangeFutures(
+        uint256 epoch,
+        address to,
+        uint256 amount,
+        Futures i,
+        Futures o
+    ) external {
+        // Users can only exchange futures tokens for future epochs
+        if (epoch <= getCurrentEpoch()) revert PastExchangePeriod();
+        if (amount == 0) revert ZeroAmount();
+
+        ERC1155PresetMinterSupply futuresIn = i == Futures.Vote ? vpCvx : rpCvx;
+        ERC1155PresetMinterSupply futuresOut = o == Futures.Reward
+            ? rpCvx
+            : vpCvx;
+
+        emit ExchangeFutures(epoch, to, amount, i, o);
+
+        // Validates `amount` (balance)
+        futuresIn.burn(msg.sender, epoch, amount);
+
+        // Validates `to`
+        futuresOut.mint(to, epoch, amount, "");
     }
 }
