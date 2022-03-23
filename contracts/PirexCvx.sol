@@ -282,16 +282,11 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         unchecked {
             uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
-            address token = f == Futures.Vote ? address(vpCvx) : address(rpCvx);
+            ERC1155PresetMinterSupply token = f == Futures.Vote ? vpCvx : rpCvx;
 
             for (uint8 i; i < rounds; ++i) {
                 // Validates `to`
-                ERC1155PresetMinterSupply(token).mint(
-                    to,
-                    startingEpoch + i * EPOCH_DURATION,
-                    amount,
-                    ""
-                );
+                token.mint(to, startingEpoch + i * EPOCH_DURATION, amount, "");
             }
         }
     }
@@ -303,7 +298,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Get claimable rewards and balances
         ConvexReward[] memory c = _claimableRewards();
         uint256 cLen = c.length;
-        address addr = address(this);
 
         // Claim rewards from Convex
         _getReward();
@@ -314,29 +308,29 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 combinedSupply = snapshotSupply +
             rpCvx.totalSupply(currentEpoch);
         address pirexFeesAddr = address(pirexFees);
+        uint16 feesReward = fees[Fees.Reward];
 
         // Calculate the rewards for both pCVX/snapshot and rpCVX/futures holders
         for (uint8 i; i < cLen; ++i) {
             if (c[i].amount == 0) continue;
 
-            address t = c[i].token;
+            ERC20 t = ERC20(c[i].token);
 
             // Tokens actually received (after factoring in token fees and existing balance)
-            uint256 received = ERC20(t).balanceOf(addr) - c[i].balance;
+            uint256 received = t.balanceOf(address(this)) - c[i].balance;
 
-            uint256 rewardFee = (received * fees[Fees.Reward]) /
-                FEE_DENOMINATOR;
+            uint256 rewardFee = (received * feesReward) / FEE_DENOMINATOR;
             uint256 rewards = received - rewardFee;
             uint256 snapshotRewardAmount = (rewards * snapshotSupply) /
                 combinedSupply;
 
-            e.rewards.push(t);
+            e.rewards.push(c[i].token);
             e.snapshotRewards.push(snapshotRewardAmount);
             e.futuresRewards.push(rewards - snapshotRewardAmount);
 
             // Distribute fees
-            ERC20(t).safeIncreaseAllowance(pirexFeesAddr, rewardFee);
-            pirexFees.distributeFees(t, rewardFee);
+            t.safeIncreaseAllowance(pirexFeesAddr, rewardFee);
+            pirexFees.distributeFees(c[i].token, rewardFee);
         }
     }
 
