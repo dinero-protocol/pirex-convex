@@ -11,6 +11,7 @@ import {
   toBN,
   increaseBlockTimestamp,
   validateEvent,
+  randomNumberBetweenRange,
 } from './helpers';
 import {
   ConvexToken,
@@ -41,10 +42,9 @@ describe('PirexCvx', () => {
   let votiumMultiMerkleStash: MultiMerkleStash;
 
   let depositEpoch: BigNumber;
-  let unlockDuration: number;
   let feeDenominator: number;
-  let redemptionFutureRounds: number;
   let feePercentDenominator: number;
+  let redemptionUnlockTime: number;
 
   const delegationSpace = 'cvx.eth';
   const delegationSpaceBytes32 =
@@ -130,16 +130,13 @@ describe('PirexCvx', () => {
 
   describe('initial state', () => {
     it('Should have predefined state variables', async () => {
-      unlockDuration = await pCvx.UNLOCKING_DURATION();
-      redemptionFutureRounds = await pCvx.REDEMPTION_FUTURES_ROUNDS();
       feeDenominator = await pCvx.FEE_DENOMINATOR();
       const pirexEpochDuration = await pCvx.EPOCH_DURATION();
       const _delegationSpace = await pCvx.delegationSpace();
 
       expect(pirexEpochDuration).to.equal(1209600);
-      expect(unlockDuration).to.equal(10281600);
-      expect(redemptionFutureRounds).to.equal(8);
       expect(feeDenominator).to.equal(1000000);
+
       expect(_delegationSpace).to.equal(delegationSpaceBytes32);
     });
   });
@@ -680,8 +677,6 @@ describe('PirexCvx', () => {
         .div(feePercentDenominator);
       const postFeeAmount = depositAmount.sub(depositFee);
 
-      depositEpoch = await pCvx.getCurrentEpoch();
-
       expect(cvxBalanceAfter).to.equal(cvxBalanceBefore.sub(depositAmount));
       expect(treasuryCvxBalanceAfter).to.not.equal(treasuryCvxBalanceBefore);
       expect(treasuryCvxBalanceAfter).to.equal(
@@ -725,63 +720,100 @@ describe('PirexCvx', () => {
 
   describe('initiateRedemption', () => {
     it('Should revert if amount is zero', async () => {
-      const invalidTo = zeroAddress;
-      const amount = toBN(1e18);
-      const f = futuresEnum.reward;
-
-      await expect(
-        pCvx.initiateRedemption(invalidTo, amount, f)
-      ).to.be.revertedWith('ERC1155: mint to the zero address');
-    });
-
-    it('Should revert if amount is zero', async () => {
+      const lockIndex = 0;
       const to = admin.address;
       const invalidAmount = toBN(0);
       const f = futuresEnum.reward;
 
       await expect(
-        pCvx.initiateRedemption(to, invalidAmount, f)
+        pCvx.initiateRedemption(lockIndex, to, invalidAmount, f)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
-    it('Should revert if pCvx balance is insufficient', async () => {
-      const pCvxbalance = await pCvx.balanceOf(admin.address);
+    it('Should revert if amount is greater than Convex unlock amount', async () => {
+      const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
+      const lockIndex = 0;
       const to = admin.address;
-      const invalidRedemptionAmount = pCvxbalance.add(1);
+      const invalidAmount = toBN(10e18);
       const f = futuresEnum.reward;
 
-      expect(pCvxbalance.lt(invalidRedemptionAmount)).to.equal(true);
+      expect(lockData[lockIndex].amount.lt(invalidAmount)).is.true;
       await expect(
-        pCvx.initiateRedemption(to, invalidRedemptionAmount, f)
+        pCvx.initiateRedemption(lockIndex, to, invalidAmount, f)
+      ).to.be.revertedWith('InsufficientRedemptionAllowance()');
+    });
+
+    it('Should revert if to is zero address', async () => {
+      const lockIndex = 0;
+      const invalidTo = zeroAddress;
+      const amount = toBN(1e18);
+      const f = futuresEnum.reward;
+
+      await expect(
+        pCvx.initiateRedemption(lockIndex, invalidTo, amount, f)
+      ).to.be.revertedWith('ERC1155: mint to the zero address');
+    });
+
+    it('Should revert if pCvx balance is insufficient', async () => {
+      await pCvx.transfer(notAdmin.address, toBN(1e18));
+
+      const pCvxBalance = await pCvx.balanceOf(notAdmin.address);
+      const lockIndex = 0;
+      const to = admin.address;
+      const invalidRedemptionAmount = pCvxBalance.add(1);
+      const f = futuresEnum.reward;
+
+      expect(pCvxBalance.lt(invalidRedemptionAmount)).to.equal(true);
+      await expect(
+        pCvx
+          .connect(notAdmin)
+          .initiateRedemption(lockIndex, to, invalidRedemptionAmount, f)
       ).to.be.revertedWith('ERC20: burn amount exceeds balance');
     });
 
     it('Should revert if futures enum is out of range', async () => {
+      const lockIndex = 0;
       const to = admin.address;
       const redemptionAmount = toBN(1e18);
       const invalidF = futuresEnum.reward + 1;
 
       await expect(
-        pCvx.initiateRedemption(to, redemptionAmount, invalidF)
+        pCvx.initiateRedemption(lockIndex, to, redemptionAmount, invalidF)
       ).to.be.revertedWith(
         'Transaction reverted: function was called with incorrect parameters'
       );
     });
 
     it('Should initiate a redemption', async () => {
+      const { timestamp } = await ethers.provider.getBlock('latest');
+      const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
+      const lockIndex = 0;
+      const { unlockTime } = lockData[lockIndex];
+
+      redemptionUnlockTime = unlockTime;
+
+      // Increase timestamp between now and unlock time to test futures notes correctness
+      await increaseBlockTimestamp(
+        randomNumberBetweenRange(0, Number(toBN(unlockTime).sub(timestamp)))
+      );
+
+      const { timestamp: timestampAfter } = await ethers.provider.getBlock(
+        'latest'
+      );
       const upCvx = await getUpCvx(await pCvx.upCvx());
       const currentEpoch = await pCvx.getCurrentEpoch();
       const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
-      const cvxOutstandingBefore = await pCvx.cvxOutstanding();
+      const outstandingRedemptionsBefore = await pCvx.outstandingRedemptions();
       const upCvxBalanceBefore = await upCvx.balanceOf(
         admin.address,
-        currentEpoch
+        unlockTime
       );
       const msgSender = admin.address;
       const to = admin.address;
       const redemptionAmount = toBN(1e18);
       const f = futuresEnum.reward;
       const events = await callAndReturnEvents(pCvx.initiateRedemption, [
+        lockIndex,
         to,
         redemptionAmount,
         f,
@@ -790,13 +822,25 @@ describe('PirexCvx', () => {
       const initiateEvent = events[1];
       const mintFuturesEvent = events[3];
       const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
-      const cvxOutstandingAfter = await pCvx.cvxOutstanding();
+      const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
       const upCvxBalanceAfter = await upCvx.balanceOf(
         admin.address,
-        currentEpoch
+        unlockTime
       );
+      const remainingTime = toBN(unlockTime).sub(timestampAfter);
+
+      let expectedRewardsRounds = remainingTime.div(epochDuration);
+
+      if (
+        !toBN(unlockTime).mod(epochDuration).isZero() &&
+        remainingTime.lt(epochDuration) &&
+        remainingTime.gt(epochDuration.div(2))
+      ) {
+        expectedRewardsRounds = expectedRewardsRounds.add(1);
+      }
+
       const rpCvxBalances = await getFuturesCvxBalances(
-        8,
+        Number(expectedRewardsRounds),
         futuresEnum.reward,
         currentEpoch
       );
@@ -804,8 +848,8 @@ describe('PirexCvx', () => {
       expect(pCvxBalanceAfter).to.equal(
         pCvxBalanceBefore.sub(redemptionAmount)
       );
-      expect(cvxOutstandingAfter).to.equal(
-        cvxOutstandingBefore.add(redemptionAmount)
+      expect(outstandingRedemptionsAfter).to.equal(
+        outstandingRedemptionsBefore.add(redemptionAmount)
       );
       expect(upCvxBalanceAfter).to.equal(
         upCvxBalanceBefore.add(redemptionAmount)
@@ -816,16 +860,18 @@ describe('PirexCvx', () => {
         value: redemptionAmount,
       });
       expect(burnEvent.args.from).to.not.equal(zeroAddress);
-      validateEvent(initiateEvent, 'InitiateRedemption(address,uint256)', {
+      validateEvent(initiateEvent, 'InitiateRedemption(address,address,uint256,uint256)', {
+        sender: admin.address,
         to,
         amount: redemptionAmount,
+        unlockTime,
       });
       expect(initiateEvent.args.to).to.not.equal(zeroAddress);
       validateEvent(
         mintFuturesEvent,
         'MintFutures(uint8,address,uint256,uint8)',
         {
-          rounds: redemptionFutureRounds,
+          rounds: expectedRewardsRounds,
           to,
           amount: redemptionAmount,
           f,
@@ -838,6 +884,20 @@ describe('PirexCvx', () => {
         )
       ).to.equal(true);
     });
+
+    it('Should revert if insufficient redemption allowance', async () => {
+      const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
+      const lockIndex = 0;
+      const { unlockTime } = lockData[lockIndex];
+      const redemptions = await pCvx.redemptions(unlockTime);
+      const to = admin.address;
+      const invalidAmount = lockData[lockIndex].amount.sub(redemptions).add(1);
+      const f = futuresEnum.reward;
+
+      await expect(
+        pCvx.initiateRedemption(lockIndex, to, invalidAmount, f)
+      ).to.be.revertedWith('InsufficientRedemptionAllowance()');
+    });
   });
 
   describe('redeem', () => {
@@ -845,39 +905,40 @@ describe('PirexCvx', () => {
       const to = admin.address;
       const amount = toBN(1e18);
 
-      await expect(pCvx.redeem(depositEpoch, to, amount)).to.be.revertedWith(
-        'BeforeLockExpiry()'
-      );
+      await expect(
+        pCvx.redeem(redemptionUnlockTime, to, amount)
+      ).to.be.revertedWith('BeforeUnlock()');
     });
 
     it('Should revert if amount is zero', async () => {
-      // Invalid but adequate for testing zero amount check
-      const epoch = 0;
+      const unlockTime = 0;
       const to = admin.address;
       const amount = 0;
 
-      await expect(pCvx.redeem(epoch, to, amount)).to.be.revertedWith(
+      await expect(pCvx.redeem(unlockTime, to, amount)).to.be.revertedWith(
         'ZeroAmount()'
       );
     });
 
     it('Should revert if insufficient upCVX balance for epoch', async () => {
       // Does not exist, should not have a valid token balance
-      const invalidEpoch = depositEpoch.add(1);
+      const invalidUnlockTime = toBN(redemptionUnlockTime).add(1);
       const to = admin.address;
       const amount = toBN(1e18);
       const upCvx = await getUpCvx(await pCvx.upCvx());
-      const upCvxBalance = await upCvx.balanceOf(admin.address, invalidEpoch);
+      const upCvxBalance = await upCvx.balanceOf(
+        admin.address,
+        invalidUnlockTime
+      );
+      const { timestamp } = await ethers.provider.getBlock('latest');
 
       await upCvx.setApprovalForAll(pCvx.address, true);
-      await increaseBlockTimestamp(unlockDuration);
-
-      const { timestamp } = await ethers.provider.getBlock('latest');
-      const afterLockExpiry = invalidEpoch.add(unlockDuration).lt(timestamp);
+      await increaseBlockTimestamp(Number(invalidUnlockTime.sub(timestamp)));
 
       expect(upCvxBalance).to.equal(0);
-      expect(afterLockExpiry).to.equal(true);
-      await expect(pCvx.redeem(invalidEpoch, to, amount)).to.be.revertedWith(
+      await expect(
+        pCvx.redeem(invalidUnlockTime, to, amount)
+      ).to.be.revertedWith(
         // Caused by ERC1155Supply _beforeTokenTransfer hook
         'VM Exception while processing transaction: reverted with panic code 0x11 (Arithmetic operation underflowed or overflowed outside of an unchecked block)'
       );
@@ -888,7 +949,7 @@ describe('PirexCvx', () => {
       const amount = toBN(1e18);
 
       await expect(
-        pCvx.redeem(depositEpoch, invalidTo, amount)
+        pCvx.redeem(redemptionUnlockTime, invalidTo, amount)
       ).to.be.revertedWith('ERC20: transfer to the zero address');
     });
 
@@ -896,7 +957,7 @@ describe('PirexCvx', () => {
       const upCvx = await getUpCvx(await pCvx.upCvx());
       const upCvxBalanceBefore = await upCvx.balanceOf(
         admin.address,
-        depositEpoch
+        redemptionUnlockTime
       );
       const { unlockable: unlockableBefore } = await cvxLocker.lockedBalances(
         pCvx.address
@@ -904,18 +965,20 @@ describe('PirexCvx', () => {
       const { locked: lockedBefore } = await cvxLocker.lockedBalances(
         pCvx.address
       );
-      const cvxOutstandingBefore = await pCvx.cvxOutstanding();
-      const upCvxTotalSupplyBefore = await upCvx.totalSupply(depositEpoch);
+      const outstandingRedemptionsBefore = await pCvx.outstandingRedemptions();
+      const upCvxTotalSupplyBefore = await upCvx.totalSupply(
+        redemptionUnlockTime
+      );
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const to = admin.address;
       const amount = upCvxBalanceBefore.div(2);
 
-      // Expected values post-relock and cvxOutstanding decrementing
-      const expectedRelock = unlockableBefore.sub(cvxOutstandingBefore);
-      const expectedCvxOutstanding = cvxOutstandingBefore.sub(amount);
-      const expectedPirexCvxBalance = cvxOutstandingBefore.sub(amount);
+      // Expected values post-relock and outstandingRedemptions decrementing
+      const expectedRelock = unlockableBefore.sub(outstandingRedemptionsBefore);
+      const expectedCvxOutstanding = outstandingRedemptionsBefore.sub(amount);
+      const expectedPirexCvxBalance = outstandingRedemptionsBefore.sub(amount);
       const expectedLocked = lockedBefore.add(
-        unlockableBefore.sub(cvxOutstandingBefore)
+        unlockableBefore.sub(outstandingRedemptionsBefore)
       );
 
       // Expected values post-burn
@@ -926,26 +989,28 @@ describe('PirexCvx', () => {
       const expectedCvxBalance = cvxBalanceBefore.add(amount);
 
       const events = await callAndReturnEvents(pCvx.redeem, [
-        depositEpoch,
+        redemptionUnlockTime,
         to,
         amount,
       ]);
       const redeemEvent = events[0];
       const upCvxBalanceAfter = await upCvx.balanceOf(
         admin.address,
-        depositEpoch
+        redemptionUnlockTime
       );
       const { locked: lockedAfter } = await cvxLocker.lockedBalances(
         pCvx.address
       );
-      const cvxOutstandingAfter = await pCvx.cvxOutstanding();
-      const upCvxTotalSupplyAfter = await upCvx.totalSupply(depositEpoch);
+      const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
+      const upCvxTotalSupplyAfter = await upCvx.totalSupply(
+        redemptionUnlockTime
+      );
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const pirexCvxBalanceAfter = await cvx.balanceOf(pCvx.address);
 
       expect(expectedRelock).to.equal(lockedAfter.sub(lockedBefore));
       expect(expectedRelock).to.not.equal(0);
-      expect(expectedCvxOutstanding).to.equal(cvxOutstandingAfter);
+      expect(expectedCvxOutstanding).to.equal(outstandingRedemptionsAfter);
       expect(expectedCvxOutstanding).to.not.equal(0);
       expect(expectedPirexCvxBalance).to.equal(pirexCvxBalanceAfter);
       expect(expectedPirexCvxBalance).to.not.equal(0);
@@ -958,7 +1023,7 @@ describe('PirexCvx', () => {
       expect(expectedCvxBalance).to.equal(cvxBalanceAfter);
       expect(expectedCvxBalance).to.not.equal(0);
       validateEvent(redeemEvent, 'Redeem(uint256,address,uint256)', {
-        epoch: depositEpoch,
+        epoch: redemptionUnlockTime,
         to,
         amount,
       });

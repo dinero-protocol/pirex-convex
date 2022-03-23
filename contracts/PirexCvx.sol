@@ -56,12 +56,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     // Seconds between Convex voting rounds (2 weeks)
     uint32 public constant EPOCH_DURATION = 1209600;
 
-    // Seconds before upCVX can be redeemed for CVX (17 weeks)
-    uint32 public constant UNLOCKING_DURATION = 10281600;
-
-    // Number of futures rounds to mint when a redemption is initiated
-    uint8 public constant REDEMPTION_FUTURES_ROUNDS = 8;
-
     // Fee denominator
     uint32 public constant FEE_DENOMINATOR = 1000000;
 
@@ -81,6 +75,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     // Fees (e.g. 5000 / 1000000 = 0.5%)
     mapping(Fees => uint16) public fees;
 
+    // Convex unlock timestamps mapped to amount being redeemed
+    mapping(uint256 => uint256) public redemptions;
+
     event SetContract(Contract c, address contractAddress);
     event SetFee(Fees f, uint16 amount);
     event MintFutures(
@@ -90,7 +87,12 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         Futures indexed f
     );
     event Deposit(address indexed to, uint256 shares, uint256 fee);
-    event InitiateRedemption(address indexed to, uint256 amount);
+    event InitiateRedemption(
+        address indexed sender,
+        address indexed to,
+        uint256 amount,
+        uint256 unlockTime
+    );
     event Redeem(uint256 indexed epoch, address indexed to, uint256 amount);
     event Stake(
         uint8 rounds,
@@ -119,10 +121,11 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     event PerformEpochMaintenance(uint256 epoch, uint256 snapshotId);
 
     error InvalidFee();
-    error BeforeLockExpiry();
+    error BeforeUnlock();
     error InsufficientBalance();
     error AlreadyClaimed();
     error MaintenanceRequired();
+    error InsufficientRedemptionAllowance();
 
     /**
         @param  _CVX                     address  CVX address    
@@ -279,16 +282,11 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         unchecked {
             uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
-            address token = f == Futures.Vote ? address(vpCvx) : address(rpCvx);
+            ERC1155PresetMinterSupply token = f == Futures.Vote ? vpCvx : rpCvx;
 
             for (uint8 i; i < rounds; ++i) {
                 // Validates `to`
-                ERC1155PresetMinterSupply(token).mint(
-                    to,
-                    startingEpoch + i * EPOCH_DURATION,
-                    amount,
-                    ""
-                );
+                token.mint(to, startingEpoch + i * EPOCH_DURATION, amount, "");
             }
         }
     }
@@ -300,7 +298,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Get claimable rewards and balances
         ConvexReward[] memory c = _claimableRewards();
         uint256 cLen = c.length;
-        address addr = address(this);
 
         // Claim rewards from Convex
         _getReward();
@@ -311,29 +308,29 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 combinedSupply = snapshotSupply +
             rpCvx.totalSupply(currentEpoch);
         address pirexFeesAddr = address(pirexFees);
+        uint16 feesReward = fees[Fees.Reward];
 
         // Calculate the rewards for both pCVX/snapshot and rpCVX/futures holders
         for (uint8 i; i < cLen; ++i) {
             if (c[i].amount == 0) continue;
 
-            address t = c[i].token;
+            ERC20 t = ERC20(c[i].token);
 
             // Tokens actually received (after factoring in token fees and existing balance)
-            uint256 received = ERC20(t).balanceOf(addr) - c[i].balance;
+            uint256 received = t.balanceOf(address(this)) - c[i].balance;
 
-            uint256 rewardFee = (received * fees[Fees.Reward]) /
-                FEE_DENOMINATOR;
+            uint256 rewardFee = (received * feesReward) / FEE_DENOMINATOR;
             uint256 rewards = received - rewardFee;
             uint256 snapshotRewardAmount = (rewards * snapshotSupply) /
                 combinedSupply;
 
-            e.rewards.push(t);
+            e.rewards.push(c[i].token);
             e.snapshotRewards.push(snapshotRewardAmount);
             e.futuresRewards.push(rewards - snapshotRewardAmount);
 
             // Distribute fees
-            ERC20(t).safeIncreaseAllowance(pirexFeesAddr, rewardFee);
-            pirexFees.distributeFees(t, rewardFee);
+            t.safeIncreaseAllowance(pirexFeesAddr, rewardFee);
+            pirexFees.distributeFees(c[i].token, rewardFee);
         }
     }
 
@@ -366,58 +363,84 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Initiate CVX redemption
-        @param  to      address  upCVX recipient
-        @param  amount  uint256  pCVX/upCVX amount
-        @param  f       enum     Futures
+        @param  lockIndex  uint8    Locked balance index
+        @param  to         address  upCVX recipient
+        @param  amount     uint256  pCVX/upCVX amount
+        @param  f          enum     Futures
      */
     function initiateRedemption(
+        uint8 lockIndex,
         address to,
         uint256 amount,
         Futures f
     ) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
 
+        (uint256 lockAmount, uint256 unlockTime) = _getLockData(lockIndex);
+
+        // Increment redemptions for this unlock time to prevent over-redeeming
+        redemptions[unlockTime] += amount;
+
+        // Check if there is any sufficient allowance after factoring in redemptions by others
+        if (redemptions[unlockTime] > lockAmount)
+            revert InsufficientRedemptionAllowance();
+
         // Burn pCVX - validates `to`
         _burn(msg.sender, amount);
 
         // Track amount that needs to remain unlocked for redemptions
-        cvxOutstanding += amount;
+        outstandingRedemptions += amount;
 
-        emit InitiateRedemption(to, amount);
+        emit InitiateRedemption(msg.sender, to, amount, unlockTime);
 
-        // Mint upCVX associated with the current epoch - validates `to`
-        upCvx.mint(to, getCurrentEpoch(), amount, "");
+        // Mint upCVX associated with the unlock time - validates `to`
+        upCvx.mint(to, unlockTime, amount, "");
+
+        // Determine how many futures notes rounds to mint
+        uint256 remainingTime = unlockTime - block.timestamp;
+        uint8 rounds = uint8(remainingTime / EPOCH_DURATION);
+
+        // Check if the lock was in the first week/half of an epoch
+        // Handle case where remaining time is between 1 and 2 weeks
+        if (
+            unlockTime % EPOCH_DURATION != 0 &&
+            remainingTime < EPOCH_DURATION &&
+            remainingTime > (EPOCH_DURATION / 2)
+        ) {
+            // Rounds is 0 if remainingTime is between 1 and 2 weeks
+            // Increment by 1 since user should receive 1 round of rewards
+            ++rounds;
+        }
 
         // Mint vpCVX or rpCVX
-        _mintFutures(REDEMPTION_FUTURES_ROUNDS, to, amount, f);
+        _mintFutures(rounds, to, amount, f);
     }
 
     /**
         @notice Redeem CVX
-        @param  epoch   uint256  Epoch
-        @param  to      address  CVX recipient
-        @param  amount  uint256  upCVX/CVX amount
+        @param  unlockTime  uint256  CVX unlock timestamp
+        @param  to          address  CVX recipient
+        @param  amount      uint256  upCVX/CVX amount
      */
     function redeem(
-        uint256 epoch,
+        uint256 unlockTime,
         address to,
         uint256 amount
     ) external nonReentrant {
-        // Revert if token cannot be unlocked yet
-        if (epoch + UNLOCKING_DURATION > block.timestamp)
-            revert BeforeLockExpiry();
+        // Revert if CVX has not been unlocked and cannot be redeemed yet
+        if (unlockTime > block.timestamp) revert BeforeUnlock();
         if (amount == 0) revert ZeroAmount();
 
-        emit Redeem(epoch, to, amount);
+        emit Redeem(unlockTime, to, amount);
 
-        // Unlock and relock if balance is greater than cvxOutstanding
+        // Unlock and relock if balance is greater than outstandingRedemptions
         _relock();
 
         // Subtract redemption amount from outstanding CVX amount
-        cvxOutstanding -= amount;
+        outstandingRedemptions -= amount;
 
         // Validates `to`
-        upCvx.burn(msg.sender, epoch, amount);
+        upCvx.burn(msg.sender, unlockTime, amount);
 
         // Validates `to`
         CVX.safeTransfer(to, amount);
