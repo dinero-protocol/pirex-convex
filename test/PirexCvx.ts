@@ -1475,7 +1475,6 @@ describe('PirexCvx', () => {
       const cvxClaimEvent = cvxClaimEvents[0];
       const crvClaimEvent = crvClaimEvents[0];
       const epoch = await pCvx.getEpoch(currentEpoch);
-      const currentSnapshotId = await pCvx.getCurrentSnapshotId();
       const { snapshotRewards, futuresRewards } = await pCvx.getEpoch(
         currentEpoch
       );
@@ -1579,20 +1578,17 @@ describe('PirexCvx', () => {
         contributorsCrvBalanceBefore.add(expectedContributorsCrvFees)
       );
       expect(cvxClaimEvent.eventSignature).to.equal(
-        'ClaimVotiumReward(address,uint256,uint256,uint256)'
+        'ClaimVotiumReward(address,uint256,uint256)'
       );
       expect(cvxClaimEvent.args.token).to.equal(tokens[0]);
       expect(cvxClaimEvent.args.index).to.equal(index);
       expect(cvxClaimEvent.args.amount).to.equal(amounts[0]);
-      expect(cvxClaimEvent.args.snapshotId).to.equal(currentSnapshotId);
-
       expect(crvClaimEvent.eventSignature).to.equal(
-        'ClaimVotiumReward(address,uint256,uint256,uint256)'
+        'ClaimVotiumReward(address,uint256,uint256)'
       );
       expect(crvClaimEvent.args.token).to.equal(tokens[1]);
       expect(crvClaimEvent.args.index).to.equal(index);
       expect(crvClaimEvent.args.amount).to.equal(amounts[1]);
-      expect(crvClaimEvent.args.snapshotId).to.equal(currentSnapshotId);
     });
   });
 
