@@ -448,7 +448,7 @@ describe('PirexCvx', () => {
 
     it('Should set the reward fee', async () => {
       const rewardFeeBefore = await pCvx.fees(feesEnum.reward);
-      const amount = 5000;
+      const amount = 10000;
       const events = await callAndReturnEvents(pCvx.setFee, [
         feesEnum.reward,
         amount,
@@ -1321,7 +1321,7 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('performEpochMaintenance', () => {
+  describe('takeEpochSnapshot', () => {
     before(async () => {
       const crvRewardAmount = toBN(5e18);
       const cvxCrvRewardAmount = toBN(10e18);
@@ -1353,216 +1353,30 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('MaintenanceRequired()');
     });
 
-    it('Should take a snapshot and claim misc. rewards', async () => {
+    it('Should not allow claimMiscRewards to be called if maintenance has not been performed', async () => {
+      const { snapshotId } = await pCvx.getEpoch(await pCvx.getCurrentEpoch());
+
+      expect(snapshotId).to.equal(0);
+      await expect(pCvx.claimMiscRewards()).to.be.revertedWith(
+        'MaintenanceRequired()'
+      );
+    });
+
+    it('Should take a snapshot', async () => {
       const currentEpoch = await pCvx.getCurrentEpoch();
       const epochBefore = await pCvx.getEpoch(currentEpoch);
       const snapshotIdBefore = await pCvx.getCurrentSnapshotId();
-      const cvxCrvBalanceBefore = await cvxCrvToken.balanceOf(pCvx.address);
-      const crvBalanceBefore = await crv.balanceOf(pCvx.address);
-      const treasuryCrvBalanceBefore = await crv.balanceOf(treasury.address);
-      const revenueLockersCrvBalanceBefore = await crv.balanceOf(
-        revenueLockers.address
-      );
-      const contributorsCrvBalanceBefore = await crv.balanceOf(
-        contributors.address
-      );
-      const treasuryCvxCrvBalanceBefore = await cvxCrvToken.balanceOf(
-        treasury.address
-      );
-      const revenueLockersCvxCrvBalanceBefore = await cvxCrvToken.balanceOf(
-        revenueLockers.address
-      );
-      const contributorsCvxCrvBalanceBefore = await cvxCrvToken.balanceOf(
-        contributors.address
-      );
-      const [claimableCrv, claimableCvxCrv] = await cvxLocker.claimableRewards(
-        pCvx.address
-      );
-      const rewardFeePercent = await pCvx.fees(feesEnum.reward);
-      const FEE_DENOMINATOR = await pCvx.FEE_DENOMINATOR();
-      const crvRewardFee = claimableCrv.amount
-        .mul(rewardFeePercent)
-        .div(FEE_DENOMINATOR);
-      const cvxCrvRewardFee = claimableCvxCrv.amount
-        .mul(rewardFeePercent)
-        .div(FEE_DENOMINATOR);
-      const events = await callAndReturnEvents(
-        pCvx.performEpochMaintenance,
-        []
-      );
+      const events = await callAndReturnEvents(pCvx.takeEpochSnapshot, []);
       const snapshotEvent = events[0];
-      const performEvent = events[1];
       const epochAfter = await pCvx.getEpoch(currentEpoch);
       const snapshotIdAfter = await pCvx.getCurrentSnapshotId();
-      const cvxCrvBalanceAfter = await cvxCrvToken.balanceOf(pCvx.address);
-      const crvBalanceAfter = await crv.balanceOf(pCvx.address);
-      const treasuryCrvBalanceAfter = await crv.balanceOf(treasury.address);
-      const revenueLockersCrvBalanceAfter = await crv.balanceOf(
-        revenueLockers.address
-      );
-      const contributorsCrvBalanceAfter = await crv.balanceOf(
-        contributors.address
-      );
-      const treasuryCvxCrvBalanceAfter = await cvxCrvToken.balanceOf(
-        treasury.address
-      );
-      const revenueLockersCvxCrvBalanceAfter = await cvxCrvToken.balanceOf(
-        revenueLockers.address
-      );
-      const contributorsCvxCrvBalanceAfter = await cvxCrvToken.balanceOf(
-        contributors.address
-      );
-      const treasuryPercent = await pirexFees.treasuryPercent();
-      const revenueLockersPercent = await pirexFees.revenueLockersPercent();
-      const contributorsPercent = await pirexFees.contributorsPercent();
-      const PERCENT_DENOMINATOR = await pirexFees.PERCENT_DENOMINATOR();
-      const expectedTreasuryCrvFees = crvRewardFee
-        .mul(treasuryPercent)
-        .div(PERCENT_DENOMINATOR);
-      const expectedRevenueLockersCrvFees = crvRewardFee
-        .mul(revenueLockersPercent)
-        .div(PERCENT_DENOMINATOR);
-      const expectedContributorsCrvFees = crvRewardFee
-        .mul(contributorsPercent)
-        .div(PERCENT_DENOMINATOR);
-      const expectedTreasuryCvxCrvFees = cvxCrvRewardFee
-        .mul(treasuryPercent)
-        .div(PERCENT_DENOMINATOR);
-      const expectedRevenueLockersCvxCrvFees = cvxCrvRewardFee
-        .mul(revenueLockersPercent)
-        .div(PERCENT_DENOMINATOR);
-      const expectedContributorsCvxCrvFees = cvxCrvRewardFee
-        .mul(contributorsPercent)
-        .div(PERCENT_DENOMINATOR);
 
       expect(epochBefore.snapshotId).to.equal(0);
-      expect(epochBefore.rewards.length).to.equal(0);
-      expect(epochBefore.snapshotRewards.length).to.equal(0);
-      expect(epochBefore.futuresRewards.length).to.equal(0);
       expect(epochAfter.snapshotId).to.equal(snapshotIdAfter);
-      expect(epochAfter.rewards.length).to.equal(2);
-      expect(epochAfter.snapshotRewards.length).to.equal(2);
-      expect(epochAfter.futuresRewards.length).to.equal(2);
       expect(snapshotIdAfter).to.not.equal(snapshotIdBefore);
       expect(snapshotIdAfter).to.equal(snapshotIdBefore.add(1));
-
-      // Due to rewards accruing, it doesn't seem possible to get the exact figures,
-      // unless there are no more rewards to issue
-      expect(crvBalanceAfter.gt(crvBalanceBefore)).to.be.equal(true);
-      expect(cvxCrvBalanceAfter.gt(cvxCrvBalanceBefore)).to.be.equal(true);
-      expect(
-        crvBalanceAfter.gte(
-          crvBalanceBefore.add(claimableCrv.amount.sub(crvRewardFee))
-        )
-      ).to.equal(true);
-      expect(
-        cvxCrvBalanceAfter.gte(
-          cvxCrvBalanceBefore.add(claimableCvxCrv.amount.sub(cvxCrvRewardFee))
-        )
-      ).to.be.equal(true);
-      expect(treasuryCrvBalanceAfter).to.not.equal(treasuryCrvBalanceBefore);
-      expect(
-        treasuryCrvBalanceAfter.gt(
-          treasuryCrvBalanceBefore.add(expectedTreasuryCrvFees)
-        )
-      ).to.be.equal(true);
-      expect(
-        treasuryCrvBalanceAfter.lt(
-          treasuryCrvBalanceBefore
-            .add(expectedTreasuryCrvFees)
-            .mul(101)
-            .div(100)
-        )
-      ).to.equal(true);
-      expect(revenueLockersCrvBalanceAfter).to.not.equal(
-        revenueLockersCrvBalanceBefore
-      );
-      expect(
-        revenueLockersCrvBalanceAfter.gt(
-          revenueLockersCrvBalanceBefore.add(expectedRevenueLockersCrvFees)
-        )
-      ).to.equal(true);
-      expect(
-        revenueLockersCrvBalanceAfter.lt(
-          revenueLockersCrvBalanceBefore
-            .add(expectedRevenueLockersCrvFees)
-            .mul(101)
-            .div(100)
-        )
-      ).to.equal(true);
-      expect(contributorsCrvBalanceAfter).to.not.equal(
-        contributorsCrvBalanceBefore
-      );
-      expect(
-        contributorsCrvBalanceAfter.gt(
-          contributorsCrvBalanceBefore.add(expectedContributorsCrvFees)
-        )
-      ).to.equal(true);
-      expect(
-        contributorsCrvBalanceAfter.lt(
-          contributorsCrvBalanceBefore
-            .add(expectedContributorsCrvFees)
-            .mul(101)
-            .div(100)
-        )
-      ).to.equal(true);
-      expect(treasuryCvxCrvBalanceAfter).to.not.equal(
-        treasuryCvxCrvBalanceBefore
-      );
-      expect(
-        treasuryCvxCrvBalanceAfter.gt(
-          treasuryCvxCrvBalanceBefore.add(expectedTreasuryCvxCrvFees)
-        )
-      ).to.equal(true);
-      expect(
-        treasuryCvxCrvBalanceAfter.lt(
-          treasuryCvxCrvBalanceBefore
-            .add(expectedTreasuryCvxCrvFees)
-            .mul(101)
-            .div(100)
-        )
-      ).to.equal(true);
-      expect(revenueLockersCvxCrvBalanceAfter).to.not.equal(
-        revenueLockersCvxCrvBalanceBefore
-      );
-      expect(
-        revenueLockersCvxCrvBalanceAfter.gt(
-          revenueLockersCvxCrvBalanceBefore.add(
-            expectedRevenueLockersCvxCrvFees
-          )
-        )
-      ).to.equal(true);
-      expect(
-        revenueLockersCvxCrvBalanceAfter.lt(
-          revenueLockersCvxCrvBalanceBefore
-            .add(expectedRevenueLockersCvxCrvFees)
-            .mul(101)
-            .div(100)
-        )
-      ).to.equal(true);
-      expect(contributorsCvxCrvBalanceAfter).to.not.equal(
-        contributorsCvxCrvBalanceBefore
-      );
-      expect(
-        contributorsCvxCrvBalanceAfter.gt(
-          contributorsCvxCrvBalanceBefore.add(expectedContributorsCvxCrvFees)
-        )
-      ).to.equal(true);
-      expect(
-        contributorsCvxCrvBalanceAfter.lt(
-          contributorsCvxCrvBalanceBefore
-            .add(expectedContributorsCvxCrvFees)
-            .mul(101)
-            .div(100)
-        )
-      ).to.equal(true);
       expect(snapshotEvent.eventSignature).to.equal('Snapshot(uint256)');
       expect(snapshotEvent.args.id).to.equal(snapshotIdAfter);
-      expect(performEvent.eventSignature).to.equal(
-        'PerformEpochMaintenance(uint256,uint256)'
-      );
-      expect(performEvent.args.epoch).to.equal(currentEpoch);
-      expect(performEvent.args.snapshotId).to.equal(snapshotIdAfter);
     });
   });
 
@@ -1702,8 +1516,8 @@ describe('PirexCvx', () => {
       const { snapshotRewards, futuresRewards } = await pCvx.getEpoch(
         currentEpoch
       );
-      const votiumSnapshotRewards = snapshotRewards.slice(2);
-      const votiumFuturesRewards = futuresRewards.slice(2);
+      const votiumSnapshotRewards = snapshotRewards;
+      const votiumFuturesRewards = futuresRewards;
       const expectedVotiumSnapshotRewards = {
         amounts: amounts.map((amount: BigNumber) => {
           const rewards = amount
@@ -1819,14 +1633,214 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('claimSnapshotReward', () => {
+  describe('claimMiscRewards', () => {
+    it('Should claim misc rewards for the epoch', async () => {
+      const currentEpoch = await pCvx.getCurrentEpoch();
+      const snapshotId = await pCvx.getCurrentSnapshotId();
+      const cvxCrvBalanceBefore = await cvxCrvToken.balanceOf(pCvx.address);
+      const crvBalanceBefore = await crv.balanceOf(pCvx.address);
+      const treasuryCrvBalanceBefore = await crv.balanceOf(treasury.address);
+      const revenueLockersCrvBalanceBefore = await crv.balanceOf(
+        revenueLockers.address
+      );
+      const contributorsCrvBalanceBefore = await crv.balanceOf(
+        contributors.address
+      );
+      const treasuryCvxCrvBalanceBefore = await cvxCrvToken.balanceOf(
+        treasury.address
+      );
+      const revenueLockersCvxCrvBalanceBefore = await cvxCrvToken.balanceOf(
+        revenueLockers.address
+      );
+      const contributorsCvxCrvBalanceBefore = await cvxCrvToken.balanceOf(
+        contributors.address
+      );
+      const [claimableCrv, claimableCvxCrv] = await cvxLocker.claimableRewards(
+        pCvx.address
+      );
+      const rewardFeePercent = await pCvx.fees(feesEnum.reward);
+      const FEE_DENOMINATOR = await pCvx.FEE_DENOMINATOR();
+      const crvRewardFee = claimableCrv.amount
+        .mul(rewardFeePercent)
+        .div(FEE_DENOMINATOR);
+      const cvxCrvRewardFee = claimableCvxCrv.amount
+        .mul(rewardFeePercent)
+        .div(FEE_DENOMINATOR);
+      const events = await callAndReturnEvents(pCvx.claimMiscRewards, []);
+      const claimEvent = events[0];
+      const cvxCrvBalanceAfter = await cvxCrvToken.balanceOf(pCvx.address);
+      const crvBalanceAfter = await crv.balanceOf(pCvx.address);
+      const treasuryCrvBalanceAfter = await crv.balanceOf(treasury.address);
+      const revenueLockersCrvBalanceAfter = await crv.balanceOf(
+        revenueLockers.address
+      );
+      const contributorsCrvBalanceAfter = await crv.balanceOf(
+        contributors.address
+      );
+      const treasuryCvxCrvBalanceAfter = await cvxCrvToken.balanceOf(
+        treasury.address
+      );
+      const revenueLockersCvxCrvBalanceAfter = await cvxCrvToken.balanceOf(
+        revenueLockers.address
+      );
+      const contributorsCvxCrvBalanceAfter = await cvxCrvToken.balanceOf(
+        contributors.address
+      );
+      const treasuryPercent = await pirexFees.treasuryPercent();
+      const revenueLockersPercent = await pirexFees.revenueLockersPercent();
+      const contributorsPercent = await pirexFees.contributorsPercent();
+      const PERCENT_DENOMINATOR = await pirexFees.PERCENT_DENOMINATOR();
+      const expectedTreasuryCrvFees = crvRewardFee
+        .mul(treasuryPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedRevenueLockersCrvFees = crvRewardFee
+        .mul(revenueLockersPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedContributorsCrvFees = crvRewardFee
+        .mul(contributorsPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedTreasuryCvxCrvFees = cvxCrvRewardFee
+        .mul(treasuryPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedRevenueLockersCvxCrvFees = cvxCrvRewardFee
+        .mul(revenueLockersPercent)
+        .div(PERCENT_DENOMINATOR);
+      const expectedContributorsCvxCrvFees = cvxCrvRewardFee
+        .mul(contributorsPercent)
+        .div(PERCENT_DENOMINATOR);
+
+      // Due to rewards accruing/second, it doesn't seem possible to get the exact figures,
+      // unless there are no more rewards to issue
+      expect(crvBalanceAfter.gt(crvBalanceBefore)).to.be.equal(true);
+      expect(cvxCrvBalanceAfter.gt(cvxCrvBalanceBefore)).to.be.equal(true);
+      expect(
+        crvBalanceAfter.gte(
+          crvBalanceBefore.add(claimableCrv.amount.sub(crvRewardFee))
+        )
+      ).to.equal(true);
+      expect(
+        cvxCrvBalanceAfter.gte(
+          cvxCrvBalanceBefore.add(claimableCvxCrv.amount.sub(cvxCrvRewardFee))
+        )
+      ).to.be.equal(true);
+      expect(treasuryCrvBalanceAfter).to.not.equal(treasuryCrvBalanceBefore);
+      expect(
+        treasuryCrvBalanceAfter.gt(
+          treasuryCrvBalanceBefore.add(expectedTreasuryCrvFees)
+        )
+      ).to.be.equal(true);
+      expect(
+        treasuryCrvBalanceAfter.lt(
+          treasuryCrvBalanceBefore
+            .add(expectedTreasuryCrvFees)
+            .mul(101)
+            .div(100)
+        )
+      ).to.equal(true);
+      expect(revenueLockersCrvBalanceAfter).to.not.equal(
+        revenueLockersCrvBalanceBefore
+      );
+      expect(
+        revenueLockersCrvBalanceAfter.gt(
+          revenueLockersCrvBalanceBefore.add(expectedRevenueLockersCrvFees)
+        )
+      ).to.equal(true);
+      expect(
+        revenueLockersCrvBalanceAfter.lt(
+          revenueLockersCrvBalanceBefore
+            .add(expectedRevenueLockersCrvFees)
+            .mul(101)
+            .div(100)
+        )
+      ).to.equal(true);
+      expect(contributorsCrvBalanceAfter).to.not.equal(
+        contributorsCrvBalanceBefore
+      );
+      expect(
+        contributorsCrvBalanceAfter.gt(
+          contributorsCrvBalanceBefore.add(expectedContributorsCrvFees)
+        )
+      ).to.equal(true);
+      expect(
+        contributorsCrvBalanceAfter.lt(
+          contributorsCrvBalanceBefore
+            .add(expectedContributorsCrvFees)
+            .mul(101)
+            .div(100)
+        )
+      ).to.equal(true);
+      expect(treasuryCvxCrvBalanceAfter).to.not.equal(
+        treasuryCvxCrvBalanceBefore
+      );
+      expect(
+        treasuryCvxCrvBalanceAfter.gt(
+          treasuryCvxCrvBalanceBefore.add(expectedTreasuryCvxCrvFees)
+        )
+      ).to.equal(true);
+      expect(
+        treasuryCvxCrvBalanceAfter.lt(
+          treasuryCvxCrvBalanceBefore
+            .add(expectedTreasuryCvxCrvFees)
+            .mul(101)
+            .div(100)
+        )
+      ).to.equal(true);
+      expect(revenueLockersCvxCrvBalanceAfter).to.not.equal(
+        revenueLockersCvxCrvBalanceBefore
+      );
+      expect(
+        revenueLockersCvxCrvBalanceAfter.gt(
+          revenueLockersCvxCrvBalanceBefore.add(
+            expectedRevenueLockersCvxCrvFees
+          )
+        )
+      ).to.equal(true);
+      expect(
+        revenueLockersCvxCrvBalanceAfter.lt(
+          revenueLockersCvxCrvBalanceBefore
+            .add(expectedRevenueLockersCvxCrvFees)
+            .mul(101)
+            .div(100)
+        )
+      ).to.equal(true);
+      expect(contributorsCvxCrvBalanceAfter).to.not.equal(
+        contributorsCvxCrvBalanceBefore
+      );
+      expect(
+        contributorsCvxCrvBalanceAfter.gt(
+          contributorsCvxCrvBalanceBefore.add(expectedContributorsCvxCrvFees)
+        )
+      ).to.equal(true);
+      expect(
+        contributorsCvxCrvBalanceAfter.lt(
+          contributorsCvxCrvBalanceBefore
+            .add(expectedContributorsCvxCrvFees)
+            .mul(101)
+            .div(100)
+        )
+      ).to.equal(true);
+      expect(claimEvent.eventSignature).to.equal(
+        'ClaimMiscRewards(uint256,uint256)'
+      );
+      expect(claimEvent.args.epoch).to.equal(currentEpoch);
+      expect(claimEvent.args.snapshotId).to.equal(snapshotId);
+    });
+
+    it('Should revert if rewards have already been claimed for the epoch', async () => {
+      await expect(pCvx.claimMiscRewards()).to.be.revertedWith(
+        'AlreadyClaimed()'
+      );
+    });
+  });
+
+  describe('redeemSnapshotReward', () => {
     it('Should revert if epoch is zero', async () => {
       const invalidEpoch = 0;
       const rewardIndex = 0;
       const to = admin.address;
 
       await expect(
-        pCvx.claimSnapshotReward(invalidEpoch, rewardIndex, to)
+        pCvx.redeemSnapshotReward(invalidEpoch, rewardIndex, to)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
@@ -1836,7 +1850,7 @@ describe('PirexCvx', () => {
       const to = admin.address;
 
       await expect(
-        pCvx.claimSnapshotReward(epoch, invalidRewardIndex, to)
+        pCvx.redeemSnapshotReward(epoch, invalidRewardIndex, to)
       ).to.be.revertedWith(
         'VM Exception while processing transaction: reverted with panic code 0x32 (Array accessed at an out-of-bounds or negative index)'
       );
@@ -1848,7 +1862,7 @@ describe('PirexCvx', () => {
       const invalidTo = zeroAddress;
 
       await expect(
-        pCvx.claimSnapshotReward(epoch, rewardIndex, invalidTo)
+        pCvx.redeemSnapshotReward(epoch, rewardIndex, invalidTo)
       ).to.be.revertedWith('ERC20: transfer to the zero address');
     });
 
@@ -1858,11 +1872,11 @@ describe('PirexCvx', () => {
       const to = admin.address;
 
       await expect(
-        pCvx.connect(notAdmin).claimSnapshotReward(epoch, rewardIndex, to)
+        pCvx.connect(notAdmin).redeemSnapshotReward(epoch, rewardIndex, to)
       ).to.be.revertedWith('InsufficientBalance()');
     });
 
-    it('Should claim snapshot reward', async () => {
+    it('Should redeem snapshot reward', async () => {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const crvBalanceBefore = await crv.balanceOf(admin.address);
       const cvxCrvBalanceBefore = await cvxCrvToken.balanceOf(admin.address);
@@ -1871,119 +1885,113 @@ describe('PirexCvx', () => {
       const snapshotBalance = await pCvx.balanceOfAt(admin.address, snapshotId);
       const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
       const to = admin.address;
-      const crvEvents1 = await callAndReturnEvents(pCvx.claimSnapshotReward, [
+      const [cvxEvent] = await callAndReturnEvents(pCvx.redeemSnapshotReward, [
         currentEpoch,
         0,
         to,
       ]);
-      const cvxCrvEvents = await callAndReturnEvents(pCvx.claimSnapshotReward, [
+      const [crvEvent1] = await callAndReturnEvents(pCvx.redeemSnapshotReward, [
         currentEpoch,
         1,
         to,
       ]);
-      const cvxEvents = await callAndReturnEvents(pCvx.claimSnapshotReward, [
+      const [crvEvent2] = await callAndReturnEvents(pCvx.redeemSnapshotReward, [
         currentEpoch,
         2,
         to,
       ]);
-      const crvEvents2 = await callAndReturnEvents(pCvx.claimSnapshotReward, [
-        currentEpoch,
-        3,
-        to,
-      ]);
+      const [cvxCrvEvent] = await callAndReturnEvents(
+        pCvx.redeemSnapshotReward,
+        [currentEpoch, 3, to]
+      );
+
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const crvBalanceAfter = await crv.balanceOf(admin.address);
       const cvxCrvBalanceAfter = await cvxCrvToken.balanceOf(admin.address);
-      const expectedCrvRewards = snapshotRewards[0]
-        .mul(snapshotBalance)
-        .div(snapshotSupply)
-        .add(snapshotRewards[3].mul(snapshotBalance).div(snapshotSupply));
-      const expectedCvxCrvRewards = snapshotRewards[1]
+      const expectedCvxRewards = snapshotRewards[0]
         .mul(snapshotBalance)
         .div(snapshotSupply);
-      const expectedCvxRewards = snapshotRewards[2]
+      const expectedCrvRewards1 = snapshotRewards[1]
+        .mul(snapshotBalance)
+        .div(snapshotSupply);
+      const expectedCrvRewards2 = snapshotRewards[2]
+        .mul(snapshotBalance)
+        .div(snapshotSupply);
+      const expectedCvxCrvRewards = snapshotRewards[3]
         .mul(snapshotBalance)
         .div(snapshotSupply);
 
-      expect(crvEvents1[0].eventSignature)
-        .to.equal(cvxCrvEvents[0].eventSignature)
-        .to.equal(cvxEvents[0].eventSignature)
-        .to.equal(crvEvents2[0].eventSignature)
+      expect(cvxEvent.eventSignature)
+        .to.equal(crvEvent1.eventSignature)
+        .to.equal(crvEvent2.eventSignature)
+        .to.equal(cvxCrvEvent.eventSignature)
         .to.equal(
-          'ClaimSnapshotReward(uint256,uint256,address,uint256,uint256,address,uint256)'
+          'RedeemSnapshotReward(uint256,uint256,address,uint256,uint256,address,uint256)'
         );
-      expect(crvEvents1[0].args.epoch)
-        .to.equal(cvxCrvEvents[0].args.epoch)
-        .to.equal(cvxEvents[0].args.epoch)
-        .to.equal(crvEvents2[0].args.epoch)
+      expect(cvxEvent.args.epoch)
+        .to.equal(crvEvent1.args.epoch)
+        .to.equal(crvEvent2.args.epoch)
+        .to.equal(cvxCrvEvent.args.epoch)
         .to.equal(currentEpoch);
-      expect(crvEvents1[0].args.to)
-        .to.equal(cvxCrvEvents[0].args.to)
-        .to.equal(cvxEvents[0].args.to)
-        .to.equal(crvEvents2[0].args.to)
+      expect(cvxEvent.args.to)
+        .to.equal(crvEvent1.args.to)
+        .to.equal(crvEvent2.args.to)
+        .to.equal(cvxCrvEvent.args.to)
         .to.equal(admin.address);
-      expect(crvEvents1[0].args.snapshotId)
-        .to.equal(cvxCrvEvents[0].args.snapshotId)
-        .to.equal(cvxEvents[0].args.snapshotId)
-        .to.equal(crvEvents2[0].args.snapshotId)
+      expect(cvxEvent.args.snapshotId)
+        .to.equal(crvEvent1.args.snapshotId)
+        .to.equal(crvEvent2.args.snapshotId)
+        .to.equal(cvxCrvEvent.args.snapshotId)
         .to.equal(snapshotId);
-      expect(crvEvents1[0].args.snapshotBalance)
-        .to.equal(cvxCrvEvents[0].args.snapshotBalance)
-        .to.equal(cvxEvents[0].args.snapshotBalance)
-        .to.equal(crvEvents2[0].args.snapshotBalance)
+      expect(cvxEvent.args.snapshotBalance)
+        .to.equal(crvEvent1.args.snapshotBalance)
+        .to.equal(crvEvent2.args.snapshotBalance)
+        .to.equal(cvxCrvEvent.args.snapshotBalance)
         .to.equal(snapshotBalance);
-      expect(crvEvents1[0].args.reward).to.equal(crv.address);
-      expect(crvEvents2[0].args.reward).to.equal(crv.address);
-      expect(cvxEvents[0].args.reward).to.equal(cvx.address);
-      expect(cvxCrvEvents[0].args.reward).to.equal(cvxCrvToken.address);
-      expect(crvEvents1[0].args.rewardIndex).to.equal(0);
-      expect(cvxCrvEvents[0].args.rewardIndex).to.equal(1);
-      expect(cvxEvents[0].args.rewardIndex).to.equal(2);
-      expect(crvEvents2[0].args.rewardIndex).to.equal(3);
-      expect(crvEvents1[0].args.claimAmount).to.equal(
-        snapshotRewards[0].mul(snapshotBalance).div(snapshotSupply)
-      );
-      expect(cvxCrvEvents[0].args.claimAmount).to.equal(
-        snapshotRewards[1].mul(snapshotBalance).div(snapshotSupply)
-      );
-      expect(cvxEvents[0].args.claimAmount).to.equal(
-        snapshotRewards[2].mul(snapshotBalance).div(snapshotSupply)
-      );
-      expect(crvEvents2[0].args.claimAmount).to.equal(
-        snapshotRewards[3].mul(snapshotBalance).div(snapshotSupply)
-      );
+      expect(cvxEvent.args.reward).to.equal(cvx.address);
+      expect(crvEvent1.args.reward).to.equal(crv.address);
+      expect(crvEvent2.args.reward).to.equal(crv.address);
+      expect(cvxCrvEvent.args.reward).to.equal(cvxCrvToken.address);
+      expect(cvxEvent.args.rewardIndex).to.equal(0);
+      expect(crvEvent1.args.rewardIndex).to.equal(1);
+      expect(crvEvent2.args.rewardIndex).to.equal(2);
+      expect(cvxCrvEvent.args.rewardIndex).to.equal(3);
+      expect(cvxEvent.args.redeemAmount).to.equal(expectedCvxRewards);
+      expect(crvEvent1.args.redeemAmount).to.equal(expectedCrvRewards1);
+      expect(crvEvent2.args.redeemAmount).to.equal(expectedCrvRewards2);
+      expect(cvxCrvEvent.args.redeemAmount).to.equal(expectedCvxCrvRewards);
       expect(cvxBalanceAfter).to.not.equal(cvxBalanceBefore);
       expect(crvBalanceAfter).to.not.equal(crvBalanceBefore);
       expect(cvxCrvBalanceAfter).to.not.equal(cvxCrvBalanceBefore);
-      expect(crvBalanceAfter).to.equal(
-        crvBalanceBefore.add(expectedCrvRewards)
-      );
       expect(cvxBalanceAfter).to.equal(
         cvxBalanceBefore.add(expectedCvxRewards)
+      );
+      expect(crvBalanceAfter).to.equal(
+        crvBalanceBefore.add(expectedCrvRewards1).add(expectedCrvRewards2)
       );
       expect(cvxCrvBalanceAfter).to.equal(
         cvxCrvBalanceBefore.add(expectedCvxCrvRewards)
       );
     });
 
-    it('Should revert if msg.sender has already claimed', async () => {
+    it('Should revert if msg.sender has already redeemed', async () => {
       const epoch = await pCvx.getCurrentEpoch();
       const rewardIndex = 0;
       const to = admin.address;
 
       await expect(
-        pCvx.claimSnapshotReward(epoch, rewardIndex, to)
-      ).to.be.revertedWith('AlreadyClaimed()');
+        pCvx.redeemSnapshotReward(epoch, rewardIndex, to)
+      ).to.be.revertedWith('AlreadyRedeemed()');
     });
   });
 
-  describe('claimFuturesRewards', () => {
+  describe('redeemFuturesRewards', () => {
     it('Should revert if epoch is zero', async () => {
       const invalidEpoch = 0;
       const to = admin.address;
 
       await expect(
-        pCvx.claimFuturesRewards(invalidEpoch, to)
+        pCvx.redeemFuturesRewards(invalidEpoch, to)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
@@ -1995,7 +2003,7 @@ describe('PirexCvx', () => {
       await rpCvx.setApprovalForAll(pCvx.address, true);
 
       await expect(
-        pCvx.claimFuturesRewards(epoch, invalidTo)
+        pCvx.redeemFuturesRewards(epoch, invalidTo)
       ).to.be.revertedWith('ERC20: transfer to the zero address');
     });
 
@@ -2004,11 +2012,11 @@ describe('PirexCvx', () => {
       const to = admin.address;
 
       await expect(
-        pCvx.connect(notAdmin).claimFuturesRewards(epoch, to)
+        pCvx.connect(notAdmin).redeemFuturesRewards(epoch, to)
       ).to.be.revertedWith('InsufficientBalance()');
     });
 
-    it('Should claim futures reward', async () => {
+    it('Should redeem futures reward', async () => {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const crvBalanceBefore = await crv.balanceOf(admin.address);
       const cvxCrvBalanceBefore = await cvxCrvToken.balanceOf(admin.address);
@@ -2019,7 +2027,7 @@ describe('PirexCvx', () => {
         await pCvx.rpCvx()
       );
 
-      // Transfer half to test correctness for partial reward claims
+      // Transfer half to test correctness for partial reward redemptions
       await rpCvx.safeTransferFrom(
         admin.address,
         notAdmin.address,
@@ -2033,11 +2041,11 @@ describe('PirexCvx', () => {
 
       await rpCvx.setApprovalForAll(pCvx.address, true);
 
-      const events = await callAndReturnEvents(pCvx.claimFuturesRewards, [
+      const events = await callAndReturnEvents(pCvx.redeemFuturesRewards, [
         epoch,
         to,
       ]);
-      const claimEvent = events[0];
+      const redeemEvent = events[0];
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const crvBalanceAfter = await crv.balanceOf(admin.address);
       const cvxCrvBalanceAfter = await cvxCrvToken.balanceOf(admin.address);
@@ -2056,24 +2064,24 @@ describe('PirexCvx', () => {
       );
       expect(cvxBalanceAfter).to.not.equal(cvxBalanceBefore);
       expect(cvxBalanceAfter).to.equal(
-        cvxBalanceBefore.add(expectedClaimAmounts[2])
+        cvxBalanceBefore.add(expectedClaimAmounts[0])
       );
       expect(crvBalanceAfter).to.not.equal(crvBalanceBefore);
       expect(crvBalanceAfter).to.equal(
         crvBalanceBefore
-          .add(expectedClaimAmounts[0])
-          .add(expectedClaimAmounts[3])
+          .add(expectedClaimAmounts[1])
+          .add(expectedClaimAmounts[2])
       );
       expect(cvxCrvBalanceAfter).to.not.equal(cvxCrvBalanceBefore);
       expect(cvxCrvBalanceAfter).to.equal(
-        cvxCrvBalanceBefore.add(expectedClaimAmounts[1])
+        cvxCrvBalanceBefore.add(expectedClaimAmounts[3])
       );
-      expect(claimEvent.eventSignature).to.equal(
-        'ClaimFuturesRewards(uint256,address,address[])'
+      expect(redeemEvent.eventSignature).to.equal(
+        'RedeemFuturesRewards(uint256,address,address[])'
       );
-      expect(claimEvent.args.epoch).to.equal(epoch);
-      expect(claimEvent.args.to).to.equal(to);
-      expect(claimEvent.args.rewards).to.deep.equal(rewards);
+      expect(redeemEvent.args.epoch).to.equal(epoch);
+      expect(redeemEvent.args.to).to.equal(to);
+      expect(redeemEvent.args.rewards).to.deep.equal(rewards);
     });
   });
 
