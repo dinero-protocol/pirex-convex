@@ -108,8 +108,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     event ClaimVotiumReward(
         address indexed token,
         uint256 index,
-        uint256 amount,
-        uint256 indexed snapshotId
+        uint256 amount
     );
     event RedeemSnapshotReward(
         uint256 indexed epoch,
@@ -120,7 +119,11 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address indexed reward,
         uint256 redeemAmount
     );
-    event RedeemFuturesRewards(uint256 indexed epoch, address indexed to, address[] rewards);
+    event RedeemFuturesRewards(
+        uint256 indexed epoch,
+        address indexed to,
+        address[] rewards
+    );
     event PerformEpochMaintenance(uint256 epoch, uint256 snapshotId);
     event ExchangeFutures(
         uint256 indexed epoch,
@@ -314,6 +317,54 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /**
+        @notice Calculate rewards
+        @param  feePercent      uint16   Reward fee percent
+        @param  snapshotSupply  uint256  pCVX supply for the current snapshot id
+        @param  rpCvxSupply     uint256  rpCVX supply for the current epoch
+        @param  received        uint256  Received amount
+    */
+    function _calculateRewards(
+        uint16 feePercent,
+        uint256 snapshotSupply,
+        uint256 rpCvxSupply,
+        uint256 received
+    )
+        internal
+        pure
+        returns (
+            uint256 rewardFee,
+            uint256 snapshotRewards,
+            uint256 futuresRewards
+        )
+    {
+        // Rewards paid to the protocol
+        rewardFee = (received * feePercent) / FEE_DENOMINATOR;
+
+        // Rewards distributed amongst snapshot and futures tokenholders
+        uint256 rewards = received - rewardFee;
+
+        // Rewards distributed to snapshotted tokenholders
+        snapshotRewards =
+            (rewards * snapshotSupply) /
+            (snapshotSupply + rpCvxSupply);
+
+        // Rewards distributed to rpCVX token holders
+        futuresRewards = rewards - snapshotRewards;
+    }
+
+    /**
+        @notice Snapshot token balances for the current epoch
+     */
+    function takeEpochSnapshot() public {
+        uint256 currentEpoch = getCurrentEpoch();
+
+        // If snapshot has not been set for current epoch, take snapshot
+        if (epochs[currentEpoch].snapshotId == 0) {
+            epochs[currentEpoch].snapshotId = _snapshot();
+        }
+    }
+
+    /**
         @notice Deposit CVX
         @param  to      address  Address receiving pCVX
         @param  amount  uint256  CVX amount
@@ -367,7 +418,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (redemptions[unlockTime] > lockAmount)
             revert InsufficientRedemptionAllowance();
 
-        // Burn pCVX - validates `to`
+        // Burn pCVX - reverts if sender balance is insufficient
         _burn(msg.sender, amount);
 
         // Track amount that needs to remain unlocked for redemptions
@@ -385,13 +436,16 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Check if the lock was in the first week/half of an epoch
         // Handle case where remaining time is between 1 and 2 weeks
         if (
+            rounds == 0 &&
             unlockTime % EPOCH_DURATION != 0 &&
             remainingTime < EPOCH_DURATION &&
             remainingTime > (EPOCH_DURATION / 2)
         ) {
             // Rounds is 0 if remainingTime is between 1 and 2 weeks
             // Increment by 1 since user should receive 1 round of rewards
-            ++rounds;
+            unchecked {
+                ++rounds;
+            }
         }
 
         // Mint vpCVX or rpCVX
@@ -421,7 +475,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Subtract redemption amount from outstanding CVX amount
         outstandingRedemptions -= amount;
 
-        // Validates `to`
+        // Reverts if sender has an insufficient amount of upCVX with unlockTime id
         upCvx.burn(msg.sender, unlockTime, amount);
 
         // Validates `to`
@@ -497,18 +551,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /**
-        @notice Snapshot token balances for the current epoch
-     */
-    function takeEpochSnapshot() public {
-        uint256 currentEpoch = getCurrentEpoch();
-
-        // If snapshot has not been set for current epoch, take snapshot
-        if (epochs[currentEpoch].snapshotId == 0) {
-            epochs[currentEpoch].snapshotId = _snapshot();
-        }
-    }
-
-    /**
         @notice Claim Votium reward
         @param  token        address    Reward token address
         @param  index        uint256    Merkle tree node index
@@ -525,11 +567,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 currentEpoch = getCurrentEpoch();
         if (epochs[currentEpoch].snapshotId == 0) revert MaintenanceRequired();
 
-        // Used for determining reward amounts for snapshotted token holders
-        uint256 snapshotId = _getCurrentSnapshotId();
-        uint256 snapshotSupply = totalSupplyAt(snapshotId);
-
-        emit ClaimVotiumReward(token, index, amount, snapshotId);
+        emit ClaimVotiumReward(token, index, amount);
 
         ERC20 t = ERC20(token);
 
@@ -545,22 +583,22 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             merkleProof
         );
 
-        // Tokens actually received (after factoring in token fees and existing balance)
-        uint256 received = t.balanceOf(address(this)) - prevBalance;
-        uint256 rewardFee = (received * fees[Fees.Reward]) / FEE_DENOMINATOR;
-        uint256 rewards = received - rewardFee;
-
-        // Rewards for snapshot balances, proportionate to the snapshot pCVX + rpCVX supply
-        // E.g. if snapshot supply makes up 50% of that, then snapshotters receive 50% of rewards
-        uint256 snapshotRewardsAmount = (rewards * snapshotSupply) /
-            (snapshotSupply + rpCvx.totalSupply(currentEpoch));
+        (
+            uint256 rewardFee,
+            uint256 snapshotRewards,
+            uint256 futuresRewards
+        ) = _calculateRewards(
+                fees[Fees.Reward],
+                totalSupplyAt(_getCurrentSnapshotId()),
+                rpCvx.totalSupply(currentEpoch),
+                t.balanceOf(address(this)) - prevBalance
+            );
 
         // Add reward token address and snapshot/futuresRewards amounts (same index for all)
-        epochs[currentEpoch].rewards.push(token);
-        epochs[currentEpoch].snapshotRewards.push(snapshotRewardsAmount);
-        epochs[currentEpoch].futuresRewards.push(
-            rewards - snapshotRewardsAmount
-        );
+        Epoch storage e = epochs[currentEpoch];
+        e.rewards.push(token);
+        e.snapshotRewards.push(snapshotRewards);
+        e.futuresRewards.push(futuresRewards);
 
         // Distribute fees
         t.safeIncreaseAllowance(address(pirexFees), rewardFee);
@@ -584,16 +622,15 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         // Get claimable rewards and balances
         ConvexReward[] memory c = _claimableRewards();
-        uint256 cLen = c.length;
 
         // Claim rewards from Convex
         _getReward();
 
-        uint256 snapshotSupply = totalSupplyAt(eSnapshotId);
-        uint256 combinedSupply = snapshotSupply +
-            rpCvx.totalSupply(currentEpoch);
+        uint8 cLen = uint8(c.length);
+        uint16 feePercent = fees[Fees.Reward];
         address pirexFeesAddr = address(pirexFees);
-        uint16 feesReward = fees[Fees.Reward];
+        uint256 snapshotSupply = totalSupplyAt(_getCurrentSnapshotId());
+        uint256 rpCvxSupply = rpCvx.totalSupply(currentEpoch);
 
         // Calculate the rewards for both pCVX/snapshot and rpCVX/futures holders
         for (uint8 i; i < cLen; ++i) {
@@ -601,17 +638,20 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
             ERC20 t = ERC20(c[i].token);
 
-            // Tokens actually received (after factoring in token fees and existing balance)
-            uint256 received = t.balanceOf(address(this)) - c[i].balance;
-
-            uint256 rewardFee = (received * feesReward) / FEE_DENOMINATOR;
-            uint256 rewards = received - rewardFee;
-            uint256 snapshotRewardAmount = (rewards * snapshotSupply) /
-                combinedSupply;
+            (
+                uint256 rewardFee,
+                uint256 snapshotRewards,
+                uint256 futuresRewards
+            ) = _calculateRewards(
+                    feePercent,
+                    snapshotSupply,
+                    rpCvxSupply,
+                    t.balanceOf(address(this)) - c[i].balance
+                );
 
             e.rewards.push(c[i].token);
-            e.snapshotRewards.push(snapshotRewardAmount);
-            e.futuresRewards.push(rewards - snapshotRewardAmount);
+            e.snapshotRewards.push(snapshotRewards);
+            e.futuresRewards.push(futuresRewards);
 
             // Distribute fees
             t.safeIncreaseAllowance(pirexFeesAddr, rewardFee);
