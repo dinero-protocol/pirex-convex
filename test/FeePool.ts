@@ -5,7 +5,7 @@ import { uniq } from 'lodash';
 import { callAndReturnEvents, validateEvent } from './helpers';
 import { PirexFees } from '../typechain-types';
 
-describe('PirexFees', () => {
+describe('PirexFees', function () {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let treasury: SignerWithAddress;
@@ -22,16 +22,13 @@ describe('PirexFees', () => {
     contributors: 2,
   };
 
-  before(async () => {
-    [admin, notAdmin, treasury, revenueLockers, contributors] =
-      await ethers.getSigners();
-    pirexFees = await (
-      await ethers.getContractFactory('PirexFees')
-    ).deploy(treasury.address, revenueLockers.address, contributors.address);
+  before(async function () {
+    ({ admin, notAdmin, treasury, revenueLockers, contributors, pirexFees } =
+      this);
   });
 
-  describe('initial state', () => {
-    it('Should have predefined state variables', async () => {
+  describe('initial state', function () {
+    it('Should have predefined state variables', async function () {
       feeDistributorRole = await pirexFees.FEE_DISTRIBUTOR_ROLE();
       const percentDenominator = await pirexFees.PERCENT_DENOMINATOR();
       const treasuryPercent = await pirexFees.treasuryPercent();
@@ -48,8 +45,8 @@ describe('PirexFees', () => {
     });
   });
 
-  describe('constructor', () => {
-    it('Should set up contract state', async () => {
+  describe('constructor', function () {
+    it('Should set up contract state', async function () {
       const _treasury = await pirexFees.treasury();
       const _revenueLockers = await pirexFees.revenueLockers();
       const _contributors = await pirexFees.contributors();
@@ -75,8 +72,8 @@ describe('PirexFees', () => {
     });
   });
 
-  describe('grantFeeDistributorRole', () => {
-    it('Should revert if distributor is zero address', async () => {
+  describe('grantFeeDistributorRole', function () {
+    it('Should revert if distributor is zero address', async function () {
       const invalidDepositor = zeroAddress;
 
       await expect(
@@ -84,7 +81,7 @@ describe('PirexFees', () => {
       ).to.be.revertedWith('ZeroAddress()');
     });
 
-    it('Should revert if called by non-admin', async () => {
+    it('Should revert if called by non-admin', async function () {
       const distributor = notAdmin.address;
 
       await expect(
@@ -94,7 +91,7 @@ describe('PirexFees', () => {
       );
     });
 
-    it('Should grant the distributor role to an address', async () => {
+    it('Should grant the distributor role to an address', async function () {
       const distributor = notAdmin.address;
       const hasRoleBefore = await pirexFees.hasRole(
         feeDistributorRole,
@@ -117,8 +114,8 @@ describe('PirexFees', () => {
     });
   });
 
-  describe('revokeFeeDistributorRole', () => {
-    it('Should revert if called by non-admin', async () => {
+  describe('revokeFeeDistributorRole', function () {
+    it('Should revert if called by non-admin', async function () {
       const distributor = notAdmin.address;
 
       await expect(
@@ -128,7 +125,7 @@ describe('PirexFees', () => {
       );
     });
 
-    it('Should revoke the fee distributor role from an address', async () => {
+    it('Should revoke the fee distributor role from an address', async function () {
       const distributor = notAdmin.address;
       const hasRoleBefore = await pirexFees.hasRole(
         feeDistributorRole,
@@ -150,7 +147,7 @@ describe('PirexFees', () => {
       });
     });
 
-    it('Should revert if address is not a distributor', async () => {
+    it('Should revert if address is not a distributor', async function () {
       const invalidDistributor1 = notAdmin.address;
       const invalidDistributor2 = zeroAddress;
       const distributor1HasRole = await pirexFees.hasRole(
@@ -168,8 +165,8 @@ describe('PirexFees', () => {
     });
   });
 
-  describe('setFeeRecipient', () => {
-    it('Should revert if f enum is out of range', async () => {
+  describe('setFeeRecipient', function () {
+    it('Should revert if f enum is out of range', async function () {
       const invalidF = feeRecipientEnum.contributors + 1;
 
       await expect(
@@ -179,7 +176,7 @@ describe('PirexFees', () => {
       );
     });
 
-    it('Should revert if recipient is zero address', async () => {
+    it('Should revert if recipient is zero address', async function () {
       const f = feeRecipientEnum.treasury;
       const invalidRecipient = zeroAddress;
 
@@ -188,7 +185,7 @@ describe('PirexFees', () => {
       ).to.be.revertedWith('ZeroAddress()');
     });
 
-    it('Should revert if not called by admin', async () => {
+    it('Should revert if not called by admin', async function () {
       const f = feeRecipientEnum.treasury;
       const recipient = admin.address;
 
@@ -199,7 +196,7 @@ describe('PirexFees', () => {
       );
     });
 
-    it('Should set treasury', async () => {
+    it('Should set treasury', async function () {
       const newTreasury = notAdmin.address;
       const treasuryBefore = await pirexFees.treasury();
       const [setEvent] = await callAndReturnEvents(pirexFees.setFeeRecipient, [
@@ -226,7 +223,7 @@ describe('PirexFees', () => {
       expect(treasuryBefore).to.equal(await pirexFees.treasury());
     });
 
-    it('Should set revenueLockers', async () => {
+    it('Should set revenueLockers', async function () {
       const newRevenueLockers = notAdmin.address;
       const revenueLockersBefore = await pirexFees.revenueLockers();
       const [setEvent] = await callAndReturnEvents(pirexFees.setFeeRecipient, [
@@ -250,7 +247,7 @@ describe('PirexFees', () => {
       expect(revenueLockersBefore).to.equal(await pirexFees.revenueLockers());
     });
 
-    it('Should set contributors', async () => {
+    it('Should set contributors', async function () {
       const newContributors = notAdmin.address;
       const contributorsBefore = await pirexFees.contributors();
       const [setEvent] = await callAndReturnEvents(pirexFees.setFeeRecipient, [
@@ -275,8 +272,8 @@ describe('PirexFees', () => {
     });
   });
 
-  describe('setFeePercent', () => {
-    it('Should revert if percents sum is not 100', async () => {
+  describe('setFeePercent', function () {
+    it('Should revert if percents sum is not 100', async function () {
       const invalidPercents = {
         treasury: 0,
         revenueLockers: 1,
@@ -292,7 +289,7 @@ describe('PirexFees', () => {
       ).to.be.revertedWith('InvalidFeePercent()');
     });
 
-    it('Should revert if not called by admin', async () => {
+    it('Should revert if not called by admin', async function () {
       const percents = {
         treasury: 40,
         revenueLockers: 40,
@@ -312,7 +309,7 @@ describe('PirexFees', () => {
       );
     });
 
-    it('Should revert if not called by admin', async () => {
+    it('Should revert if not called by admin', async function () {
       const percents = {
         treasury: 40,
         revenueLockers: 40,
@@ -344,8 +341,8 @@ describe('PirexFees', () => {
     });
   });
 
-  describe('distributeFees', () => {
-    it('Should revert if called by non distributor', async () => {
+  describe('distributeFees', function () {
+    it('Should revert if called by non distributor', async function () {
       const rewardAddress = admin.address;
       const amount = 1;
 
@@ -356,7 +353,7 @@ describe('PirexFees', () => {
       );
     });
 
-    it('Should revert if the token address is invalid', async () => {
+    it('Should revert if the token address is invalid', async function () {
       const rewardAddress = zeroAddress;
       const depositor = admin.address;
       const amount = 1;
@@ -369,7 +366,7 @@ describe('PirexFees', () => {
       ).to.be.revertedWith('ZeroAddress()');
     });
 
-    it('Should revert if the amount is invalid', async () => {
+    it('Should revert if the amount is invalid', async function () {
       const rewardAddress = notAdmin.address;
       const depositor = admin.address;
       const amount = 0;

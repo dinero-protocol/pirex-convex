@@ -5,7 +5,6 @@ import { Promise } from 'bluebird';
 import { BigNumber } from 'ethers';
 import { every } from 'lodash';
 import {
-  setUpConvex,
   callAndReturnEvent,
   callAndReturnEvents,
   toBN,
@@ -25,7 +24,7 @@ import {
 } from '../typechain-types';
 import { BalanceTree } from '../lib/merkle';
 
-describe('PirexCvx', () => {
+describe('PirexCvx', function () {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let treasury: SignerWithAddress;
@@ -46,9 +45,8 @@ describe('PirexCvx', () => {
   let redemptionUnlockTime: number;
 
   const delegationSpace = 'cvx.eth';
-  const delegationSpaceBytes32 = ethers.utils.formatBytes32String(
-    delegationSpace
-  );
+  const delegationSpaceBytes32 =
+    ethers.utils.formatBytes32String(delegationSpace);
   const zeroAddress = '0x0000000000000000000000000000000000000000';
   const epochDuration = toBN(1209600);
   const contractEnum = {
@@ -101,15 +99,13 @@ describe('PirexCvx', () => {
   const getVpCvx = async (address: string) =>
     await ethers.getContractAt('ERC1155PresetMinterSupply', address);
 
-  before(async () => {
-    [
+  before(async function () {
+    ({
       admin,
       notAdmin,
       treasury,
       revenueLockers,
       contributors,
-    ] = await ethers.getSigners();
-    ({
       cvx,
       crv,
       cvxCrvToken,
@@ -117,28 +113,15 @@ describe('PirexCvx', () => {
       cvxRewardPool,
       cvxDelegateRegistry,
       votiumMultiMerkleStash,
-    } = await setUpConvex());
-    pirexFees = await (await ethers.getContractFactory('PirexFees')).deploy(
-      treasury.address,
-      revenueLockers.address,
-      contributors.address
-    );
-    pCvx = await (await ethers.getContractFactory('PirexCvx')).deploy(
-      cvx.address,
-      cvxLocker.address,
-      cvxDelegateRegistry.address,
-      cvxRewardPool.address,
-      cvxCrvToken.address,
-      pirexFees.address,
-      votiumMultiMerkleStash.address
-    );
-
-    await pirexFees.grantFeeDistributorRole(pCvx.address);
-    feePercentDenominator = await pirexFees.PERCENT_DENOMINATOR();
+      pirexFees,
+      pCvx,
+      feePercentDenominator,
+      feeDenominator,
+    } = this);
   });
 
-  describe('initial state', () => {
-    it('Should have predefined state variables', async () => {
+  describe('initial state', function () {
+    it('Should have predefined state variables', async function () {
       feeDenominator = await pCvx.FEE_DENOMINATOR();
       const pirexEpochDuration = await pCvx.EPOCH_DURATION();
       const _delegationSpace = await pCvx.delegationSpace();
@@ -150,8 +133,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('constructor', () => {
-    it('Should set up contract state', async () => {
+  describe('constructor', function () {
+    it('Should set up contract state', async function () {
       const { snapshotId } = await pCvx.getEpoch(await pCvx.getCurrentEpoch());
       const _CVX = await pCvx.CVX();
       const _cvxLocker = await pCvx.cvxLocker();
@@ -189,8 +172,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('setContract', () => {
-    it('Should revert if contractAddress is zero address', async () => {
+  describe('setContract', function () {
+    it('Should revert if contractAddress is zero address', async function () {
       const invalidAddress = zeroAddress;
 
       await expect(
@@ -198,7 +181,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('ZeroAddress()');
     });
 
-    it('Should revert if not called by owner', async () => {
+    it('Should revert if not called by owner', async function () {
       const contractAddr = admin.address;
 
       await expect(
@@ -206,7 +189,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
-    it('Should set pirexFees', async () => {
+    it('Should set pirexFees', async function () {
       const pirexFeesBefore = await pCvx.pirexFees();
       const setEvent = await callAndReturnEvent(pCvx.setContract, [
         contractEnum.pirexFees,
@@ -225,7 +208,7 @@ describe('PirexCvx', () => {
       expect(pirexFeesBefore).to.equal(await pCvx.pirexFees());
     });
 
-    it('Should set upCvx', async () => {
+    it('Should set upCvx', async function () {
       const upCvxBefore = await pCvx.upCvx();
       const setEvent = await callAndReturnEvent(pCvx.setContract, [
         contractEnum.upCvx,
@@ -244,7 +227,7 @@ describe('PirexCvx', () => {
       expect(upCvxBefore).to.equal(await pCvx.upCvx());
     });
 
-    it('Should set vpCvx', async () => {
+    it('Should set vpCvx', async function () {
       const vpCvxBefore = await pCvx.vpCvx();
       const setEvent = await callAndReturnEvent(pCvx.setContract, [
         contractEnum.vpCvx,
@@ -263,7 +246,7 @@ describe('PirexCvx', () => {
       expect(vpCvxBefore).to.equal(await pCvx.vpCvx());
     });
 
-    it('Should set rpCvx', async () => {
+    it('Should set rpCvx', async function () {
       const rpCvxBefore = await pCvx.rpCvx();
       const setEvent = await callAndReturnEvent(pCvx.setContract, [
         contractEnum.rpCvx,
@@ -282,7 +265,7 @@ describe('PirexCvx', () => {
       expect(rpCvxBefore).to.equal(await pCvx.rpCvx());
     });
 
-    it('Should set spCvxImplementation', async () => {
+    it('Should set spCvxImplementation', async function () {
       const spCvxImplementationBefore = await pCvx.spCvxImplementation();
       const setEvent = await callAndReturnEvent(pCvx.setContract, [
         contractEnum.spCvxImplementation,
@@ -307,8 +290,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('setConvexContract', () => {
-    it('Should revert if contractAddress is zero address', async () => {
+  describe('setConvexContract', function () {
+    it('Should revert if contractAddress is zero address', async function () {
       const invalidAddress = zeroAddress;
 
       await expect(
@@ -316,7 +299,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('ZeroAddress()');
     });
 
-    it('Should revert if not called by owner', async () => {
+    it('Should revert if not called by owner', async function () {
       const _cvxLocker = admin.address;
 
       await expect(
@@ -326,7 +309,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
-    it('Should set cvxLocker', async () => {
+    it('Should set cvxLocker', async function () {
       const cvxLockerBefore = await pCvx.cvxLocker();
       const setEvent = await callAndReturnEvent(pCvx.setConvexContract, [
         convexContractEnum.cvxLocker,
@@ -351,7 +334,7 @@ describe('PirexCvx', () => {
       expect(cvxLockerBefore).to.equal(await pCvx.cvxLocker());
     });
 
-    it('Should set cvxDelegateRegistry', async () => {
+    it('Should set cvxDelegateRegistry', async function () {
       const cvxDelegateRegistryBefore = await pCvx.cvxDelegateRegistry();
       const setEvent = await callAndReturnEvent(pCvx.setConvexContract, [
         convexContractEnum.cvxDelegateRegistry,
@@ -375,7 +358,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should set cvxRewardPool', async () => {
+    it('Should set cvxRewardPool', async function () {
       const cvxRewardPoolBefore = await pCvx.cvxRewardPool();
       const setEvent = await callAndReturnEvent(pCvx.setConvexContract, [
         convexContractEnum.cvxRewardPool,
@@ -397,7 +380,7 @@ describe('PirexCvx', () => {
       expect(cvxRewardPoolBefore).to.equal(await pCvx.cvxRewardPool());
     });
 
-    it('Should set cvxCrvToken', async () => {
+    it('Should set cvxCrvToken', async function () {
       const cvxCrvTokenBefore = await pCvx.cvxCRV();
       const setEvent = await callAndReturnEvent(pCvx.setConvexContract, [
         convexContractEnum.cvxCrvToken,
@@ -420,15 +403,15 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('setFee', () => {
-    it('Should revert if f is not valid Fees enum', async () => {
+  describe('setFee', function () {
+    it('Should revert if f is not valid Fees enum', async function () {
       const invalidF = 2;
       const amount = 1;
 
       await expect(pCvx.setFee(invalidF, amount)).to.be.reverted;
     });
 
-    it('Should revert if amount is larger than 50000', async () => {
+    it('Should revert if amount is larger than 50000', async function () {
       const f = feesEnum.deposit;
       const invalidAmount = 50001;
 
@@ -437,7 +420,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if amount is not uint16', async () => {
+    it('Should revert if amount is not uint16', async function () {
       const f = feesEnum.deposit;
       const invalidAmount = 2 ** 16;
 
@@ -446,7 +429,7 @@ describe('PirexCvx', () => {
       await expect(pCvx.setFee(f, invalidAmount)).to.be.reverted;
     });
 
-    it('Should revert if not owner', async () => {
+    it('Should revert if not owner', async function () {
       const f = feesEnum.deposit;
       const amount = 1;
 
@@ -455,7 +438,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should set the deposit fee', async () => {
+    it('Should set the deposit fee', async function () {
       const depositFeeBefore = await pCvx.fees(feesEnum.deposit);
       const amount = 20000;
       const events = await callAndReturnEvents(pCvx.setFee, [
@@ -473,7 +456,7 @@ describe('PirexCvx', () => {
       });
     });
 
-    it('Should set the reward fee', async () => {
+    it('Should set the reward fee', async function () {
       const rewardFeeBefore = await pCvx.fees(feesEnum.reward);
       const amount = 5000;
       const events = await callAndReturnEvents(pCvx.setFee, [
@@ -492,8 +475,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('setDelegationSpace', () => {
-    it('Should revert if _delegationSpace is an empty string', async () => {
+  describe('setDelegationSpace', function () {
+    it('Should revert if _delegationSpace is an empty string', async function () {
       const invalidDelegationSpace = '';
 
       await expect(
@@ -501,17 +484,16 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('EmptyString()');
     });
 
-    it('Should revert if not called by owner', async () => {
+    it('Should revert if not called by owner', async function () {
       await expect(
         pCvx.connect(notAdmin).setDelegationSpace(delegationSpace)
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
-    it('Should update delegationSpace', async () => {
+    it('Should update delegationSpace', async function () {
       const newDelegationSpace = 'test.eth';
-      const newDelegationSpaceBytes32 = ethers.utils.formatBytes32String(
-        newDelegationSpace
-      );
+      const newDelegationSpaceBytes32 =
+        ethers.utils.formatBytes32String(newDelegationSpace);
       const delegationSpaceBefore = await pCvx.delegationSpace();
       const setEvent = await callAndReturnEvent(pCvx.setDelegationSpace, [
         newDelegationSpace,
@@ -529,8 +511,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('setVoteDelegate', () => {
-    it('Should revert if _voteDelegate is zero address', async () => {
+  describe('setVoteDelegate', function () {
+    it('Should revert if _voteDelegate is zero address', async function () {
       const invalidVoteDelegate = zeroAddress;
 
       await expect(
@@ -538,7 +520,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('ZeroAddress()');
     });
 
-    it('Should revert if not called by owner', async () => {
+    it('Should revert if not called by owner', async function () {
       const voteDelegate = admin.address;
 
       await expect(
@@ -546,7 +528,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
-    it('Should set voteDelegate', async () => {
+    it('Should set voteDelegate', async function () {
       const voteDelegateBefore = await pCvx.voteDelegate();
       const _delegationSpace = await pCvx.delegationSpace();
       const convexDelegateBefore = await cvxDelegateRegistry.delegation(
@@ -576,14 +558,14 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('clearVoteDelegate', () => {
-    it('Should revert if not called by owner', async () => {
+  describe('clearVoteDelegate', function () {
+    it('Should revert if not called by owner', async function () {
       await expect(
         pCvx.connect(notAdmin).clearVoteDelegate()
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
-    it('Should remove voteDelegate', async () => {
+    it('Should remove voteDelegate', async function () {
       const voteDelegateBefore = await pCvx.voteDelegate();
       const _delegationSpace = await pCvx.delegationSpace();
       const convexDelegateBefore = await cvxDelegateRegistry.delegation(
@@ -608,8 +590,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('getCurrentEpoch', () => {
-    it('Should return the current epoch', async () => {
+  describe('getCurrentEpoch', function () {
+    it('Should return the current epoch', async function () {
       const expectedCurrentEpoch = toBN(
         (await ethers.provider.getBlock('latest')).timestamp
       )
@@ -622,8 +604,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('getCurrentSnapshotId', () => {
-    it('Should return the current snapshot id', async () => {
+  describe('getCurrentSnapshotId', function () {
+    it('Should return the current snapshot id', async function () {
       const currentEpoch = await pCvx.getCurrentEpoch();
       const { snapshotId } = await pCvx.getEpoch(currentEpoch);
       const currentSnapshotId = await pCvx.getCurrentSnapshotId();
@@ -633,8 +615,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('deposit', () => {
-    it('Should revert if to is zero address', async () => {
+  describe('deposit', function () {
+    it('Should revert if to is zero address', async function () {
       const invalidTo = zeroAddress;
       const depositAmount = toBN(1e18);
 
@@ -643,7 +625,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if amount is zero', async () => {
+    it('Should revert if amount is zero', async function () {
       const to = admin.address;
       const invalidAmount = toBN(0);
 
@@ -652,7 +634,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if msg.sender CVX balance is insufficient', async () => {
+    it('Should revert if msg.sender CVX balance is insufficient', async function () {
       const cvxBalance = await cvx.balanceOf(admin.address);
       const to = admin.address;
       const invalidAmount = cvxBalance.add(1);
@@ -662,7 +644,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should deposit CVX', async () => {
+    it('Should deposit CVX', async function () {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const treasuryCvxBalanceBefore = await cvx.balanceOf(treasury.address);
       const revenueLockersCvxBalanceBefore = await cvx.balanceOf(
@@ -752,8 +734,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('initiateRedemption', () => {
-    it('Should revert if amount is zero', async () => {
+  describe('initiateRedemption', function () {
+    it('Should revert if amount is zero', async function () {
       const lockIndex = 0;
       const to = admin.address;
       const invalidAmount = toBN(0);
@@ -764,7 +746,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('ZeroAmount()');
     });
 
-    it('Should revert if amount is greater than Convex unlock amount', async () => {
+    it('Should revert if amount is greater than Convex unlock amount', async function () {
       const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
       const lockIndex = 0;
       const to = admin.address;
@@ -777,7 +759,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('InsufficientRedemptionAllowance()');
     });
 
-    it('Should revert if to is zero address', async () => {
+    it('Should revert if to is zero address', async function () {
       const lockIndex = 0;
       const invalidTo = zeroAddress;
       const amount = toBN(1e18);
@@ -788,7 +770,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('ERC1155: mint to the zero address');
     });
 
-    it('Should revert if pCvx balance is insufficient', async () => {
+    it('Should revert if pCvx balance is insufficient', async function () {
       await pCvx.transfer(notAdmin.address, toBN(1e18));
 
       const pCvxBalance = await pCvx.balanceOf(notAdmin.address);
@@ -805,7 +787,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('ERC20: burn amount exceeds balance');
     });
 
-    it('Should revert if futures enum is out of range', async () => {
+    it('Should revert if futures enum is out of range', async function () {
       const lockIndex = 0;
       const to = admin.address;
       const redemptionAmount = toBN(1e18);
@@ -818,7 +800,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should initiate a redemption', async () => {
+    it('Should initiate a redemption', async function () {
       const { timestamp } = await ethers.provider.getBlock('latest');
       const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
       const lockIndex = 0;
@@ -923,7 +905,7 @@ describe('PirexCvx', () => {
       ).to.equal(true);
     });
 
-    it('Should revert if insufficient redemption allowance', async () => {
+    it('Should revert if insufficient redemption allowance', async function () {
       const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
       const lockIndex = 0;
       const { unlockTime } = lockData[lockIndex];
@@ -938,8 +920,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('redeem', () => {
-    it('Should revert if before lock expiry', async () => {
+  describe('redeem', function () {
+    it('Should revert if before lock expiry', async function () {
       const to = admin.address;
       const amount = toBN(1e18);
 
@@ -948,7 +930,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('BeforeUnlock()');
     });
 
-    it('Should revert if amount is zero', async () => {
+    it('Should revert if amount is zero', async function () {
       const unlockTime = 0;
       const to = admin.address;
       const amount = 0;
@@ -958,7 +940,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if insufficient upCVX balance for epoch', async () => {
+    it('Should revert if insufficient upCVX balance for epoch', async function () {
       // Does not exist, should not have a valid token balance
       const invalidUnlockTime = toBN(redemptionUnlockTime).add(1);
       const to = admin.address;
@@ -982,7 +964,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if to is zero address', async () => {
+    it('Should revert if to is zero address', async function () {
       const invalidTo = zeroAddress;
       const amount = toBN(1e18);
 
@@ -991,16 +973,14 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('ERC20: transfer to the zero address');
     });
 
-    it('Should redeem CVX', async () => {
+    it('Should redeem CVX', async function () {
       const upCvx = await getUpCvx(await pCvx.upCvx());
       const upCvxBalanceBefore = await upCvx.balanceOf(
         admin.address,
         redemptionUnlockTime
       );
-      const {
-        unlockable: unlockableBefore,
-        locked: lockedBefore,
-      } = await cvxLocker.lockedBalances(pCvx.address);
+      const { unlockable: unlockableBefore, locked: lockedBefore } =
+        await cvxLocker.lockedBalances(pCvx.address);
       const outstandingRedemptionsBefore = await pCvx.outstandingRedemptions();
       const upCvxTotalSupplyBefore = await upCvx.totalSupply(
         redemptionUnlockTime
@@ -1016,9 +996,8 @@ describe('PirexCvx', () => {
       const expectedRelock = unlockableBefore.sub(outstandingRedemptionsBefore);
       const expectedCvxOutstanding = outstandingRedemptionsBefore.sub(amount);
       const expectedPirexCvxBalance = 0;
-      const expectedPirexStakedCvxBalance = pirexStakedCvxBalanceBefore.add(
-        amount
-      );
+      const expectedPirexStakedCvxBalance =
+        pirexStakedCvxBalanceBefore.add(amount);
       const expectedLocked = lockedBefore.add(
         unlockableBefore.sub(outstandingRedemptionsBefore)
       );
@@ -1077,7 +1056,7 @@ describe('PirexCvx', () => {
       });
     });
 
-    it('Should unstake CVX for redemption', async () => {
+    it('Should unstake CVX for redemption', async function () {
       const { unlockable } = await cvxLocker.lockedBalances(pCvx.address);
       const pirexCvxBalance = await cvx.balanceOf(pCvx.address);
       const pirexStakedCvxBalanceBefore = await cvxRewardPool.balanceOf(
@@ -1103,8 +1082,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('stake', () => {
-    it('Should revert if rounds is zero', async () => {
+  describe('stake', function () {
+    it('Should revert if rounds is zero', async function () {
       const invalidRounds = 0;
       const to = admin.address;
       const amount = toBN(1e18);
@@ -1115,7 +1094,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if to is zero address', async () => {
+    it('Should revert if to is zero address', async function () {
       const rounds = 1;
       const invalidTo = zeroAddress;
       const amount = toBN(1e18);
@@ -1126,7 +1105,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if amount is zero', async () => {
+    it('Should revert if amount is zero', async function () {
       const rounds = 1;
       const to = admin.address;
       const invalidAmount = toBN(0);
@@ -1137,7 +1116,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if futures enum is out of range', async () => {
+    it('Should revert if futures enum is out of range', async function () {
       const rounds = 1;
       const to = admin.address;
       const amount = toBN(1e18);
@@ -1148,7 +1127,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if pCVX balance is insufficient', async () => {
+    it('Should revert if pCVX balance is insufficient', async function () {
       const rounds = 1;
       const to = admin.address;
       const amount = toBN(1e18);
@@ -1169,7 +1148,7 @@ describe('PirexCvx', () => {
         .transfer(admin.address, await pCvx.balanceOf(notAdmin.address));
     });
 
-    it('Should stake pCVX', async () => {
+    it('Should stake pCVX', async function () {
       const currentEpoch = await pCvx.getCurrentEpoch();
       const rounds = toBN(255);
       const to = admin.address;
@@ -1247,8 +1226,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('unstake', () => {
-    it('Should revert if vault is zero address', async () => {
+  describe('unstake', function () {
+    it('Should revert if vault is zero address', async function () {
       const invalidVault = zeroAddress;
       const to = admin.address;
       const amount = toBN(1e18);
@@ -1258,7 +1237,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if to is zero address', async () => {
+    it('Should revert if to is zero address', async function () {
       const vault = admin.address;
       const invalidTo = zeroAddress;
       const amount = toBN(1e18);
@@ -1268,7 +1247,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if amount is zero', async () => {
+    it('Should revert if amount is zero', async function () {
       const vault = admin.address;
       const to = admin.address;
       const invalidAmount = toBN(0);
@@ -1278,7 +1257,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if shares balance is insufficient', async () => {
+    it('Should revert if shares balance is insufficient', async function () {
       const spCvx = await pCvx.getSpCvx();
       const vault = spCvx[spCvx.length - 1];
       const to = admin.address;
@@ -1293,7 +1272,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if before stake expiry', async () => {
+    it('Should revert if before stake expiry', async function () {
       const spCvx = await pCvx.getSpCvx();
       const vault = await getSpCvx(spCvx[spCvx.length - 1]);
       const to = admin.address;
@@ -1306,7 +1285,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should unstake pCVX', async () => {
+    it('Should unstake pCVX', async function () {
       const spCvx = await pCvx.getSpCvx();
       const vault = await getSpCvx(spCvx[spCvx.length - 1]);
       const stakeExpiry = await vault.stakeExpiry();
@@ -1352,8 +1331,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('performEpochMaintenance', () => {
-    before(async () => {
+  describe('performEpochMaintenance', function () {
+    before(async function () {
       const crvRewardAmount = toBN(5e18);
       const cvxCrvRewardAmount = toBN(10e18);
 
@@ -1369,7 +1348,7 @@ describe('PirexCvx', () => {
       await increaseBlockTimestamp(10000);
     });
 
-    it('Should not allow claimVotiumReward to be called if maintenance has not been performed', async () => {
+    it('Should not allow claimVotiumReward to be called if maintenance has not been performed', async function () {
       const { snapshotId } = await pCvx.getEpoch(await pCvx.getCurrentEpoch());
       const token = cvx.address;
       const index = 0;
@@ -1384,7 +1363,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('MaintenanceRequired()');
     });
 
-    it('Should take a snapshot and claim misc. rewards', async () => {
+    it('Should take a snapshot and claim misc. rewards', async function () {
       const currentEpoch = await pCvx.getCurrentEpoch();
       const epochBefore = await pCvx.getEpoch(currentEpoch);
       const snapshotIdBefore = await pCvx.getCurrentSnapshotId();
@@ -1595,13 +1574,13 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('claimVotiumReward', () => {
+  describe('claimVotiumReward', function () {
     let cvxRewardDistribution: { account: string; amount: BigNumber }[];
     let crvRewardDistribution: { account: string; amount: BigNumber }[];
     let cvxTree: BalanceTree;
     let crvTree: BalanceTree;
 
-    before(async () => {
+    before(async function () {
       cvxRewardDistribution = [
         {
           account: pCvx.address,
@@ -1633,7 +1612,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if token is zero address', async () => {
+    it('Should revert if token is zero address', async function () {
       const invalidToken = zeroAddress;
       const index = 0;
       const account = pCvx.address;
@@ -1647,7 +1626,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if index is invalid', async () => {
+    it('Should revert if index is invalid', async function () {
       const token = cvx.address;
       const invalidIndex = 10;
       const index = 0; // Used to generate a valid proof
@@ -1662,7 +1641,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if amount is zero', async () => {
+    it('Should revert if amount is zero', async function () {
       const token = cvx.address;
       const index = 0;
       const account = pCvx.address;
@@ -1677,7 +1656,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should claim Votium rewards and set distribution for pCVX and rpCVX token holders', async () => {
+    it('Should claim Votium rewards and set distribution for pCVX and rpCVX token holders', async function () {
       const tokens = [cvx.address, crv.address];
       const index = 0;
       const account = pCvx.address;
@@ -1851,8 +1830,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('claimSnapshotReward', () => {
-    it('Should revert if epoch is zero', async () => {
+  describe('claimSnapshotReward', function () {
+    it('Should revert if epoch is zero', async function () {
       const invalidEpoch = 0;
       const rewardIndex = 0;
       const to = admin.address;
@@ -1862,7 +1841,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('ZeroAmount()');
     });
 
-    it('Should revert if rewardIndex is invalid', async () => {
+    it('Should revert if rewardIndex is invalid', async function () {
       const epoch = await pCvx.getCurrentEpoch();
       const invalidRewardIndex = 5;
       const to = admin.address;
@@ -1874,7 +1853,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if to is zero address', async () => {
+    it('Should revert if to is zero address', async function () {
       const epoch = await pCvx.getCurrentEpoch();
       const rewardIndex = 0;
       const invalidTo = zeroAddress;
@@ -1884,7 +1863,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('ERC20: transfer to the zero address');
     });
 
-    it('Should revert if msg.sender has an insufficient balance', async () => {
+    it('Should revert if msg.sender has an insufficient balance', async function () {
       const epoch = await pCvx.getCurrentEpoch();
       const rewardIndex = 0;
       const to = admin.address;
@@ -1894,7 +1873,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('InsufficientBalance()');
     });
 
-    it('Should claim snapshot reward', async () => {
+    it('Should claim snapshot reward', async function () {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const crvBalanceBefore = await crv.balanceOf(admin.address);
       const cvxCrvBalanceBefore = await cvxCrvToken.balanceOf(admin.address);
@@ -1993,7 +1972,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if msg.sender has already claimed', async () => {
+    it('Should revert if msg.sender has already claimed', async function () {
       const epoch = await pCvx.getCurrentEpoch();
       const rewardIndex = 0;
       const to = admin.address;
@@ -2004,8 +1983,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('claimFuturesRewards', () => {
-    it('Should revert if epoch is zero', async () => {
+  describe('claimFuturesRewards', function () {
+    it('Should revert if epoch is zero', async function () {
       const invalidEpoch = 0;
       const to = admin.address;
 
@@ -2014,7 +1993,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('ZeroAmount()');
     });
 
-    it('Should revert if to is zero address', async () => {
+    it('Should revert if to is zero address', async function () {
       const epoch = await pCvx.getCurrentEpoch();
       const invalidTo = zeroAddress;
       const rpCvx = await getRpCvx(await pCvx.rpCvx());
@@ -2026,7 +2005,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('ERC20: transfer to the zero address');
     });
 
-    it('Should revert if msg.sender has an insufficient balance', async () => {
+    it('Should revert if msg.sender has an insufficient balance', async function () {
       const epoch = await pCvx.getCurrentEpoch();
       const to = admin.address;
 
@@ -2035,7 +2014,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('InsufficientBalance()');
     });
 
-    it('Should claim futures reward', async () => {
+    it('Should claim futures reward', async function () {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const crvBalanceBefore = await crv.balanceOf(admin.address);
       const cvxCrvBalanceBefore = await cvxCrvToken.balanceOf(admin.address);
@@ -2107,8 +2086,8 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('exchangeFutures', () => {
-    before(async () => {
+  describe('exchangeFutures', function () {
+    before(async function () {
       const depositAmount = toBN(1e18);
       const stakeRounds = 1;
 
@@ -2122,7 +2101,7 @@ describe('PirexCvx', () => {
       );
     });
 
-    it('Should revert if epoch is current', async () => {
+    it('Should revert if epoch is current', async function () {
       const invalidEpoch1 = await pCvx.getCurrentEpoch();
       const invalidEpoch2 = invalidEpoch1.sub(epochDuration);
       const to = admin.address;
@@ -2138,7 +2117,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('PastExchangePeriod()');
     });
 
-    it('Should revert if amount is zero', async () => {
+    it('Should revert if amount is zero', async function () {
       const epoch = (await pCvx.getCurrentEpoch()).add(epochDuration);
       const to = admin.address;
       const invalidAmount = 0;
@@ -2150,7 +2129,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('ZeroAmount()');
     });
 
-    it('Should revert if sender balance is insufficient', async () => {
+    it('Should revert if sender balance is insufficient', async function () {
       const epoch = (await pCvx.getCurrentEpoch()).add(epochDuration);
       const rpCvx = await getRpCvx(await pCvx.rpCvx());
       const sender = notAdmin.address;
@@ -2168,7 +2147,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('ERC1155: burn amount exceeds balance');
     });
 
-    it('Should revert if to is zero address', async () => {
+    it('Should revert if to is zero address', async function () {
       const epoch = (await pCvx.getCurrentEpoch()).add(epochDuration);
       const invalidTo = zeroAddress;
       const amount = toBN(1);
@@ -2180,7 +2159,7 @@ describe('PirexCvx', () => {
       ).to.be.revertedWith('ERC1155: mint to the zero address');
     });
 
-    it('Should exchange rewards futures for vote futures', async () => {
+    it('Should exchange rewards futures for vote futures', async function () {
       const epoch = (await pCvx.getCurrentEpoch()).add(epochDuration);
       const rpCvx = await getRpCvx(await pCvx.rpCvx());
       const vpCvx = await getVpCvx(await pCvx.vpCvx());
@@ -2218,12 +2197,10 @@ describe('PirexCvx', () => {
     });
   });
 
-  describe('relock', () => {
-    it('Should relock any unlocked/available CVX in the pirex contract', async () => {
-      const {
-        unlockable: unlockableBefore,
-        locked: lockedBefore,
-      } = await cvxLocker.lockedBalances(pCvx.address);
+  describe('relock', function () {
+    it('Should relock any unlocked/available CVX in the pirex contract', async function () {
+      const { unlockable: unlockableBefore, locked: lockedBefore } =
+        await cvxLocker.lockedBalances(pCvx.address);
       const cvxBalanceBefore = await cvx.balanceOf(pCvx.address);
       const pirexStakedCvxBalanceBefore = await cvxRewardPool.balanceOf(
         pCvx.address
