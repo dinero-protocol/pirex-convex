@@ -46,8 +46,9 @@ describe('PirexCvx', () => {
   let redemptionUnlockTime: number;
 
   const delegationSpace = 'cvx.eth';
-  const delegationSpaceBytes32 =
-    ethers.utils.formatBytes32String(delegationSpace);
+  const delegationSpaceBytes32 = ethers.utils.formatBytes32String(
+    delegationSpace
+  );
   const zeroAddress = '0x0000000000000000000000000000000000000000';
   const epochDuration = toBN(1209600);
   const contractEnum = {
@@ -101,8 +102,13 @@ describe('PirexCvx', () => {
     await ethers.getContractAt('ERC1155PresetMinterSupply', address);
 
   before(async () => {
-    [admin, notAdmin, treasury, revenueLockers, contributors] =
-      await ethers.getSigners();
+    [
+      admin,
+      notAdmin,
+      treasury,
+      revenueLockers,
+      contributors,
+    ] = await ethers.getSigners();
     ({
       cvx,
       crv,
@@ -112,12 +118,12 @@ describe('PirexCvx', () => {
       cvxDelegateRegistry,
       votiumMultiMerkleStash,
     } = await setUpConvex());
-    pirexFees = await (
-      await ethers.getContractFactory('PirexFees')
-    ).deploy(treasury.address, revenueLockers.address, contributors.address);
-    pCvx = await (
-      await ethers.getContractFactory('PirexCvx')
-    ).deploy(
+    pirexFees = await (await ethers.getContractFactory('PirexFees')).deploy(
+      treasury.address,
+      revenueLockers.address,
+      contributors.address
+    );
+    pCvx = await (await ethers.getContractFactory('PirexCvx')).deploy(
       cvx.address,
       cvxLocker.address,
       cvxDelegateRegistry.address,
@@ -406,11 +412,10 @@ describe('PirexCvx', () => {
 
       expect(cvxCrvTokenBefore).to.not.equal(cvxCrvTokenAfter);
       expect(cvxCrvTokenAfter).to.equal(admin.address);
-      expect(setEvent.eventSignature).to.equal(
-        'SetConvexContract(uint8,address)'
-      );
-      expect(setEvent.args.c).to.equal(convexContractEnum.cvxCrvToken);
-      expect(setEvent.args.contractAddress).to.equal(admin.address);
+      validateEvent(setEvent, 'SetConvexContract(uint8,address)', {
+        c: convexContractEnum.cvxCrvToken,
+        contractAddress: admin.address,
+      });
       expect(cvxCrvTokenBefore).to.equal(await pCvx.cvxCRV());
     });
   });
@@ -504,8 +509,9 @@ describe('PirexCvx', () => {
 
     it('Should update delegationSpace', async () => {
       const newDelegationSpace = 'test.eth';
-      const newDelegationSpaceBytes32 =
-        ethers.utils.formatBytes32String(newDelegationSpace);
+      const newDelegationSpaceBytes32 = ethers.utils.formatBytes32String(
+        newDelegationSpace
+      );
       const delegationSpaceBefore = await pCvx.delegationSpace();
       const setEvent = await callAndReturnEvent(pCvx.setDelegationSpace, [
         newDelegationSpace,
@@ -888,12 +894,16 @@ describe('PirexCvx', () => {
         value: redemptionAmount,
       });
       expect(burnEvent.args.from).to.not.equal(zeroAddress);
-      validateEvent(initiateEvent, 'InitiateRedemption(address,address,uint256,uint256)', {
-        sender: admin.address,
-        to,
-        amount: redemptionAmount,
-        unlockTime,
-      });
+      validateEvent(
+        initiateEvent,
+        'InitiateRedemption(address,address,uint256,uint256)',
+        {
+          sender: admin.address,
+          to,
+          amount: redemptionAmount,
+          unlockTime,
+        }
+      );
       expect(initiateEvent.args.to).to.not.equal(zeroAddress);
       validateEvent(
         mintFuturesEvent,
@@ -1008,8 +1018,9 @@ describe('PirexCvx', () => {
       const expectedRelock = unlockableBefore.sub(outstandingRedemptionsBefore);
       const expectedCvxOutstanding = outstandingRedemptionsBefore.sub(amount);
       const expectedPirexCvxBalance = 0;
-      const expectedPirexStakedCvxBalance =
-        pirexStakedCvxBalanceBefore.add(amount);
+      const expectedPirexStakedCvxBalance = pirexStakedCvxBalanceBefore.add(
+        amount
+      );
       const expectedLocked = lockedBefore.add(
         unlockableBefore.sub(outstandingRedemptionsBefore)
       );
@@ -2195,14 +2206,17 @@ describe('PirexCvx', () => {
 
       expect(rpCvxBalanceAfter).to.equal(rpCvxBalanceBefore.sub(amount));
       expect(vpCvxBalanceAfter).to.equal(vpCvxBalanceBefore.add(amount));
-      expect(exchangeEvent.eventSignature).to.equal(
-        'ExchangeFutures(uint256,address,uint256,uint8,uint8)'
+      validateEvent(
+        exchangeEvent,
+        'ExchangeFutures(uint256,address,uint256,uint8,uint8)',
+        {
+          epoch,
+          to,
+          amount,
+          i,
+          o,
+        }
       );
-      expect(exchangeEvent.args.epoch).to.equal(epoch);
-      expect(exchangeEvent.args.to).to.equal(to);
-      expect(exchangeEvent.args.amount).to.equal(amount);
-      expect(exchangeEvent.args.i).to.equal(i);
-      expect(exchangeEvent.args.o).to.equal(o);
     });
   });
 });
