@@ -110,3 +110,4 @@ artifacts/
 typechain-types
 data
 coverage.json
+.vscode/settings.json
