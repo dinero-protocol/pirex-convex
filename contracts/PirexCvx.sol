@@ -119,6 +119,13 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     );
     event ClaimFuturesRewards(uint256 epoch, address to, address[] rewards);
     event PerformEpochMaintenance(uint256 epoch, uint256 snapshotId);
+    event ExchangeFutures(
+        uint256 epoch,
+        address to,
+        uint256 amount,
+        Futures i,
+        Futures o
+    );
 
     error InvalidFee();
     error BeforeUnlock();
@@ -126,12 +133,14 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     error AlreadyClaimed();
     error MaintenanceRequired();
     error InsufficientRedemptionAllowance();
+    error PastExchangePeriod();
 
     /**
         @param  _CVX                     address  CVX address    
         @param  _cvxLocker               address  CvxLocker address
         @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
         @param  _cvxRewardPool           address  CvxRewardPool address
+        @param  _cvxCRV                  address  CvxCrvToken address
         @param  _pirexFees               address  PirexFees address
         @param  _votiumMultiMerkleStash  address  VotiumMultiMerkleStash address
      */
@@ -140,11 +149,18 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address _cvxLocker,
         address _cvxDelegateRegistry,
         address _cvxRewardPool,
+        address _cvxCRV,
         address _pirexFees,
         address _votiumMultiMerkleStash
     )
         ERC20("Pirex CVX", "pCVX")
-        PirexCvxConvex(_CVX, _cvxLocker, _cvxDelegateRegistry, _cvxRewardPool)
+        PirexCvxConvex(
+            _CVX,
+            _cvxLocker,
+            _cvxDelegateRegistry,
+            _cvxRewardPool,
+            _cvxCRV
+        )
     {
         // Start snapshot id from 1 and set it to simplify snapshot-taking determination
         epochs[getCurrentEpoch()].snapshotId = _snapshot();
@@ -442,6 +458,15 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Validates `to`
         upCvx.burn(msg.sender, unlockTime, amount);
 
+        uint256 balance = CVX.balanceOf(address(this));
+        if (amount > balance) {
+            // Unstake CVX to fulfill redemption
+            _unstake(amount - balance);
+        } else if (amount < balance) {
+            // Stake extraneous balance
+            _stake(balance - amount);
+        }
+
         // Validates `to`
         CVX.safeTransfer(to, amount);
     }
@@ -675,5 +700,38 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
                 );
             }
         }
+    }
+
+    /**
+        @notice Exchange one futures token for another
+        @param  epoch   uint256  Epoch (ERC1155 token id)
+        @param  to      address  Futures rewards recipient
+        @param  amount  uint256  Futures rewards recipient
+        @param  i       Futures  Futures token to burn
+        @param  o       Futures  Futures token to mint
+    */
+    function exchangeFutures(
+        uint256 epoch,
+        address to,
+        uint256 amount,
+        Futures i,
+        Futures o
+    ) external {
+        // Users can only exchange futures tokens for future epochs
+        if (epoch <= getCurrentEpoch()) revert PastExchangePeriod();
+        if (amount == 0) revert ZeroAmount();
+
+        ERC1155PresetMinterSupply futuresIn = i == Futures.Vote ? vpCvx : rpCvx;
+        ERC1155PresetMinterSupply futuresOut = o == Futures.Reward
+            ? rpCvx
+            : vpCvx;
+
+        emit ExchangeFutures(epoch, to, amount, i, o);
+
+        // Validates `amount` (balance)
+        futuresIn.burn(msg.sender, epoch, amount);
+
+        // Validates `to`
+        futuresOut.mint(to, epoch, amount, "");
     }
 }
