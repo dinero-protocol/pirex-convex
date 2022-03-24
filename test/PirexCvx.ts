@@ -971,18 +971,13 @@ describe('PirexCvx', () => {
         redemptionUnlockTime
       );
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
-      const pirexStakedCvxBalanceBefore = await cvxRewardPool.balanceOf(
-        pCvx.address
-      );
       const to = admin.address;
       const amount = upCvxBalanceBefore.div(2);
 
       // Expected values post-relock and outstandingRedemptions decrementing
       const expectedRelock = unlockableBefore.sub(outstandingRedemptionsBefore);
       const expectedCvxOutstanding = outstandingRedemptionsBefore.sub(amount);
-      const expectedPirexCvxBalance = 0;
-      const expectedPirexStakedCvxBalance =
-        pirexStakedCvxBalanceBefore.add(amount);
+      const expectedPirexCvxBalance = outstandingRedemptionsBefore.sub(amount);
       const expectedLocked = lockedBefore.add(
         unlockableBefore.sub(outstandingRedemptionsBefore)
       );
@@ -1013,19 +1008,12 @@ describe('PirexCvx', () => {
       );
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const pirexCvxBalanceAfter = await cvx.balanceOf(pCvx.address);
-      const pirexStakedCvxBalanceAfter = await cvxRewardPool.balanceOf(
-        pCvx.address
-      );
 
       expect(expectedRelock).to.equal(lockedAfter.sub(lockedBefore));
       expect(expectedRelock).to.not.equal(0);
       expect(expectedCvxOutstanding).to.equal(outstandingRedemptionsAfter);
       expect(expectedCvxOutstanding).to.not.equal(0);
       expect(expectedPirexCvxBalance).to.equal(pirexCvxBalanceAfter);
-      expect(expectedPirexStakedCvxBalance).to.equal(
-        pirexStakedCvxBalanceAfter
-      );
-      expect(expectedPirexStakedCvxBalance).to.not.equal(0);
       expect(expectedLocked).to.equal(lockedAfter);
       expect(expectedLocked).to.not.equal(0);
       expect(expectedUpCvxSupply).to.equal(upCvxTotalSupplyAfter);
@@ -1040,31 +1028,6 @@ describe('PirexCvx', () => {
       expect(redeemEvent.args.epoch).to.equal(redemptionUnlockTime);
       expect(redeemEvent.args.to).to.equal(to);
       expect(redeemEvent.args.amount).to.equal(amount);
-    });
-
-    it('Should unstake CVX for redemption', async () => {
-      const { unlockable } = await cvxLocker.lockedBalances(pCvx.address);
-      const pirexCvxBalance = await cvx.balanceOf(pCvx.address);
-      const pirexStakedCvxBalanceBefore = await cvxRewardPool.balanceOf(
-        pCvx.address
-      );
-      const to = admin.address;
-      const cvxBalanceBefore = await cvx.balanceOf(to);
-      const amount = pirexStakedCvxBalanceBefore;
-
-      pCvx.redeem(redemptionUnlockTime, to, amount);
-
-      const pirexStakedCvxBalanceAfter = await cvxRewardPool.balanceOf(
-        pCvx.address
-      );
-      const cvxBalanceAfter = await cvx.balanceOf(to);
-
-      expect(unlockable).to.equal(0);
-      expect(pirexCvxBalance).to.equal(0);
-      expect(pirexStakedCvxBalanceAfter).to.equal(
-        pirexStakedCvxBalanceBefore.sub(amount)
-      );
-      expect(cvxBalanceAfter).to.equal(cvxBalanceBefore.add(amount));
     });
   });
 

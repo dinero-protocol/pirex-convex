@@ -19,6 +19,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         @notice Epoch details
         @notice Reward/snapshotRewards/futuresRewards indexes are associated with 1 reward
         @param  snapshotId               uint256    Snapshot id
+        @param  claimedMiscRewards       bool       Misc rewards claim status
         @param  rewards                  address[]  Rewards
         @param  snapshotRewards          uint256[]  Snapshot reward amounts
         @param  futuresRewards           uint256[]  Futures reward amounts
@@ -27,7 +28,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     struct Epoch {
         uint256 snapshotId;
         bool claimedMiscRewards;
-        bool claimedStakingRewards;
         address[] rewards;
         uint256[] snapshotRewards;
         uint256[] futuresRewards;
@@ -170,7 +170,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         Epoch storage e = epochs[getCurrentEpoch()];
         e.snapshotId = _snapshot();
         e.claimedMiscRewards == true;
-        e.claimedStakingRewards = true;
 
         if (_pirexFees == address(0)) revert ZeroAddress();
         pirexFees = PirexFees(_pirexFees);
@@ -424,15 +423,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         // Validates `to`
         upCvx.burn(msg.sender, unlockTime, amount);
-
-        uint256 balance = CVX.balanceOf(address(this));
-        if (amount > balance) {
-            // Unstake CVX to fulfill redemption
-            _unstake(amount - balance);
-        } else if (amount < balance) {
-            // Stake extraneous balance
-            _stake(balance - amount);
-        }
 
         // Validates `to`
         CVX.safeTransfer(to, amount);
