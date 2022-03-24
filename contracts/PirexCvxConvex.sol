@@ -47,14 +47,11 @@ contract PirexCvxConvex is Ownable {
     uint256 public outstandingRedemptions;
 
     event SetConvexContract(ConvexContract c, address contractAddress);
-    event StakeCvx(uint256 amount);
-    event UnstakeCvx(uint256 amount);
     event SetDelegationSpace(string _delegationSpace);
     event SetVoteDelegate(address _voteDelegate);
     event ClearVoteDelegate();
 
     error ZeroAddress();
-    error ZeroAmount();
     error EmptyString();
 
     /**
@@ -166,13 +163,11 @@ contract PirexCvxConvex is Ownable {
         // Get claimable rewards
         ICvxLocker.EarnedData[] memory c = cvxLocker.claimableRewards(addr);
 
-        uint256 cLen = c.length;
+        uint8 cLen = uint8(c.length);
         rewards = new ConvexReward[](cLen);
 
         // Get the current balances for each token to calculate the amount received
         for (uint8 i; i < cLen; ++i) {
-            if (c[i].amount == 0) continue;
-
             rewards[i] = ConvexReward({
                 token: c[i].token,
                 amount: c[i].amount,

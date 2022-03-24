@@ -7,8 +7,8 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
-import {PirexCvxConvex} from "./PirexCvxConvex.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
+import {PirexCvxConvex} from "./PirexCvxConvex.sol";
 import {StakedPirexCvx} from "./StakedPirexCvx.sol";
 import {PirexFees} from "./PirexFees.sol";
 
@@ -116,7 +116,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address to,
         uint256 indexed snapshotId,
         uint256 snapshotBalance,
-        address indexed reward,
         uint256 redeemAmount
     );
     event RedeemFuturesRewards(
@@ -124,7 +123,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address indexed to,
         address[] rewards
     );
-    event PerformEpochMaintenance(uint256 epoch, uint256 snapshotId);
     event ExchangeFutures(
         uint256 indexed epoch,
         address indexed to,
@@ -133,12 +131,13 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         Futures o
     );
 
+    error ZeroAmount();
     error InvalidFee();
     error BeforeUnlock();
     error InsufficientBalance();
     error AlreadyClaimed();
     error AlreadyRedeemed();
-    error MaintenanceRequired();
+    error SnapshotRequired();
     error InsufficientRedemptionAllowance();
     error PastExchangePeriod();
 
@@ -565,7 +564,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     ) external nonReentrant {
         // Check if maintenance has been performed on the epoch
         uint256 currentEpoch = getCurrentEpoch();
-        if (epochs[currentEpoch].snapshotId == 0) revert MaintenanceRequired();
+        if (epochs[currentEpoch].snapshotId == 0) revert SnapshotRequired();
 
         emit ClaimVotiumReward(token, index, amount);
 
@@ -613,7 +612,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 currentEpoch = getCurrentEpoch();
         Epoch storage e = epochs[currentEpoch];
         uint256 eSnapshotId = e.snapshotId;
-        if (eSnapshotId == 0) revert MaintenanceRequired();
+        if (eSnapshotId == 0) revert SnapshotRequired();
         if (e.claimedMiscRewards == true) revert AlreadyClaimed();
 
         e.claimedMiscRewards = true;
@@ -628,16 +627,16 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         uint8 cLen = uint8(c.length);
         uint16 feePercent = fees[Fees.Reward];
-        address pirexFeesAddr = address(pirexFees);
         uint256 snapshotSupply = totalSupplyAt(_getCurrentSnapshotId());
         uint256 rpCvxSupply = rpCvx.totalSupply(currentEpoch);
+        address pirexFeesAddr = address(pirexFees);
+        address thisAddr = address(this);
 
         // Calculate the rewards for both pCVX/snapshot and rpCVX/futures holders
         for (uint8 i; i < cLen; ++i) {
             if (c[i].amount == 0) continue;
 
             ERC20 t = ERC20(c[i].token);
-
             (
                 uint256 rewardFee,
                 uint256 snapshotRewards,
@@ -646,9 +645,10 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
                     feePercent,
                     snapshotSupply,
                     rpCvxSupply,
-                    t.balanceOf(address(this)) - c[i].balance
+                    t.balanceOf(thisAddr) - c[i].balance
                 );
 
+            // Update epoch rewards
             e.rewards.push(c[i].token);
             e.snapshotRewards.push(snapshotRewards);
             e.futuresRewards.push(futuresRewards);
@@ -680,7 +680,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (snapshotBalance == 0) revert InsufficientBalance();
 
         // Check whether msg.sender has already redeemed this reward
-        address reward = e.rewards[rewardIndex];
         if (e.redeemedSnapshotRewards[msg.sender][rewardIndex] != 0)
             revert AlreadyRedeemed();
 
@@ -697,11 +696,10 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             to,
             snapshotId,
             snapshotBalance,
-            reward,
             redeemAmount
         );
 
-        ERC20(reward).safeTransfer(to, redeemAmount);
+        ERC20(e.rewards[rewardIndex]).safeTransfer(to, redeemAmount);
     }
 
     /**
@@ -731,9 +729,10 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         unchecked {
             uint256[] memory f = epochs[epoch].futuresRewards;
+            uint8 rLen = uint8(r.length);
 
             // Loop over rewards and transfer the amount entitled to the rpCVX token holder
-            for (uint8 i; i < r.length; ++i) {
+            for (uint8 i; i < rLen; ++i) {
                 // Proportionate to the % of rpCVX owned out of the rpCVX total supply
                 ERC20(r[i]).safeTransfer(
                     to,
