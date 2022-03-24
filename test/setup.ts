@@ -1,6 +1,8 @@
 import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { toBN } from './helpers';
+import { Promise } from 'bluebird';
+import { BigNumber } from 'ethers';
 import {
   ConvexToken,
   CvxLocker,
@@ -33,14 +35,13 @@ before(async function () {
   [admin, notAdmin, treasury, revenueLockers, contributors] =
     await ethers.getSigners();
 
-  // Constants
   const initialBalanceForAdmin = toBN(100e18);
   const crvAddr = '0xd533a949740bb3306d119cc777fa900ba034cd52';
   const crvDepositorAddr = '0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae';
   const cvxCrvRewardsAddr = '0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e';
   const cvxCrvTokenAddr = '0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7';
 
-  // Contracts
+  // Deploy base contracts
   const curveVoterProxy = await (
     await ethers.getContractFactory('CurveVoterProxy')
   ).deploy();
@@ -126,6 +127,7 @@ before(async function () {
     votiumMultiMerkleStash.address
   );
 
+  // Common addresses and contracts
   this.admin = admin;
   this.notAdmin = notAdmin;
   this.treasury = treasury;
@@ -144,6 +146,63 @@ before(async function () {
 
   await this.pirexFees.grantFeeDistributorRole(pCvx.address);
 
+  // Common constants
   this.feePercentDenominator = await pirexFees.PERCENT_DENOMINATOR();
   this.feeDenominator = await pCvx.FEE_DENOMINATOR();
+  this.zeroAddress = '0x0000000000000000000000000000000000000000';
+  this.epochDuration = toBN(1209600);
+  this.delegationSpace = 'cvx.eth';
+  this.delegationSpaceBytes32 =
+    ethers.utils.formatBytes32String(this.delegationSpace);
+  this.contractEnum = {
+    pirexFees: 0,
+    upCvx: 1,
+    vpCvx: 2,
+    rpCvx: 3,
+    spCvxImplementation: 4,
+  };
+  this.convexContractEnum = {
+    cvxLocker: 0,
+    cvxDelegateRegistry: 1,
+    cvxRewardPool: 2,
+    cvxCrvToken: 3,
+  };
+  this.futuresEnum = {
+    vote: 0,
+    reward: 1,
+  };
+  this.feesEnum = {
+    deposit: 0,
+    reward: 1,
+  };
+
+  // Common helper methods
+  this.getFuturesCvxBalances = async (
+    rounds: number,
+    futures: number,
+    currentEpoch: BigNumber
+  ) =>
+    await Promise.reduce(
+      [...Array(rounds).keys()],
+      async (acc: BigNumber[], _: number, idx: number) => {
+        const epoch: BigNumber = currentEpoch
+          .add(this.epochDuration)
+          .add(this.epochDuration.mul(idx));
+        const futuresCvx: any = await ethers.getContractAt(
+          'ERC1155PresetMinterSupply',
+          futures === this.futuresEnum.vote ? await pCvx.vpCvx() : await pCvx.rpCvx()
+        );
+  
+        return [...acc, await futuresCvx.balanceOf(admin.address, epoch)];
+      },
+      []
+    );
+  this.getUpCvx = async (address: string) =>
+    await ethers.getContractAt('ERC1155PresetMinterSupply', address);
+  this.getSpCvx = async (address: string) =>
+    await ethers.getContractAt('StakedPirexCvx', address);
+  this.getRpCvx = async (address: string) =>
+    await ethers.getContractAt('ERC1155PresetMinterSupply', address);
+  this.getVpCvx = async (address: string) =>
+    await ethers.getContractAt('ERC1155PresetMinterSupply', address);
 });

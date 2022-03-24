@@ -13,9 +13,10 @@ describe('PirexFees', function () {
   let contributors: SignerWithAddress;
   let pirexFees: PirexFees;
 
-  const zeroAddress = '0x0000000000000000000000000000000000000000';
+  let zeroAddress: string;
   let feeDistributorRole: string;
   let adminRole: string;
+
   const feeRecipientEnum = {
     treasury: 0,
     revenueLockers: 1,
@@ -23,8 +24,15 @@ describe('PirexFees', function () {
   };
 
   before(async function () {
-    ({ admin, notAdmin, treasury, revenueLockers, contributors, pirexFees } =
-      this);
+    ({
+      admin,
+      notAdmin,
+      treasury,
+      revenueLockers,
+      contributors,
+      pirexFees,
+      zeroAddress,
+    } = this);
   });
 
   describe('initial state', function () {
