@@ -80,8 +80,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     // Convex unlock timestamps mapped to amount being redeemed
     mapping(uint256 => uint256) public redemptions;
 
-    event SetContract(Contract c, address contractAddress);
-    event SetFee(Fees f, uint16 amount);
+    event SetContract(Contract indexed c, address contractAddress);
+    event SetFee(Fees indexed f, uint16 amount);
     event MintFutures(
         uint8 rounds,
         address indexed to,
@@ -106,25 +106,25 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     event Unstake(address vault, address indexed to, uint256 amount);
     event ClaimMiscRewards(uint256 epoch, uint256 snapshotId);
     event ClaimVotiumReward(
-        address token,
+        address indexed token,
         uint256 index,
         uint256 amount,
-        uint256 snapshotId
+        uint256 indexed snapshotId
     );
     event RedeemSnapshotReward(
-        uint256 epoch,
+        uint256 indexed epoch,
         uint256 rewardIndex,
         address to,
-        uint256 snapshotId,
+        uint256 indexed snapshotId,
         uint256 snapshotBalance,
-        address reward,
+        address indexed reward,
         uint256 redeemAmount
     );
-    event RedeemFuturesRewards(uint256 epoch, address to, address[] rewards);
+    event RedeemFuturesRewards(uint256 indexed epoch, address indexed to, address[] rewards);
     event PerformEpochMaintenance(uint256 epoch, uint256 snapshotId);
     event ExchangeFutures(
-        uint256 epoch,
-        address to,
+        uint256 indexed epoch,
+        address indexed to,
         uint256 amount,
         Futures i,
         Futures o
