@@ -2,11 +2,10 @@
 pragma solidity 0.8.12;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract PirexFees is AccessControl, ReentrancyGuard {
+contract PirexFees is AccessControl {
     using SafeERC20 for ERC20;
 
     enum FeeRecipient {
@@ -40,7 +39,6 @@ contract PirexFees is AccessControl, ReentrancyGuard {
     event DistributeFees(address token, uint256 amount);
 
     error ZeroAddress();
-    error ZeroAmount();
     error NotFeeDistributor();
     error InvalidFeePercent();
 
@@ -158,12 +156,8 @@ contract PirexFees is AccessControl, ReentrancyGuard {
      */
     function distributeFees(address token, uint256 amount)
         external
-        nonReentrant
         onlyRole(FEE_DISTRIBUTOR_ROLE)
     {
-        if (token == address(0)) revert ZeroAddress();
-        if (amount == 0) revert ZeroAmount();
-
         emit DistributeFees(token, amount);
 
         ERC20 t = ERC20(token);

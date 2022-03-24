@@ -1313,7 +1313,7 @@ describe('PirexCvx', () => {
       expect(snapshotId).to.equal(0);
       await expect(
         pCvx.claimVotiumReward(token, index, amount, proof)
-      ).to.be.revertedWith('MaintenanceRequired()');
+      ).to.be.revertedWith('SnapshotRequired()');
     });
 
     it('Should not allow claimMiscRewards to be called if maintenance has not been performed', async () => {
@@ -1321,7 +1321,7 @@ describe('PirexCvx', () => {
 
       expect(snapshotId).to.equal(0);
       await expect(pCvx.claimMiscRewards()).to.be.revertedWith(
-        'MaintenanceRequired()'
+        'SnapshotRequired()'
       );
     });
 
@@ -1885,7 +1885,7 @@ describe('PirexCvx', () => {
         .to.equal(crvEvent2.eventSignature)
         .to.equal(cvxCrvEvent.eventSignature)
         .to.equal(
-          'RedeemSnapshotReward(uint256,uint256,address,uint256,uint256,address,uint256)'
+          'RedeemSnapshotReward(uint256,uint256,address,uint256,uint256,uint256)'
         );
       expect(cvxEvent.args.epoch)
         .to.equal(crvEvent1.args.epoch)
@@ -1907,10 +1907,6 @@ describe('PirexCvx', () => {
         .to.equal(crvEvent2.args.snapshotBalance)
         .to.equal(cvxCrvEvent.args.snapshotBalance)
         .to.equal(snapshotBalance);
-      expect(cvxEvent.args.reward).to.equal(cvx.address);
-      expect(crvEvent1.args.reward).to.equal(crv.address);
-      expect(crvEvent2.args.reward).to.equal(crv.address);
-      expect(cvxCrvEvent.args.reward).to.equal(cvxCrvToken.address);
       expect(cvxEvent.args.rewardIndex).to.equal(0);
       expect(crvEvent1.args.rewardIndex).to.equal(1);
       expect(crvEvent2.args.rewardIndex).to.equal(2);
