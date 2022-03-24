@@ -358,6 +358,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     function deposit(address to, uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
 
+        // Perform epoch maintenance if necessary
+        performEpochMaintenance();
+
         uint256 fee = (amount * fees[Fees.Deposit]) / FEE_DENOMINATOR;
         uint256 postFeeAmount = amount - fee;
 
@@ -553,9 +556,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
                 currentEpoch,
                 epochs[currentEpoch].snapshotId
             );
-
-            // Only claim misc. rewards when a new snapshot is taken
-            _claimMiscRewards();
         }
     }
 
