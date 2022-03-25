@@ -15,7 +15,6 @@ import {
   CvxLocker,
   PirexCvx,
   PirexFees,
-  CvxRewardPool,
 } from '../typechain-types';
 
 // Tests the actual deposit flow (deposit, stake/unstake, redeem...)
@@ -29,7 +28,6 @@ describe('PirexCvx-Main', function () {
   let pirexFees: PirexFees;
   let cvx: ConvexToken;
   let cvxLocker: CvxLocker;
-  let cvxRewardPool: CvxRewardPool;
 
   let zeroAddress: string;
   let feeDenominator: number;
@@ -49,7 +47,6 @@ describe('PirexCvx-Main', function () {
       contributors,
       cvx,
       cvxLocker,
-      cvxRewardPool,
       pirexFees,
       pCvx,
       feePercentDenominator,
@@ -432,18 +429,13 @@ describe('PirexCvx-Main', function () {
         redemptionUnlockTime
       );
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
-      const pirexStakedCvxBalanceBefore = await cvxRewardPool.balanceOf(
-        pCvx.address
-      );
       const to = admin.address;
       const amount = upCvxBalanceBefore.div(2);
 
       // Expected values post-relock and outstandingRedemptions decrementing
       const expectedRelock = unlockableBefore.sub(outstandingRedemptionsBefore);
       const expectedCvxOutstanding = outstandingRedemptionsBefore.sub(amount);
-      const expectedPirexCvxBalance = 0;
-      const expectedPirexStakedCvxBalance =
-        pirexStakedCvxBalanceBefore.add(amount);
+      const expectedPirexCvxBalance = outstandingRedemptionsBefore.sub(amount);
       const expectedLocked = lockedBefore.add(
         unlockableBefore.sub(outstandingRedemptionsBefore)
       );
@@ -474,19 +466,12 @@ describe('PirexCvx-Main', function () {
       );
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const pirexCvxBalanceAfter = await cvx.balanceOf(pCvx.address);
-      const pirexStakedCvxBalanceAfter = await cvxRewardPool.balanceOf(
-        pCvx.address
-      );
 
       expect(expectedRelock).to.equal(lockedAfter.sub(lockedBefore));
       expect(expectedRelock).to.not.equal(0);
       expect(expectedCvxOutstanding).to.equal(outstandingRedemptionsAfter);
       expect(expectedCvxOutstanding).to.not.equal(0);
       expect(expectedPirexCvxBalance).to.equal(pirexCvxBalanceAfter);
-      expect(expectedPirexStakedCvxBalance).to.equal(
-        pirexStakedCvxBalanceAfter
-      );
-      expect(expectedPirexStakedCvxBalance).to.not.equal(0);
       expect(expectedLocked).to.equal(lockedAfter);
       expect(expectedLocked).to.not.equal(0);
       expect(expectedUpCvxSupply).to.equal(upCvxTotalSupplyAfter);
@@ -500,31 +485,6 @@ describe('PirexCvx-Main', function () {
         to,
         amount,
       });
-    });
-
-    it('Should unstake CVX for redemption', async function () {
-      const { unlockable } = await cvxLocker.lockedBalances(pCvx.address);
-      const pirexCvxBalance = await cvx.balanceOf(pCvx.address);
-      const pirexStakedCvxBalanceBefore = await cvxRewardPool.balanceOf(
-        pCvx.address
-      );
-      const to = admin.address;
-      const cvxBalanceBefore = await cvx.balanceOf(to);
-      const amount = pirexStakedCvxBalanceBefore;
-
-      pCvx.redeem(redemptionUnlockTime, to, amount);
-
-      const pirexStakedCvxBalanceAfter = await cvxRewardPool.balanceOf(
-        pCvx.address
-      );
-      const cvxBalanceAfter = await cvx.balanceOf(to);
-
-      expect(unlockable).to.equal(0);
-      expect(pirexCvxBalance).to.equal(0);
-      expect(pirexStakedCvxBalanceAfter).to.equal(
-        pirexStakedCvxBalanceBefore.sub(amount)
-      );
-      expect(cvxBalanceAfter).to.equal(cvxBalanceBefore.add(amount));
     });
   });
 
@@ -774,33 +734,6 @@ describe('PirexCvx-Main', function () {
         to: pCvx.address,
         value: amount,
       });
-    });
-  });
-
-
-  describe('relock', function () {
-    it('Should relock any unlocked/available CVX in the pirex contract', async function () {
-      const { unlockable: unlockableBefore, locked: lockedBefore } =
-        await cvxLocker.lockedBalances(pCvx.address);
-      const cvxBalanceBefore = await cvx.balanceOf(pCvx.address);
-      const pirexStakedCvxBalanceBefore = await cvxRewardPool.balanceOf(
-        pCvx.address
-      );
-      const outstandingRedemptions = await pCvx.outstandingRedemptions();
-
-      await pCvx.relock();
-
-      // Check the new locked amount after relocking any eligible unlocked CVX
-      const { locked: lockedAfter } = await cvxLocker.lockedBalances(
-        pCvx.address
-      );
-
-      const expectedLock = cvxBalanceBefore
-        .add(unlockableBefore)
-        .add(lockedBefore)
-        .sub(outstandingRedemptions)
-        .sub(pirexStakedCvxBalanceBefore);
-      expect(expectedLock).to.equal(lockedAfter);
     });
   });
 });
