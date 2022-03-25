@@ -355,7 +355,7 @@ describe('PirexFees', function () {
       const amount = 1;
 
       await expect(
-        pirexFees.distributeFees(rewardAddress, amount)
+        pirexFees.distributeFees(admin.address, rewardAddress, amount)
       ).to.be.revertedWith(
         `AccessControl: account ${admin.address.toLowerCase()} is missing role ${feeDistributorRole}`
       );

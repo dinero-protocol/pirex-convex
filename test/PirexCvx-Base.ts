@@ -348,7 +348,7 @@ describe('PirexCvx-Base', function () {
 
   describe('setFee', function () {
     it('Should revert if f is not valid Fees enum', async function () {
-      const invalidF = 2;
+      const invalidF = 4;
       const amount = 1;
 
       await expect(pCvx.setFee(invalidF, amount)).to.be.reverted;
@@ -414,6 +414,42 @@ describe('PirexCvx-Base', function () {
       validateEvent(setEvent, 'SetFee(uint8,uint16)', {
         amount,
         f: feesEnum.reward,
+      });
+    });
+
+    it('Should set the redemption max fee', async function () {
+      const redemptionMaxBefore = await pCvx.fees(feesEnum.redemptionMax);
+      const amount = 50000;
+      const events = await callAndReturnEvents(pCvx.setFee, [
+        feesEnum.redemptionMax,
+        amount,
+      ]);
+      const setEvent = events[0];
+      const redemptionMaxAfter = await pCvx.fees(feesEnum.redemptionMax);
+
+      expect(redemptionMaxBefore).to.equal(0);
+      expect(redemptionMaxAfter).to.equal(amount);
+      validateEvent(setEvent, 'SetFee(uint8,uint16)', {
+        amount,
+        f: feesEnum.redemptionMax,
+      });
+    });
+
+    it('Should set the redemption min fee', async function () {
+      const redemptionMinBefore = await pCvx.fees(feesEnum.redemptionMin);
+      const amount = 10000;
+      const events = await callAndReturnEvents(pCvx.setFee, [
+        feesEnum.redemptionMin,
+        amount,
+      ]);
+      const setEvent = events[0];
+      const redemptionMinAfter = await pCvx.fees(feesEnum.redemptionMin);
+
+      expect(redemptionMinBefore).to.equal(0);
+      expect(redemptionMinAfter).to.equal(amount);
+      validateEvent(setEvent, 'SetFee(uint8,uint16)', {
+        amount,
+        f: feesEnum.redemptionMin,
       });
     });
   });

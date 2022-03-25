@@ -149,8 +149,9 @@ before(async function () {
   this.zeroAddress = '0x0000000000000000000000000000000000000000';
   this.epochDuration = toBN(1209600);
   this.delegationSpace = 'cvx.eth';
-  this.delegationSpaceBytes32 =
-    ethers.utils.formatBytes32String(this.delegationSpace);
+  this.delegationSpaceBytes32 = ethers.utils.formatBytes32String(
+    this.delegationSpace
+  );
   this.contractEnum = {
     pirexFees: 0,
     upCvx: 1,
@@ -171,6 +172,8 @@ before(async function () {
   this.feesEnum = {
     deposit: 0,
     reward: 1,
+    redemptionMax: 2,
+    redemptionMin: 3,
   };
 
   // Common helper methods
@@ -187,9 +190,11 @@ before(async function () {
           .add(this.epochDuration.mul(idx));
         const futuresCvx: any = await ethers.getContractAt(
           'ERC1155PresetMinterSupply',
-          futures === this.futuresEnum.vote ? await pCvx.vpCvx() : await pCvx.rpCvx()
+          futures === this.futuresEnum.vote
+            ? await pCvx.vpCvx()
+            : await pCvx.rpCvx()
         );
-  
+
         return [...acc, await futuresCvx.balanceOf(admin.address, epoch)];
       },
       []

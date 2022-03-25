@@ -52,7 +52,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     // Configurable fees
     enum Fees {
         Deposit,
-        Reward
+        Reward,
+        RedemptionMax,
+        RedemptionMin
     }
 
     // Seconds between Convex voting rounds (2 weeks)
@@ -60,6 +62,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     // Fee denominator
     uint32 public constant FEE_DENOMINATOR = 1000000;
+
+    // Maximum wait time (seconds) for a CVX redemption (17 weeks)
+    uint32 public constant MAX_REDEMPTION_TIME = 10281600;
 
     PirexFees public pirexFees;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
@@ -93,7 +98,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address indexed sender,
         address indexed to,
         uint256 amount,
-        uint256 unlockTime
+        uint256 unlockTime,
+        uint256 postFeeAmount,
+        uint256 feeAmount
     );
     event Redeem(uint256 indexed epoch, address indexed to, uint256 amount);
     event Stake(
@@ -239,7 +246,17 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             return;
         }
 
-        fees[Fees.Reward] = amount;
+        if (f == Fees.Reward) {
+            fees[Fees.Reward] = amount;
+            return;
+        }
+
+        if (f == Fees.RedemptionMax) {
+            fees[Fees.RedemptionMax] = amount;
+            return;
+        }
+
+        fees[Fees.RedemptionMin] = amount;
     }
 
     /**
@@ -387,7 +404,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         // Allow pirexFees to distribute the deposit fee
         CVX.safeIncreaseAllowance(address(pirexFees), fee);
-        pirexFees.distributeFees(address(CVX), fee);
+        pirexFees.distributeFees(address(this), address(CVX), fee);
 
         // Lock post-fee CVX amount
         _lock(postFeeAmount);
@@ -410,44 +427,65 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         (uint256 lockAmount, uint256 unlockTime) = _getLockData(lockIndex);
 
-        // Increment redemptions for this unlock time to prevent over-redeeming
-        redemptions[unlockTime] += amount;
+        // Calculate the fee based on the duration a user has to wait before redeeming CVX
+        uint256 waitTime = unlockTime - block.timestamp;
+        uint256 feeMax = fees[Fees.RedemptionMax];
+        uint16 feePercent = uint16(
+            feeMax -
+                (((feeMax - fees[Fees.RedemptionMin]) * waitTime) /
+                    MAX_REDEMPTION_TIME)
+        );
+        uint256 feeAmount = (amount * feePercent) / FEE_DENOMINATOR;
+        uint256 postFeeAmount = amount - feeAmount;
+
+        // Increment redemptions for this unlockTime to prevent over-redeeming
+        redemptions[unlockTime] += postFeeAmount;
 
         // Check if there is any sufficient allowance after factoring in redemptions by others
         if (redemptions[unlockTime] > lockAmount)
             revert InsufficientRedemptionAllowance();
 
+        // Distribute pCVX fees - split half with pCVX pounder vault later
+        _approve(msg.sender, address(pirexFees), feeAmount);
+        pirexFees.distributeFees(msg.sender, address(this), feeAmount);
+
         // Burn pCVX - reverts if sender balance is insufficient
-        _burn(msg.sender, amount);
+        _burn(msg.sender, postFeeAmount);
 
         // Track amount that needs to remain unlocked for redemptions
-        outstandingRedemptions += amount;
+        outstandingRedemptions += postFeeAmount;
 
-        emit InitiateRedemption(msg.sender, to, amount, unlockTime);
+        emit InitiateRedemption(
+            msg.sender,
+            to,
+            amount,
+            unlockTime,
+            postFeeAmount,
+            feeAmount
+        );
 
-        // Mint upCVX associated with the unlock time - validates `to`
-        upCvx.mint(to, unlockTime, amount, "");
+        // Mint upCVX with unlockTime as the id - validates `to`
+        upCvx.mint(to, unlockTime, postFeeAmount, "");
 
         // Determine how many futures notes rounds to mint
-        uint256 remainingTime = unlockTime - block.timestamp;
-        uint8 rounds = uint8(remainingTime / EPOCH_DURATION);
+        uint8 rounds = uint8(waitTime / EPOCH_DURATION);
 
         // Check if the lock was in the first week/half of an epoch
         // Handle case where remaining time is between 1 and 2 weeks
         if (
             rounds == 0 &&
             unlockTime % EPOCH_DURATION != 0 &&
-            remainingTime < EPOCH_DURATION &&
-            remainingTime > (EPOCH_DURATION / 2)
+            waitTime < EPOCH_DURATION &&
+            waitTime > (EPOCH_DURATION / 2)
         ) {
-            // Rounds is 0 if remainingTime is between 1 and 2 weeks
+            // Rounds is 0 if waitTime is between 1 and 2 weeks
             // Increment by 1 since user should receive 1 round of rewards
             unchecked {
                 ++rounds;
             }
         }
 
-        // Mint vpCVX or rpCVX
+        // Mint vpCVX or rpCVX (using amount as we do not take a fee from this)
         _mintFutures(rounds, to, amount, f);
     }
 
@@ -569,15 +607,16 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         emit ClaimVotiumReward(token, index, amount);
 
         ERC20 t = ERC20(token);
+        address thisAddr = address(this);
 
         // Used for calculating the actual token amount received
-        uint256 prevBalance = t.balanceOf(address(this));
+        uint256 prevBalance = t.balanceOf(thisAddr);
 
         // Validates `token`, `index`, `amount`, and `merkleProof`
         votiumMultiMerkleStash.claim(
             token,
             index,
-            address(this),
+            thisAddr,
             amount,
             merkleProof
         );
@@ -590,7 +629,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
                 fees[Fees.Reward],
                 totalSupplyAt(_getCurrentSnapshotId()),
                 rpCvx.totalSupply(currentEpoch),
-                t.balanceOf(address(this)) - prevBalance
+                t.balanceOf(thisAddr) - prevBalance
             );
 
         // Add reward token address and snapshot/futuresRewards amounts (same index for all)
@@ -601,7 +640,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         // Distribute fees
         t.safeIncreaseAllowance(address(pirexFees), rewardFee);
-        pirexFees.distributeFees(token, rewardFee);
+        pirexFees.distributeFees(thisAddr, token, rewardFee);
     }
 
     /**
@@ -655,7 +694,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
             // Distribute fees
             t.safeIncreaseAllowance(pirexFeesAddr, rewardFee);
-            pirexFees.distributeFees(c[i].token, rewardFee);
+            pirexFees.distributeFees(thisAddr, c[i].token, rewardFee);
         }
     }
 

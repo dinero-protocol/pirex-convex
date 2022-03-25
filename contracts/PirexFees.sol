@@ -151,30 +151,32 @@ contract PirexFees is AccessControl {
 
     /** 
         @notice Distribute fees
+        @param  from    address  Fee source
         @param  token   address  Fee token
         @param  amount  uint256  Fee token amount
      */
-    function distributeFees(address token, uint256 amount)
-        external
-        onlyRole(FEE_DISTRIBUTOR_ROLE)
-    {
+    function distributeFees(
+        address from,
+        address token,
+        uint256 amount
+    ) external onlyRole(FEE_DISTRIBUTOR_ROLE) {
         emit DistributeFees(token, amount);
 
         ERC20 t = ERC20(token);
 
         // Favoring push over pull to reduce accounting complexity for different tokens
         t.safeTransferFrom(
-            msg.sender,
+            from,
             treasury,
             (amount * treasuryPercent) / PERCENT_DENOMINATOR
         );
         t.safeTransferFrom(
-            msg.sender,
+            from,
             revenueLockers,
             (amount * revenueLockersPercent) / PERCENT_DENOMINATOR
         );
         t.safeTransferFrom(
-            msg.sender,
+            from,
             contributors,
             (amount * contributorsPercent) / PERCENT_DENOMINATOR
         );
