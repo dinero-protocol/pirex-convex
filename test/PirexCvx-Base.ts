@@ -401,7 +401,7 @@ describe('PirexCvx-Base', function () {
 
     it('Should set the reward fee', async function () {
       const rewardFeeBefore = await pCvx.fees(feesEnum.reward);
-      const amount = 5000;
+      const amount = 10000;
       const events = await callAndReturnEvents(pCvx.setFee, [
         feesEnum.reward,
         amount,
