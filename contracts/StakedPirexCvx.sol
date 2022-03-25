@@ -14,9 +14,7 @@ contract StakedPirexCvx is ERC4626Upgradeable {
         string symbol
     );
 
-    error ZeroAddress();
     error ZeroAmount();
-    error BeforeDepositDeadline();
     error BeforeStakeExpiry();
 
     /**

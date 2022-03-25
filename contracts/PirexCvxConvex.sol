@@ -47,14 +47,11 @@ contract PirexCvxConvex is Ownable {
     uint256 public outstandingRedemptions;
 
     event SetConvexContract(ConvexContract c, address contractAddress);
-    event StakeCvx(uint256 amount);
-    event UnstakeCvx(uint256 amount);
     event SetDelegationSpace(string _delegationSpace);
     event SetVoteDelegate(address _voteDelegate);
     event ClearVoteDelegate();
 
     error ZeroAddress();
-    error ZeroAmount();
     error EmptyString();
 
     /**
@@ -143,39 +140,13 @@ contract PirexCvxConvex is Ownable {
     function _relock() internal {
         _unlock();
 
-        uint256 balance = CVX.balanceOf(address(this)) +
-            cvxRewardPool.balanceOf(address(this));
+        uint256 balance = CVX.balanceOf(address(this));
 
         if (balance > outstandingRedemptions) {
             unchecked {
                 _lock(balance - outstandingRedemptions);
             }
         }
-    }
-
-    /**
-        @notice Stake CVX
-        @param  amount  uint256  Amount of CVX to stake
-     */
-    function _stake(uint256 amount) internal {
-        if (amount == 0) revert ZeroAmount();
-
-        emit StakeCvx(amount);
-
-        CVX.safeIncreaseAllowance(address(cvxRewardPool), amount);
-        cvxRewardPool.stake(amount);
-    }
-
-    /**
-        @notice Unstake CVX
-        @param  amount  uint256  Amount of CVX to unstake
-     */
-    function _unstake(uint256 amount) internal {
-        if (amount == 0) revert ZeroAmount();
-
-        emit UnstakeCvx(amount);
-
-        cvxRewardPool.withdraw(amount, false);
     }
 
     /**
@@ -192,13 +163,11 @@ contract PirexCvxConvex is Ownable {
         // Get claimable rewards
         ICvxLocker.EarnedData[] memory c = cvxLocker.claimableRewards(addr);
 
-        uint256 cLen = c.length;
+        uint8 cLen = uint8(c.length);
         rewards = new ConvexReward[](cLen);
 
         // Get the current balances for each token to calculate the amount received
         for (uint8 i; i < cLen; ++i) {
-            if (c[i].amount == 0) continue;
-
             rewards[i] = ConvexReward({
                 token: c[i].token,
                 amount: c[i].amount,
@@ -269,17 +238,5 @@ contract PirexCvxConvex is Ownable {
         emit ClearVoteDelegate();
 
         cvxDelegateRegistry.clearDelegate(delegationSpace);
-    }
-
-    /**
-        @notice Relock and stake remainder
-     */
-    function relock() external {
-        _relock();
-
-        uint256 balance = CVX.balanceOf(address(this));
-        if (balance != 0) {
-            _stake(balance);
-        }
     }
 }
