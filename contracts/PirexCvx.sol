@@ -171,7 +171,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Set up 1st epoch with snapshot id 1 and prevent reward claims until subsequent epochs
         Epoch storage e = epochs[getCurrentEpoch()];
         e.snapshotId = _snapshot();
-        e.claimedMiscRewards == true;
+        e.claimedMiscRewards = true;
 
         if (_pirexFees == address(0)) revert ZeroAddress();
         pirexFees = PirexFees(_pirexFees);
@@ -613,7 +613,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         Epoch storage e = epochs[currentEpoch];
         uint256 eSnapshotId = e.snapshotId;
         if (eSnapshotId == 0) revert SnapshotRequired();
-        if (e.claimedMiscRewards == true) revert AlreadyClaimed();
+        if (e.claimedMiscRewards) revert AlreadyClaimed();
 
         e.claimedMiscRewards = true;
 
