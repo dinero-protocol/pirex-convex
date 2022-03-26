@@ -53,7 +53,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     // Configurable fees
     enum Fees {
-        Deposit,
         Reward,
         RedemptionMax,
         RedemptionMin
@@ -96,7 +95,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 amount,
         Futures indexed f
     );
-    event Deposit(address indexed to, uint256 shares, uint256 fee);
+    event Deposit(address indexed to, uint256 shares);
     event InitiateRedemption(
         address indexed sender,
         address indexed to,
@@ -249,11 +248,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         emit SetFee(f, amount);
 
-        if (f == Fees.Deposit) {
-            fees[Fees.Deposit] = amount;
-            return;
-        }
-
         if (f == Fees.Reward) {
             fees[Fees.Reward] = amount;
             return;
@@ -394,28 +388,27 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         @param  amount  uint256  CVX amount
      */
     function deposit(address to, uint256 amount) external nonReentrant {
+        if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
         // Perform epoch maintenance if necessary
         takeEpochSnapshot();
 
-        uint256 fee = (amount * fees[Fees.Deposit]) / FEE_DENOMINATOR;
-        uint256 postFeeAmount = amount - fee;
+        // Mint pCVX
+        _mint(address(this), amount);
 
-        // Mint pCVX - validates `to`
-        _mint(to, postFeeAmount);
+        emit Deposit(to, amount);
 
-        emit Deposit(to, postFeeAmount, fee);
+        _approve(address(this), address(unionPirex), amount);
+
+        // Deposit pCVX into pounder vault - user receives shares
+        unionPirex.deposit(amount, to);
 
         // Transfer CVX to self and approve for locking
         CVX.safeTransferFrom(msg.sender, address(this), amount);
 
-        // Allow pirexFees to distribute the deposit fee
-        CVX.safeIncreaseAllowance(address(pirexFees), fee);
-        pirexFees.distributeFees(address(this), address(CVX), fee);
-
-        // Lock post-fee CVX amount
-        _lock(postFeeAmount);
+        // Lock CVX
+        _lock(amount);
     }
 
     /**
@@ -431,6 +424,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 amount,
         Futures f
     ) external nonReentrant {
+        if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
         (uint256 lockAmount, uint256 unlockTime) = _getLockData(lockIndex);
@@ -541,6 +535,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         Futures f
     ) external nonReentrant {
         if (rounds == 0) revert ZeroAmount();
+        if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
         // Deploy new vault dedicated to this staking position

@@ -14,24 +14,19 @@ import {
   ConvexToken,
   CvxLocker,
   PirexCvx,
-  PirexFees,
+  UnionPirexVault,
 } from '../typechain-types';
 
 // Tests the actual deposit flow (deposit, stake/unstake, redeem...)
 describe('PirexCvx-Main', function () {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
-  let treasury: SignerWithAddress;
-  let revenueLockers: SignerWithAddress;
-  let contributors: SignerWithAddress;
   let pCvx: PirexCvx;
-  let pirexFees: PirexFees;
+  let unionPirex: UnionPirexVault;
   let cvx: ConvexToken;
   let cvxLocker: CvxLocker;
 
   let zeroAddress: string;
-  let feeDenominator: number;
-  let feePercentDenominator: number;
   let redemptionUnlockTime: number;
   let epochDuration: BigNumber;
 
@@ -42,16 +37,12 @@ describe('PirexCvx-Main', function () {
     ({
       admin,
       notAdmin,
-      treasury,
-      revenueLockers,
-      contributors,
+      pCvx,
+      unionPirex,
       cvx,
       cvxLocker,
-      pirexFees,
-      pCvx,
-      feePercentDenominator,
-      feeDenominator,
       zeroAddress,
+      redemptionUnlockTime,
       epochDuration,
       futuresEnum,
       feesEnum,
@@ -64,7 +55,7 @@ describe('PirexCvx-Main', function () {
       const depositAmount = toBN(1e18);
 
       await expect(pCvx.deposit(invalidTo, depositAmount)).to.be.revertedWith(
-        'ERC20: mint to the zero address'
+        'ZeroAddress()'
       );
     });
 
@@ -89,21 +80,11 @@ describe('PirexCvx-Main', function () {
 
     it('Should deposit CVX', async function () {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
-      const treasuryCvxBalanceBefore = await cvx.balanceOf(treasury.address);
-      const revenueLockersCvxBalanceBefore = await cvx.balanceOf(
-        revenueLockers.address
-      );
-      const contributorsCvxBalanceBefore = await cvx.balanceOf(
-        contributors.address
-      );
       const lockedBalanceBefore = await cvxLocker.lockedBalanceOf(pCvx.address);
-      const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
-      const msgSender = admin.address;
+      const unionTotalAssetsBefore = await unionPirex.totalAssets();
+      const ppCvxBalanceBefore = await unionPirex.balanceOf(admin.address);
       const to = admin.address;
       const depositAmount = toBN(10e18);
-      const depositFee = depositAmount
-        .mul(await pCvx.fees(feesEnum.deposit))
-        .div(feeDenominator);
 
       // Necessary since pCVX transfers CVX to itself before locking
       await cvx.approve(pCvx.address, depositAmount);
@@ -112,65 +93,56 @@ describe('PirexCvx-Main', function () {
         to,
         depositAmount,
       ]);
-      const mintEvent = events[0];
+      const pCvxMintEvent = events[0];
       const depositEvent = events[1];
-      const transferEvent = events[2];
+      const approvalEvent = events[2];
+      const pCvxTransferEvent = events[4];
+      const vaultMintEvent = events[5];
+      const cvxTransferEvent = events[7];
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
-      const treasuryCvxBalanceAfter = await cvx.balanceOf(treasury.address);
-      const revenueLockersCvxBalanceAfter = await cvx.balanceOf(
-        revenueLockers.address
-      );
-      const contributorsCvxBalanceAfter = await cvx.balanceOf(
-        contributors.address
-      );
       const lockedBalanceAfter = await cvxLocker.lockedBalanceOf(pCvx.address);
-      const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
-      const expectedTreasuryFee = depositFee
-        .mul(await pirexFees.treasuryPercent())
-        .div(feePercentDenominator);
-      const expectedRevenueLockersFee = depositFee
-        .mul(await pirexFees.revenueLockersPercent())
-        .div(feePercentDenominator);
-      const expectedContributorsFee = depositFee
-        .mul(await pirexFees.contributorsPercent())
-        .div(feePercentDenominator);
-      const postFeeAmount = depositAmount.sub(depositFee);
+      const unionTotalAssetsAfter = await unionPirex.totalAssets();
+      const ppCvxBalanceAfter = await unionPirex.balanceOf(admin.address);
 
       expect(cvxBalanceAfter).to.equal(cvxBalanceBefore.sub(depositAmount));
-      expect(treasuryCvxBalanceAfter).to.not.equal(treasuryCvxBalanceBefore);
-      expect(treasuryCvxBalanceAfter).to.equal(
-        treasuryCvxBalanceBefore.add(expectedTreasuryFee)
-      );
-      expect(revenueLockersCvxBalanceAfter).to.not.equal(
-        revenueLockersCvxBalanceBefore
-      );
-      expect(revenueLockersCvxBalanceAfter).to.equal(
-        revenueLockersCvxBalanceBefore.add(expectedRevenueLockersFee)
-      );
-      expect(contributorsCvxBalanceAfter).to.not.equal(
-        contributorsCvxBalanceBefore
-      );
-      expect(contributorsCvxBalanceAfter).to.equal(
-        contributorsCvxBalanceBefore.add(expectedContributorsFee)
-      );
       expect(lockedBalanceAfter).to.equal(
-        lockedBalanceBefore.add(postFeeAmount)
+        lockedBalanceBefore.add(depositAmount)
       );
-      expect(pCvxBalanceAfter).to.equal(pCvxBalanceBefore.add(postFeeAmount));
-      validateEvent(mintEvent, 'Transfer(address,address,uint256)', {
+      expect(ppCvxBalanceAfter).to.equal(ppCvxBalanceBefore.add(depositAmount));
+      expect(unionTotalAssetsAfter).to.equal(
+        unionTotalAssetsBefore.add(depositAmount)
+      );
+      validateEvent(pCvxMintEvent, 'Transfer(address,address,uint256)', {
         from: zeroAddress,
-        to,
-        value: postFeeAmount,
+        to: pCvx.address,
+        value: depositAmount,
       });
 
-      validateEvent(depositEvent, 'Deposit(address,uint256,uint256)', {
-        fee: depositFee,
+      validateEvent(depositEvent, 'Deposit(address,uint256)', {
         to,
-        shares: postFeeAmount,
+        shares: depositAmount,
       });
 
-      validateEvent(transferEvent, 'Transfer(address,address,uint256)', {
-        from: msgSender,
+      validateEvent(approvalEvent, 'Approval(address,address,uint256)', {
+        owner: pCvx.address,
+        spender: unionPirex.address,
+        value: depositAmount,
+      });
+
+      validateEvent(pCvxTransferEvent, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: unionPirex.address,
+        value: depositAmount,
+      });
+
+      validateEvent(vaultMintEvent, 'Transfer(address,address,uint256)', {
+        from: zeroAddress,
+        to: admin.address,
+        value: depositAmount,
+      });
+
+      validateEvent(cvxTransferEvent, 'Transfer(address,address,uint256)', {
+        from: admin.address,
         to: pCvx.address,
         value: depositAmount,
       });
@@ -190,10 +162,20 @@ describe('PirexCvx-Main', function () {
     });
 
     it('Should revert if amount is greater than Convex unlock amount', async function () {
+      await increaseBlockTimestamp(Number(epochDuration));
+
+      const depositAmount = toBN(1e18);
+
+      await cvx.approve(pCvx.address, depositAmount);
+      await pCvx.deposit(admin.address, depositAmount);
+
       const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
-      const lockIndex = 0;
+
+      console.log(lockData);
+
+      const lockIndex = 1;
       const to = admin.address;
-      const invalidAmount = toBN(10e18);
+      const invalidAmount = lockData[lockIndex].amount.add(toBN(1e18));
       const f = futuresEnum.reward;
 
       expect(lockData[lockIndex].amount.lt(invalidAmount)).is.true;
@@ -210,12 +192,10 @@ describe('PirexCvx-Main', function () {
 
       await expect(
         pCvx.initiateRedemption(lockIndex, invalidTo, amount, f)
-      ).to.be.revertedWith('ERC1155: mint to the zero address');
+      ).to.be.revertedWith('ZeroAddress()');
     });
 
     it('Should revert if pCvx balance is insufficient', async function () {
-      await pCvx.transfer(notAdmin.address, toBN(1e18));
-
       const pCvxBalance = await pCvx.balanceOf(notAdmin.address);
       const lockIndex = 0;
       const to = admin.address;
@@ -246,7 +226,7 @@ describe('PirexCvx-Main', function () {
     it('Should initiate a redemption', async function () {
       const { timestamp } = await ethers.provider.getBlock('latest');
       const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
-      const lockIndex = 0;
+      const lockIndex = 1;
       const { unlockTime } = lockData[lockIndex];
 
       redemptionUnlockTime = unlockTime;
@@ -261,7 +241,7 @@ describe('PirexCvx-Main', function () {
       );
       const upCvx = await this.getUpCvx(await pCvx.upCvx());
       const currentEpoch = await pCvx.getCurrentEpoch();
-      const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
+      const ppCvxBalanceBefore = await unionPirex.balanceOf(admin.address);
       const outstandingRedemptionsBefore = await pCvx.outstandingRedemptions();
       const upCvxBalanceBefore = await upCvx.balanceOf(
         admin.address,
@@ -270,6 +250,9 @@ describe('PirexCvx-Main', function () {
       const msgSender = admin.address;
       const to = admin.address;
       const redemptionAmount = toBN(1e18);
+
+      await unionPirex.redeem(redemptionAmount, msgSender, msgSender);
+
       const f = futuresEnum.reward;
       const events = await callAndReturnEvents(pCvx.initiateRedemption, [
         lockIndex,
@@ -280,7 +263,7 @@ describe('PirexCvx-Main', function () {
       const burnEvent = events[8];
       const initiateEvent = events[9];
       const mintFuturesEvent = events[11];
-      const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
+      const ppCvxBalanceAfter = await unionPirex.balanceOf(admin.address);
       const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
       const upCvxBalanceAfter = await upCvx.balanceOf(
         admin.address,
@@ -312,8 +295,8 @@ describe('PirexCvx-Main', function () {
         currentEpoch
       );
 
-      expect(pCvxBalanceAfter).to.equal(
-        pCvxBalanceBefore.sub(redemptionAmount)
+      expect(ppCvxBalanceAfter).to.equal(
+        ppCvxBalanceBefore.sub(redemptionAmount)
       );
       expect(outstandingRedemptionsAfter).to.equal(
         outstandingRedemptionsBefore.add(postFeeAmount)
@@ -334,7 +317,7 @@ describe('PirexCvx-Main', function () {
           amount: redemptionAmount,
           unlockTime,
           postFeeAmount,
-          feeAmount
+          feeAmount,
         }
       );
       expect(initiateEvent.args.to).to.not.equal(zeroAddress);
@@ -355,7 +338,7 @@ describe('PirexCvx-Main', function () {
 
     it('Should revert if insufficient redemption allowance', async function () {
       const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
-      const lockIndex = 0;
+      const lockIndex = 1;
       const { unlockTime } = lockData[lockIndex];
       const redemptions = await pCvx.redemptions(unlockTime);
       const to = admin.address;
@@ -521,7 +504,7 @@ describe('PirexCvx-Main', function () {
       const f = futuresEnum.reward;
 
       await expect(pCvx.stake(rounds, invalidTo, amount, f)).to.be.revertedWith(
-        'ERC20: mint to the zero address'
+        'ZeroAddress()'
       );
     });
 
@@ -574,15 +557,17 @@ describe('PirexCvx-Main', function () {
       const to = admin.address;
       const amount = toBN(1e18);
       const f = futuresEnum.reward;
-      const pCvxBalanceBefore = await pCvx.balanceOf(admin.address);
+      const ppCvxBalanceBefore = await unionPirex.balanceOf(admin.address);
 
       // Expected values post-transfer
-      const expectedPCvxBalance = pCvxBalanceBefore.sub(amount);
+      const expectedPCvxBalance = ppCvxBalanceBefore.sub(amount);
 
       // Expected values post-initialize
       const expectedStakeExpiry = currentEpoch.add(rounds.mul(epochDuration));
       const expectedUnderlyingBalance = amount;
       const expectedShareBalance = amount;
+
+      await unionPirex.redeem(amount, admin.address, admin.address);
 
       const events = await callAndReturnEvents(pCvx.stake, [
         rounds,
@@ -601,12 +586,12 @@ describe('PirexCvx-Main', function () {
         f,
         currentEpoch
       );
-      const pCvxBalanceAfter = await pCvx.balanceOf(admin.address);
+      const ppCvxBalanceAfter = await unionPirex.balanceOf(admin.address);
       const stakeExpiry = await spCvxInstance.stakeExpiry();
       const underlyingBalance = await pCvx.balanceOf(spCvxInstance.address);
       const shareBalance = await spCvxInstance.balanceOf(to);
 
-      expect(expectedPCvxBalance).to.equal(pCvxBalanceAfter);
+      expect(expectedPCvxBalance).to.equal(ppCvxBalanceAfter);
       expect(expectedPCvxBalance).to.not.equal(0);
       expect(expectedStakeExpiry).to.equal(stakeExpiry);
       expect(expectedStakeExpiry).to.not.equal(0);
