@@ -13,6 +13,7 @@ import {
   PirexFees,
   CvxRewardPool,
   AddressRegistry,
+  UnionPirexVault,
 } from '../typechain-types';
 
 let admin: SignerWithAddress;
@@ -22,6 +23,7 @@ let revenueLockers: SignerWithAddress;
 let contributors: SignerWithAddress;
 let pCvx: PirexCvx;
 let pirexFees: PirexFees;
+let unionPirex: UnionPirexVault;
 let cvx: ConvexToken;
 let crv: Crv;
 let cvxCrvToken: any;
@@ -123,6 +125,9 @@ before(async function () {
     pirexFees.address,
     votiumMultiMerkleStash.address
   );
+  unionPirex = await (
+    await ethers.getContractFactory('UnionPirexVault')
+  ).deploy(pCvx.address, 'Union Pirex Vault', 'ppCVX');
 
   // Common addresses and contracts
   this.admin = admin;
@@ -140,6 +145,7 @@ before(async function () {
   this.votiumMultiMerkleStash = votiumMultiMerkleStash;
   this.pirexFees = pirexFees;
   this.pCvx = pCvx;
+  this.unionPirex = unionPirex;
 
   await this.pirexFees.grantFeeDistributorRole(pCvx.address);
 
@@ -158,6 +164,7 @@ before(async function () {
     vpCvx: 2,
     rpCvx: 3,
     spCvxImplementation: 4,
+    unionPirex: 5,
   };
   this.convexContractEnum = {
     cvxLocker: 0,
@@ -170,10 +177,9 @@ before(async function () {
     reward: 1,
   };
   this.feesEnum = {
-    deposit: 0,
-    reward: 1,
-    redemptionMax: 2,
-    redemptionMin: 3,
+    reward: 0,
+    redemptionMax: 1,
+    redemptionMin: 2,
   };
 
   // Common helper methods

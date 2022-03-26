@@ -48,6 +48,7 @@
   "dependencies": {
     "@openzeppelin/contracts": "^4.4.2",
     "@openzeppelin/contracts-upgradeable": "^4.4.2",
+    "@rari-capital/solmate": "github:Rari-Capital/solmate#e7deddf",
     "dotenv": "^15.0.0",
     "solhint": "^3.3.7"
   }

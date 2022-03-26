@@ -11,6 +11,7 @@ import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol"
 import {PirexCvxConvex} from "./PirexCvxConvex.sol";
 import {StakedPirexCvx} from "./StakedPirexCvx.sol";
 import {PirexFees} from "./PirexFees.sol";
+import {UnionPirexVault} from "./UnionPirexVault.sol";
 
 contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     using SafeERC20 for ERC20;
@@ -46,7 +47,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         UpCvx,
         VpCvx,
         RpCvx,
-        SpCvxImplementation
+        SpCvxImplementation,
+        UnionPirexVault
     }
 
     // Configurable fees
@@ -71,6 +73,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     ERC1155PresetMinterSupply public upCvx;
     ERC1155PresetMinterSupply public vpCvx;
     ERC1155PresetMinterSupply public rpCvx;
+    UnionPirexVault public unionPirex;
 
     // Staked Pirex CVX implementation
     address public spCvxImplementation;
@@ -227,7 +230,12 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             return;
         }
 
-        spCvxImplementation = contractAddress;
+        if (c == Contract.SpCvxImplementation) {
+            spCvxImplementation = contractAddress;
+            return;
+        }
+
+        unionPirex = UnionPirexVault(contractAddress);
     }
 
     /** 

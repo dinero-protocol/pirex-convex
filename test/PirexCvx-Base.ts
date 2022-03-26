@@ -15,6 +15,7 @@ import {
   MultiMerkleStash,
   PirexFees,
   CvxRewardPool,
+  UnionPirexVault,
 } from '../typechain-types';
 import { BigNumber } from 'ethers';
 
@@ -24,6 +25,7 @@ describe('PirexCvx-Base', function () {
   let notAdmin: SignerWithAddress;
   let pCvx: PirexCvx;
   let pirexFees: PirexFees;
+  let unionPirex: UnionPirexVault;
   let cvx: ConvexToken;
   let cvxCrvToken: any;
   let cvxLocker: CvxLocker;
@@ -53,6 +55,7 @@ describe('PirexCvx-Base', function () {
       votiumMultiMerkleStash,
       pirexFees,
       pCvx,
+      unionPirex,
       feeDenominator,
       zeroAddress,
       epochDuration,
@@ -231,6 +234,22 @@ describe('PirexCvx-Base', function () {
         await pCvx.spCvxImplementation()
       );
     });
+
+    it('Should set unionPirex', async function () {
+      const unionPirexBefore = await pCvx.unionPirex();
+      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+        contractEnum.unionPirex,
+        unionPirex.address,
+      ]);
+      const unionPirexAfter = await pCvx.unionPirex();
+
+      expect(unionPirexBefore).to.not.equal(unionPirexAfter);
+      expect(unionPirexAfter).to.equal(unionPirex.address);
+      validateEvent(setEvent, 'SetContract(uint8,address)', {
+        c: contractEnum.unionPirex,
+        contractAddress: unionPirex.address,
+      });
+    });
   });
 
   describe('setConvexContract', function () {
@@ -355,7 +374,7 @@ describe('PirexCvx-Base', function () {
     });
 
     it('Should revert if amount is larger than 50000', async function () {
-      const f = feesEnum.deposit;
+      const f = feesEnum.reward;
       const invalidAmount = 50001;
 
       await expect(pCvx.setFee(f, invalidAmount)).to.be.revertedWith(
@@ -364,7 +383,7 @@ describe('PirexCvx-Base', function () {
     });
 
     it('Should revert if amount is not uint16', async function () {
-      const f = feesEnum.deposit;
+      const f = feesEnum.reward;
       const invalidAmount = 2 ** 16;
 
       // This would actually revert before the tx is even sent out (due to invalid data type)
@@ -373,30 +392,12 @@ describe('PirexCvx-Base', function () {
     });
 
     it('Should revert if not owner', async function () {
-      const f = feesEnum.deposit;
+      const f = feesEnum.reward;
       const amount = 1;
 
       await expect(pCvx.connect(notAdmin).setFee(f, amount)).to.be.revertedWith(
         'Ownable: caller is not the owner'
       );
-    });
-
-    it('Should set the deposit fee', async function () {
-      const depositFeeBefore = await pCvx.fees(feesEnum.deposit);
-      const amount = 20000;
-      const events = await callAndReturnEvents(pCvx.setFee, [
-        feesEnum.deposit,
-        amount,
-      ]);
-      const setEvent = events[0];
-      const depositFeeAfter = await pCvx.fees(feesEnum.deposit);
-
-      expect(depositFeeBefore).to.equal(0);
-      expect(depositFeeAfter).to.equal(amount);
-      validateEvent(setEvent, 'SetFee(uint8,uint16)', {
-        amount,
-        f: feesEnum.deposit,
-      });
     });
 
     it('Should set the reward fee', async function () {
