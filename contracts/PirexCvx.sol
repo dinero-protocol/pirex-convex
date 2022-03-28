@@ -33,6 +33,16 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         mapping(address => mapping(uint8 => uint256)) redeemedSnapshotRewards;
     }
 
+    /**
+        @notice Queued fee changes
+        @param  newFee          uint32   New fee
+        @param  effectiveAfter  uint256  Timestamp after which new fee could take affect
+     */
+    struct QueuedFee {
+        uint32 newFee;
+        uint256 effectiveAfter;
+    }
+
     // Users can choose between the two futures tokens when staking or unlocking
     enum Futures {
         Vote,
@@ -80,13 +90,17 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     mapping(uint256 => Epoch) private epochs;
 
     // Fees (e.g. 5000 / 1000000 = 0.5%)
-    mapping(Fees => uint16) public fees;
+    mapping(Fees => uint32) public fees;
 
     // Convex unlock timestamps mapped to amount being redeemed
     mapping(uint256 => uint256) public redemptions;
 
+    // Queued fees whose indexes are associated with the Fees enum
+    QueuedFee[3] public queuedFees;
+
     event SetContract(Contract indexed c, address contractAddress);
-    event SetFee(Fees indexed f, uint16 amount);
+    event QueueFee(Fees indexed f, uint32 newFee, uint256 effectiveAfter);
+    event SetFee(Fees indexed f, uint8 queuedFeeIndex, uint32 fee);
     event MintFutures(
         uint8 rounds,
         address indexed to,
@@ -146,6 +160,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     error SnapshotRequired();
     error InsufficientRedemptionAllowance();
     error PastExchangePeriod();
+    error BeforeEffectiveTimestamp();
 
     /**
         @param  _CVX                     address  CVX address    
@@ -234,24 +249,36 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /** 
-        @notice Set fee
+        @notice Queue fee
         @param  f       Fees    Fee enum
-        @param  amount  uint16  Fee amount
+        @param  newFee  uint32  New fee amount
      */
-    function setFee(Fees f, uint16 amount) external onlyOwner {
-        emit SetFee(f, amount);
+    function queueFee(Fees f, uint32 newFee) external onlyOwner {
+        uint256 effectiveAfter = block.timestamp + EPOCH_DURATION;
 
-        if (f == Fees.Reward) {
-            fees[Fees.Reward] = amount;
-            return;
-        }
+        // Queue up the fee change, which can be set after 2 weeks
+        queuedFees[uint256(f)] = QueuedFee({
+            newFee: newFee,
+            effectiveAfter: effectiveAfter
+        });
 
-        if (f == Fees.RedemptionMax) {
-            fees[Fees.RedemptionMax] = amount;
-            return;
-        }
+        emit QueueFee(f, newFee, effectiveAfter);
+    }
 
-        fees[Fees.RedemptionMin] = amount;
+    /** 
+        @notice Set fee
+        @param  f               Fees    Fee enum
+        @param  queuedFeeIndex  uint8   Queued fee index
+     */
+    function setFee(Fees f, uint8 queuedFeeIndex) external onlyOwner {
+        QueuedFee memory q = queuedFees[uint256(f)];
+
+        if (q.effectiveAfter > block.timestamp)
+            revert BeforeEffectiveTimestamp();
+
+        fees[f] = q.newFee;
+
+        emit SetFee(f, queuedFeeIndex, q.newFee);
     }
 
     /**
@@ -329,13 +356,13 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Calculate rewards
-        @param  feePercent      uint16   Reward fee percent
+        @param  feePercent      uint32   Reward fee percent
         @param  snapshotSupply  uint256  pCVX supply for the current snapshot id
         @param  rpCvxSupply     uint256  rpCVX supply for the current epoch
         @param  received        uint256  Received amount
     */
     function _calculateRewards(
-        uint16 feePercent,
+        uint32 feePercent,
         uint256 snapshotSupply,
         uint256 rpCvxSupply,
         uint256 received

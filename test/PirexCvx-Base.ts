@@ -4,6 +4,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import {
   callAndReturnEvent,
   callAndReturnEvents,
+  increaseBlockTimestamp,
   toBN,
   validateEvent,
 } from './helpers';
@@ -365,21 +366,98 @@ describe('PirexCvx-Base', function () {
     });
   });
 
-  describe('setFee', function () {
+  describe('queueFee', function () {
     it('Should revert if f is not valid Fees enum', async function () {
       const invalidF = 4;
-      const amount = 1;
+      const newFee = 1;
 
-      await expect(pCvx.setFee(invalidF, amount)).to.be.reverted;
+      await expect(pCvx.queueFee(invalidF, newFee)).to.be.reverted;
     });
 
-    it('Should revert if amount is not uint16', async function () {
+    it('Should revert if not owner', async function () {
       const f = feesEnum.reward;
-      const invalidAmount = 2 ** 16;
+      const newFee = 1;
 
-      // This would actually revert before the tx is even sent out (due to invalid data type)
-      // without triggering InvalidFee() revert
-      await expect(pCvx.setFee(f, invalidAmount)).to.be.reverted;
+      await expect(
+        pCvx.connect(notAdmin).queueFee(f, newFee)
+      ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('Should queue a fee change for Fee.Reward', async function () {
+      const f = feesEnum.reward;
+      const newFee = toBN(40000);
+      const rewardsFeeBefore = await pCvx.fees(f);
+      const event = await callAndReturnEvent(pCvx.queueFee, [f, newFee]);
+      const rewardsFeeAfter = await pCvx.fees(f);
+      const queuedFee = await pCvx.queuedFees(f);
+
+      // Should not change fee, only queue
+      expect(rewardsFeeBefore).to.equal(rewardsFeeAfter);
+      expect(queuedFee.newFee).to.equal(newFee);
+      validateEvent(event, 'QueueFee(uint8,uint32,uint256)', {
+        newFee,
+        effectiveAfter: queuedFee.effectiveAfter,
+      });
+    });
+
+    it('Should queue a fee change for Fee.RedemptionMax', async function () {
+      const f = feesEnum.redemptionMax;
+      const newFee = toBN(50000);
+      const rewardsFeeBefore = await pCvx.fees(f);
+      const event = await callAndReturnEvent(pCvx.queueFee, [f, newFee]);
+      const rewardsFeeAfter = await pCvx.fees(f);
+      const queuedFee = await pCvx.queuedFees(f);
+
+      // Should not change fee, only queue
+      expect(rewardsFeeBefore).to.equal(rewardsFeeAfter);
+      expect(queuedFee.newFee).to.equal(newFee);
+      validateEvent(event, 'QueueFee(uint8,uint32,uint256)', {
+        newFee,
+        effectiveAfter: queuedFee.effectiveAfter,
+      });
+    });
+
+    it('Should queue a fee change for Fee.RedemptionMin', async function () {
+      const f = feesEnum.redemptionMin;
+      const newFee = toBN(10000);
+      const rewardsFeeBefore = await pCvx.fees(f);
+      const event = await callAndReturnEvent(pCvx.queueFee, [f, newFee]);
+      const rewardsFeeAfter = await pCvx.fees(f);
+      const queuedFee = await pCvx.queuedFees(f);
+
+      // Should not change fee, only queue
+      expect(rewardsFeeBefore).to.equal(rewardsFeeAfter);
+      expect(queuedFee.newFee).to.equal(newFee);
+      validateEvent(event, 'QueueFee(uint8,uint32,uint256)', {
+        newFee,
+        effectiveAfter: queuedFee.effectiveAfter,
+      });
+    });
+  });
+
+  describe('setFee', function () {
+    after(async function () {
+      // Take a snapshot after setFee tests since we are forwarding an epoch
+      await pCvx.takeEpochSnapshot();
+    });
+
+    it('Should revert if f is not valid Fees enum', async function () {
+      const invalidF = 4;
+      const queuedFeeIndex = feesEnum.reward;
+
+      await expect(pCvx.setFee(invalidF, queuedFeeIndex)).to.be.reverted;
+    });
+
+    it('Should revert if setting before queued fee effective timestamp', async function () {
+      const f = feesEnum.reward;
+      const queuedFeeIndex = feesEnum.reward;
+      const queuedFee = await pCvx.queuedFees(queuedFeeIndex);
+      const { timestamp } = await ethers.provider.getBlock('latest');
+
+      expect(queuedFee.effectiveAfter.gt(timestamp)).to.equal(true);
+      await expect(pCvx.setFee(f, queuedFeeIndex)).to.be.revertedWith(
+        'BeforeEffectiveTimestamp()'
+      );
     });
 
     it('Should revert if not owner', async function () {
@@ -392,56 +470,74 @@ describe('PirexCvx-Base', function () {
     });
 
     it('Should set the reward fee', async function () {
-      const rewardFeeBefore = await pCvx.fees(feesEnum.reward);
-      const amount = 10000;
-      const events = await callAndReturnEvents(pCvx.setFee, [
-        feesEnum.reward,
-        amount,
-      ]);
-      const setEvent = events[0];
-      const rewardFeeAfter = await pCvx.fees(feesEnum.reward);
+      const f = feesEnum.reward;
+      const rewardFeeBefore = await pCvx.fees(f);
+      const queuedFeeIndex = feesEnum.reward;
+      const queuedFee = await pCvx.queuedFees(queuedFeeIndex);
+      const { timestamp } = await ethers.provider.getBlock('latest');
+
+      // Forward time to after effective timestamp
+      await increaseBlockTimestamp(
+        Number(queuedFee.effectiveAfter.sub(timestamp).add(1))
+      );
+
+      const event = await callAndReturnEvent(pCvx.setFee, [f, queuedFeeIndex]);
+      const rewardFeeAfter = await pCvx.fees(f);
 
       expect(rewardFeeBefore).to.equal(0);
-      expect(rewardFeeAfter).to.equal(amount);
-      validateEvent(setEvent, 'SetFee(uint8,uint16)', {
-        amount,
-        f: feesEnum.reward,
+      expect(rewardFeeAfter).to.equal(queuedFee.newFee);
+      validateEvent(event, 'SetFee(uint8,uint8,uint32)', {
+        f,
+        queuedFeeIndex,
+        fee: queuedFee.newFee,
       });
     });
 
     it('Should set the redemption max fee', async function () {
-      const redemptionMaxBefore = await pCvx.fees(feesEnum.redemptionMax);
-      const amount = 50000;
-      const events = await callAndReturnEvents(pCvx.setFee, [
-        feesEnum.redemptionMax,
-        amount,
-      ]);
-      const setEvent = events[0];
-      const redemptionMaxAfter = await pCvx.fees(feesEnum.redemptionMax);
+      const f = feesEnum.redemptionMax;
+      const rewardFeeBefore = await pCvx.fees(f);
+      const queuedFeeIndex = feesEnum.redemptionMax;
+      const queuedFee = await pCvx.queuedFees(queuedFeeIndex);
+      const { timestamp } = await ethers.provider.getBlock('latest');
 
-      expect(redemptionMaxBefore).to.equal(0);
-      expect(redemptionMaxAfter).to.equal(amount);
-      validateEvent(setEvent, 'SetFee(uint8,uint16)', {
-        amount,
-        f: feesEnum.redemptionMax,
+      // Forward time to after effective timestamp
+      await increaseBlockTimestamp(
+        Number(queuedFee.effectiveAfter.sub(timestamp).add(1))
+      );
+
+      const event = await callAndReturnEvent(pCvx.setFee, [f, queuedFeeIndex]);
+      const rewardFeeAfter = await pCvx.fees(f);
+
+      expect(rewardFeeBefore).to.equal(0);
+      expect(rewardFeeAfter).to.equal(queuedFee.newFee);
+      validateEvent(event, 'SetFee(uint8,uint8,uint32)', {
+        f,
+        queuedFeeIndex,
+        fee: queuedFee.newFee,
       });
     });
 
     it('Should set the redemption min fee', async function () {
-      const redemptionMinBefore = await pCvx.fees(feesEnum.redemptionMin);
-      const amount = 10000;
-      const events = await callAndReturnEvents(pCvx.setFee, [
-        feesEnum.redemptionMin,
-        amount,
-      ]);
-      const setEvent = events[0];
-      const redemptionMinAfter = await pCvx.fees(feesEnum.redemptionMin);
+      const f = feesEnum.redemptionMin;
+      const rewardFeeBefore = await pCvx.fees(f);
+      const queuedFeeIndex = feesEnum.redemptionMin;
+      const queuedFee = await pCvx.queuedFees(queuedFeeIndex);
+      const { timestamp } = await ethers.provider.getBlock('latest');
 
-      expect(redemptionMinBefore).to.equal(0);
-      expect(redemptionMinAfter).to.equal(amount);
-      validateEvent(setEvent, 'SetFee(uint8,uint16)', {
-        amount,
-        f: feesEnum.redemptionMin,
+      // Forward time to after effective timestamp
+      await increaseBlockTimestamp(
+        Number(queuedFee.effectiveAfter.sub(timestamp).add(1))
+      );
+
+      const event = await callAndReturnEvent(pCvx.setFee, [f, queuedFeeIndex]);
+      const rewardFeeAfter = await pCvx.fees(f);
+
+      expect(rewardFeeBefore).to.equal(0);
+      expect(rewardFeeAfter).to.equal(queuedFee.newFee);
+      validateEvent(event, 'SetFee(uint8,uint8,uint32)', {
+        f,
+        queuedFeeIndex,
+        fee: queuedFee.newFee,
       });
     });
   });
@@ -581,7 +677,7 @@ describe('PirexCvx-Base', function () {
       const { snapshotId } = await pCvx.getEpoch(currentEpoch);
       const currentSnapshotId = await pCvx.getCurrentSnapshotId();
 
-      expect(snapshotId).to.equal(1);
+      expect(snapshotId).to.equal(2);
       expect(snapshotId).to.equal(currentSnapshotId);
     });
   });
