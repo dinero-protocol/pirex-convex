@@ -20,7 +20,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         @notice Epoch details
         @notice Reward/snapshotRewards/futuresRewards indexes are associated with 1 reward
         @param  snapshotId               uint256    Snapshot id
-        @param  claimedMiscRewards       bool       Misc rewards claim status
         @param  rewards                  address[]  Rewards
         @param  snapshotRewards          uint256[]  Snapshot reward amounts
         @param  futuresRewards           uint256[]  Futures reward amounts
@@ -28,7 +27,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
      */
     struct Epoch {
         uint256 snapshotId;
-        bool claimedMiscRewards;
         address[] rewards;
         uint256[] snapshotRewards;
         uint256[] futuresRewards;
@@ -113,7 +111,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address vault
     );
     event Unstake(address vault, address indexed to, uint256 amount);
-    event ClaimMiscRewards(uint256 epoch, uint256 snapshotId);
+    event ClaimMiscRewards(uint256 timestamp, ConvexReward[] rewards);
     event ClaimVotiumReward(
         address indexed token,
         uint256 index,
@@ -179,7 +177,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Set up 1st epoch with snapshot id 1 and prevent reward claims until subsequent epochs
         Epoch storage e = epochs[getCurrentEpoch()];
         e.snapshotId = _snapshot();
-        e.claimedMiscRewards = true;
 
         if (_pirexFees == address(0)) revert ZeroAddress();
         pirexFees = PirexFees(_pirexFees);
@@ -643,57 +640,31 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /**
-        @notice Claim misc. rewards (e.g. Convex platform fees)
+        @notice Claim misc. rewards (e.g. emissions) and distribute to stakeholders
      */
     function claimMiscRewards() external nonReentrant {
-        // Check if maintenance has been performed on the epoch and whether rewards already claimed
-        uint256 currentEpoch = getCurrentEpoch();
-        Epoch storage e = epochs[currentEpoch];
-        uint256 eSnapshotId = e.snapshotId;
-        if (eSnapshotId == 0) revert SnapshotRequired();
-        if (e.claimedMiscRewards) revert AlreadyClaimed();
-
-        e.claimedMiscRewards = true;
-
-        emit ClaimMiscRewards(currentEpoch, eSnapshotId);
-
         // Get claimable rewards and balances
         ConvexReward[] memory c = _claimableRewards();
+
+        emit ClaimMiscRewards(block.timestamp, c);
 
         // Claim rewards from Convex
         _getReward();
 
         uint8 cLen = uint8(c.length);
-        uint16 feePercent = fees[Fees.Reward];
-        uint256 snapshotSupply = totalSupplyAt(_getCurrentSnapshotId());
-        uint256 rpCvxSupply = rpCvx.totalSupply(currentEpoch);
         address pirexFeesAddr = address(pirexFees);
         address thisAddr = address(this);
 
-        // Calculate the rewards for both pCVX/snapshot and rpCVX/futures holders
+        // Iterate over rewards and distribute to stakeholders (rlBTRFLY, Redacted, and Pirex)
         for (uint8 i; i < cLen; ++i) {
             if (c[i].amount == 0) continue;
 
             ERC20 t = ERC20(c[i].token);
-            (
-                uint256 rewardFee,
-                uint256 snapshotRewards,
-                uint256 futuresRewards
-            ) = _calculateRewards(
-                    feePercent,
-                    snapshotSupply,
-                    rpCvxSupply,
-                    t.balanceOf(thisAddr) - c[i].balance
-                );
-
-            // Update epoch rewards
-            e.rewards.push(c[i].token);
-            e.snapshotRewards.push(snapshotRewards);
-            e.futuresRewards.push(futuresRewards);
+            uint256 amount = t.balanceOf(thisAddr) - c[i].balance;
 
             // Distribute fees
-            t.safeIncreaseAllowance(pirexFeesAddr, rewardFee);
-            pirexFees.distributeFees(thisAddr, c[i].token, rewardFee);
+            t.safeIncreaseAllowance(pirexFeesAddr, amount);
+            pirexFees.distributeFees(thisAddr, c[i].token, amount);
         }
     }
 

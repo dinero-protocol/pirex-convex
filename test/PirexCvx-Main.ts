@@ -170,9 +170,6 @@ describe('PirexCvx-Main', function () {
       await pCvx.deposit(admin.address, depositAmount);
 
       const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
-
-      console.log(lockData);
-
       const lockIndex = 1;
       const to = admin.address;
       const invalidAmount = lockData[lockIndex].amount.add(toBN(1e18));
