@@ -373,15 +373,6 @@ describe('PirexCvx-Base', function () {
       await expect(pCvx.setFee(invalidF, amount)).to.be.reverted;
     });
 
-    it('Should revert if amount is larger than 50000', async function () {
-      const f = feesEnum.reward;
-      const invalidAmount = 50001;
-
-      await expect(pCvx.setFee(f, invalidAmount)).to.be.revertedWith(
-        'InvalidFee()'
-      );
-    });
-
     it('Should revert if amount is not uint16', async function () {
       const f = feesEnum.reward;
       const invalidAmount = 2 ** 16;

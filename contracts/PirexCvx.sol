@@ -141,7 +141,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     );
 
     error ZeroAmount();
-    error InvalidFee();
     error BeforeUnlock();
     error InsufficientBalance();
     error AlreadyClaimed();
@@ -243,9 +242,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         @param  amount  uint16  Fee amount
      */
     function setFee(Fees f, uint16 amount) external onlyOwner {
-        // Fees cannot be greater than 5%
-        if (amount > 50000) revert InvalidFee();
-
         emit SetFee(f, amount);
 
         if (f == Fees.Reward) {
