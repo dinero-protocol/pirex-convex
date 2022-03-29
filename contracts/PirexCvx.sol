@@ -100,7 +100,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     event SetContract(Contract indexed c, address contractAddress);
     event QueueFee(Fees indexed f, uint32 newFee, uint256 effectiveAfter);
-    event SetFee(Fees indexed f, uint8 queuedFeeIndex, uint32 fee);
+    event SetFee(Fees indexed f, uint32 fee);
     event MintFutures(
         uint8 rounds,
         address indexed to,
@@ -160,6 +160,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     error SnapshotRequired();
     error InsufficientRedemptionAllowance();
     error PastExchangePeriod();
+    error InvalidNewFee();
     error BeforeEffectiveTimestamp();
 
     /**
@@ -254,6 +255,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         @param  newFee  uint32  New fee amount
      */
     function queueFee(Fees f, uint32 newFee) external onlyOwner {
+        if (newFee > FEE_DENOMINATOR) revert InvalidNewFee();
+
         uint256 effectiveAfter = block.timestamp + EPOCH_DURATION;
 
         // Queue up the fee change, which can be set after 2 weeks
@@ -267,10 +270,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /** 
         @notice Set fee
-        @param  f               Fees    Fee enum
-        @param  queuedFeeIndex  uint8   Queued fee index
+        @param  f  Fees  Fee enum
      */
-    function setFee(Fees f, uint8 queuedFeeIndex) external onlyOwner {
+    function setFee(Fees f) external onlyOwner {
         QueuedFee memory q = queuedFees[uint256(f)];
 
         if (q.effectiveAfter > block.timestamp)
@@ -278,7 +280,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         fees[f] = q.newFee;
 
-        emit SetFee(f, queuedFeeIndex, q.newFee);
+        emit SetFee(f, q.newFee);
     }
 
     /**
