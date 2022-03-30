@@ -53,29 +53,32 @@ describe('PirexCvx-Main', function () {
     it('Should revert if to is zero address', async function () {
       const invalidTo = zeroAddress;
       const depositAmount = toBN(1e18);
+      const shouldCompound = true;
 
-      await expect(pCvx.deposit(invalidTo, depositAmount)).to.be.revertedWith(
-        'ZeroAddress()'
-      );
+      await expect(
+        pCvx.deposit(invalidTo, depositAmount, shouldCompound)
+      ).to.be.revertedWith('ZeroAddress()');
     });
 
     it('Should revert if amount is zero', async function () {
       const to = admin.address;
       const invalidAmount = toBN(0);
+      const shouldCompound = true;
 
-      await expect(pCvx.deposit(to, invalidAmount)).to.be.revertedWith(
-        'ZeroAmount()'
-      );
+      await expect(
+        pCvx.deposit(to, invalidAmount, shouldCompound)
+      ).to.be.revertedWith('ZeroAmount()');
     });
 
     it('Should revert if msg.sender CVX balance is insufficient', async function () {
       const cvxBalance = await cvx.balanceOf(admin.address);
       const to = admin.address;
       const invalidAmount = cvxBalance.add(1);
+      const shouldCompound = true;
 
-      await expect(pCvx.deposit(to, invalidAmount)).to.be.revertedWith(
-        'ERC20: transfer amount exceeds balance'
-      );
+      await expect(
+        pCvx.deposit(to, invalidAmount, shouldCompound)
+      ).to.be.revertedWith('ERC20: transfer amount exceeds balance');
     });
 
     it('Should deposit CVX', async function () {
@@ -85,6 +88,7 @@ describe('PirexCvx-Main', function () {
       const ppCvxBalanceBefore = await unionPirex.balanceOf(admin.address);
       const to = admin.address;
       const depositAmount = toBN(10e18);
+      const shouldCompound = true;
 
       // Necessary since pCVX transfers CVX to itself before locking
       await cvx.approve(pCvx.address, depositAmount);
@@ -92,6 +96,7 @@ describe('PirexCvx-Main', function () {
       const events = await callAndReturnEvents(pCvx.deposit, [
         to,
         depositAmount,
+        shouldCompound,
       ]);
       const pCvxMintEvent = events[0];
       const depositEvent = events[1];
@@ -167,7 +172,7 @@ describe('PirexCvx-Main', function () {
       const depositAmount = toBN(1e18);
 
       await cvx.approve(pCvx.address, depositAmount);
-      await pCvx.deposit(admin.address, depositAmount);
+      await pCvx.deposit(admin.address, depositAmount, true);
 
       const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
       const lockIndex = 1;

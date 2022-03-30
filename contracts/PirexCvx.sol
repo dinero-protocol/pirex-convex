@@ -406,10 +406,15 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Deposit CVX
-        @param  to      address  Address receiving pCVX
-        @param  amount  uint256  CVX amount
+        @param  to              address  Address receiving pCVX
+        @param  amount          uint256  CVX amount
+        @param  shouldCompound  bool     Deposit into auto-compounding vault
      */
-    function deposit(address to, uint256 amount) external nonReentrant {
+    function deposit(
+        address to,
+        uint256 amount,
+        bool shouldCompound
+    ) external nonReentrant {
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
@@ -417,14 +422,16 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         takeEpochSnapshot();
 
         // Mint pCVX
-        _mint(address(this), amount);
+        _mint(shouldCompound ? address(this) : to, amount);
 
         emit Deposit(to, amount);
 
-        _approve(address(this), address(unionPirex), amount);
+        if (shouldCompound) {
+            _approve(address(this), address(unionPirex), amount);
 
-        // Deposit pCVX into pounder vault - user receives shares
-        unionPirex.deposit(amount, to);
+            // Deposit pCVX into pounder vault - user receives shares
+            unionPirex.deposit(amount, to);
+        }
 
         // Transfer CVX to self and approve for locking
         CVX.safeTransferFrom(msg.sender, address(this), amount);

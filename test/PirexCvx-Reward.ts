@@ -750,7 +750,7 @@ describe('PirexCvx-Reward', function () {
       const stakeRounds = 1;
 
       await cvx.approve(pCvx.address, depositAmount);
-      await pCvx.deposit(admin.address, depositAmount);
+      await pCvx.deposit(admin.address, depositAmount, true);
       await pCvx.stake(
         stakeRounds,
         admin.address,
