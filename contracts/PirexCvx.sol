@@ -385,7 +385,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     /**
         @notice Snapshot token balances for the current epoch
      */
-    function takeEpochSnapshot() public {
+    function takeEpochSnapshot() public whenNotPaused {
         uint256 currentEpoch = getCurrentEpoch();
 
         // If snapshot has not been set for current epoch, take snapshot
@@ -404,7 +404,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address to,
         uint256 amount,
         bool shouldCompound
-    ) external nonReentrant {
+    ) external whenNotPaused nonReentrant {
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
@@ -442,7 +442,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         Futures f,
         address to,
         uint256 amount
-    ) external nonReentrant {
+    ) external whenNotPaused nonReentrant {
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
@@ -523,7 +523,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 unlockTime,
         address to,
         uint256 amount
-    ) external nonReentrant {
+    ) external whenNotPaused nonReentrant {
         // Revert if CVX has not been unlocked and cannot be redeemed yet
         if (unlockTime > block.timestamp) revert BeforeUnlock();
         if (amount == 0) revert ZeroAmount();
@@ -555,7 +555,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         Futures f,
         address to,
         uint256 amount
-    ) external nonReentrant {
+    ) external whenNotPaused nonReentrant {
         if (rounds == 0) revert ZeroAmount();
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
@@ -586,7 +586,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 id,
         address to,
         uint256 amount
-    ) external nonReentrant {
+    ) external whenNotPaused nonReentrant {
         if (id > block.timestamp) revert BeforeStakingExpiry();
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
@@ -612,7 +612,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 index,
         uint256 amount,
         bytes32[] calldata merkleProof
-    ) external nonReentrant {
+    ) external whenNotPaused nonReentrant {
         // Check if maintenance has been performed on the epoch
         uint256 currentEpoch = getCurrentEpoch();
         if (epochs[currentEpoch].snapshotId == 0) revert SnapshotRequired();
@@ -658,7 +658,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     /**
         @notice Claim misc. rewards (e.g. emissions) and distribute to stakeholders
      */
-    function claimMiscRewards() external nonReentrant {
+    function claimMiscRewards() external whenNotPaused nonReentrant {
         // Get claimable rewards and balances
         ConvexReward[] memory c = _claimableRewards();
 
@@ -692,7 +692,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 epoch,
         uint8 rewardIndex,
         address to
-    ) external nonReentrant {
+    ) external whenNotPaused nonReentrant {
         if (epoch == 0) revert ZeroAmount();
 
         Epoch storage e = epochs[epoch];
@@ -732,6 +732,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     */
     function redeemFuturesRewards(uint256 epoch, address to)
         external
+        whenNotPaused
         nonReentrant
     {
         if (epoch == 0) revert ZeroAmount();
@@ -777,7 +778,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 amount,
         Futures i,
         Futures o
-    ) external {
+    ) external whenNotPaused {
         // Users can only exchange futures tokens for future epochs
         if (epoch <= getCurrentEpoch()) revert PastExchangePeriod();
         if (amount == 0) revert ZeroAmount();

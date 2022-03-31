@@ -2,13 +2,14 @@
 pragma solidity 0.8.12;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
 import {ICvxRewardPool} from "./interfaces/ICvxRewardPool.sol";
 
-contract PirexCvxConvex is Ownable {
+contract PirexCvxConvex is Ownable, Pausable {
     using SafeERC20 for ERC20;
 
     /**
@@ -241,5 +242,12 @@ contract PirexCvxConvex is Ownable {
         emit ClearVoteDelegate();
 
         cvxDelegateRegistry.clearDelegate(delegationSpace);
+    }
+
+    /**
+        @notice Only for emergency purposes in the case of a forced-unlock by Convex
+     */
+    function relock() external onlyOwner {
+        _relock();
     }
 }
