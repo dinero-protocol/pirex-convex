@@ -9,7 +9,6 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 import {PirexCvxConvex} from "./PirexCvxConvex.sol";
-import {StakedPirexCvx} from "./StakedPirexCvx.sol";
 import {PirexFees} from "./PirexFees.sol";
 import {UnionPirexVault} from "./UnionPirexVault.sol";
 
@@ -55,7 +54,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         UpCvx,
         VpCvx,
         RpCvx,
-        SpCvxImplementation,
+        SpCvx,
         UnionPirexVault
     }
 
@@ -80,11 +79,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     ERC1155PresetMinterSupply public upCvx;
     ERC1155PresetMinterSupply public vpCvx;
     ERC1155PresetMinterSupply public rpCvx;
+    ERC1155PresetMinterSupply public spCvx;
     UnionPirexVault public unionPirex;
-
-    // Staked Pirex CVX implementation
-    address public spCvxImplementation;
-    address[] public spCvx;
 
     // Epochs mapped to epoch details
     mapping(uint256 => Epoch) private epochs;
@@ -123,12 +119,11 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     event Redeem(uint256 indexed epoch, address indexed to, uint256 amount);
     event Stake(
         uint8 rounds,
-        address indexed to,
-        uint256 amount,
         Futures indexed f,
-        address vault
+        address indexed to,
+        uint256 amount
     );
-    event Unstake(address vault, address indexed to, uint256 amount);
+    event Unstake(uint256 id, address indexed to, uint256 amount);
     event ClaimMiscRewards(uint256 timestamp, ConvexReward[] rewards);
     event ClaimVotiumReward(
         address indexed token,
@@ -166,6 +161,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     error PastExchangePeriod();
     error InvalidNewFee();
     error BeforeEffectiveTimestamp();
+    error BeforeStakingExpiry();
 
     /**
         @param  _CVX                     address  CVX address    
@@ -209,7 +205,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         upCvx = new ERC1155PresetMinterSupply("");
         vpCvx = new ERC1155PresetMinterSupply("");
         rpCvx = new ERC1155PresetMinterSupply("");
-        spCvxImplementation = address(new StakedPirexCvx());
+        spCvx = new ERC1155PresetMinterSupply("");
     }
 
     /** 
@@ -245,8 +241,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             return;
         }
 
-        if (c == Contract.SpCvxImplementation) {
-            spCvxImplementation = contractAddress;
+        if (c == Contract.SpCvx) {
+            spCvx = ERC1155PresetMinterSupply(contractAddress);
             return;
         }
 
@@ -301,14 +297,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
      */
     function getCurrentSnapshotId() external view returns (uint256) {
         return _getCurrentSnapshotId();
-    }
-
-    /**
-        @notice Get spCvx
-        @return address[]  StakedPirexCvx vault addresses
-     */
-    function getSpCvx() external view returns (address[] memory) {
-        return spCvx;
     }
 
     /**
@@ -572,56 +560,44 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
-        // Deploy new vault dedicated to this staking position
-        StakedPirexCvx s = StakedPirexCvx(Clones.clone(spCvxImplementation));
-        address sAddr = address(s);
+        // Burn pCVX
+        _burn(msg.sender, amount);
 
-        // Maintain a record of vault
-        spCvx.push(sAddr);
+        emit Stake(rounds, f, to, amount);
 
-        // Transfer pCVX to self
-        _transfer(msg.sender, address(this), amount);
-
-        // Approve vault to transfer pCVX for deposit
-        _approve(address(this), sAddr, amount);
-
-        emit Stake(rounds, to, amount, f, sAddr);
-
-        s.initialize(
-            getCurrentEpoch() + rounds * EPOCH_DURATION,
-            this,
-            "Pirex CVX Staked",
-            "spCVX"
+        // Mint spCVX with the unstaking timestamp as the id
+        spCvx.mint(
+            to,
+            getCurrentEpoch() + (EPOCH_DURATION * rounds),
+            amount,
+            ""
         );
-
-        // Transfer pCVX to vault and mint shares for `to`
-        s.deposit(amount, to);
 
         _mintFutures(rounds, to, amount, f);
     }
 
     /**
         @notice Unstake pCVX
-        @param  vault   address  StakedPirexCvx vault
+        @param  id      uint256  spCVX id
         @param  to      address  pCVX recipient
         @param  amount  uint256  pCVX/spCVX amount
     */
     function unstake(
-        address vault,
+        uint256 id,
         address to,
         uint256 amount
     ) external nonReentrant {
-        if (vault == address(0)) revert ZeroAddress();
+        if (id > block.timestamp) revert BeforeStakingExpiry();
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
-        emit Unstake(vault, to, amount);
+        // Mint pCVX
+        _mint(to, amount);
 
-        // Transfer shares from msg.sender to self
-        ERC20(vault).safeTransferFrom(msg.sender, address(this), amount);
+        emit Unstake(id, to, amount);
 
-        // Burn upCVX and transfer pCVX to `to`
-        StakedPirexCvx(vault).redeem(amount, to, address(this));
+        // Burn spCVX
+        spCvx.burn(msg.sender, id, amount);
     }
 
     /**
