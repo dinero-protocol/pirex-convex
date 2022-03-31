@@ -42,15 +42,12 @@ contract PirexCvxConvex is Ownable, Pausable {
     // Convex Snapshot space
     bytes32 public delegationSpace = bytes32(bytes("cvx.eth"));
 
-    // Protocol-owned EOA that is delegated vlCVX votes
-    address public voteDelegate;
-
     // The amount of CVX that needs to remain unlocked for redemptions
     uint256 public outstandingRedemptions;
 
     event SetConvexContract(ConvexContract c, address contractAddress);
     event SetDelegationSpace(string _delegationSpace);
-    event SetVoteDelegate(address _voteDelegate);
+    event SetVoteDelegate(address voteDelegate);
     event ClearVoteDelegate();
 
     error ZeroAddress();
@@ -91,8 +88,8 @@ contract PirexCvxConvex is Ownable, Pausable {
 
     /** 
         @notice Set a contract address
-        @param  c                ConvexContract  Contract to set
-        @param  contractAddress  address         CvxLocker address    
+        @param  c                enum     Contract enum
+        @param  contractAddress  address  Contract address    
      */
     function setConvexContract(ConvexContract c, address contractAddress)
         external
@@ -222,23 +219,20 @@ contract PirexCvxConvex is Ownable, Pausable {
 
     /**
         @notice Set vote delegate
-        @param  _voteDelegate  address  Account to delegate votes to
+        @param  voteDelegate  address  Account to delegate votes to
      */
-    function setVoteDelegate(address _voteDelegate) external onlyOwner {
-        if (_voteDelegate == address(0)) revert ZeroAddress();
-        voteDelegate = _voteDelegate;
+    function setVoteDelegate(address voteDelegate) external onlyOwner {
+        if (voteDelegate == address(0)) revert ZeroAddress();
 
-        emit SetVoteDelegate(_voteDelegate);
+        emit SetVoteDelegate(voteDelegate);
 
-        cvxDelegateRegistry.setDelegate(delegationSpace, _voteDelegate);
+        cvxDelegateRegistry.setDelegate(delegationSpace, voteDelegate);
     }
 
     /**
         @notice Remove vote delegate
      */
     function clearVoteDelegate() external onlyOwner {
-        voteDelegate = address(0);
-
         emit ClearVoteDelegate();
 
         cvxDelegateRegistry.clearDelegate(delegationSpace);

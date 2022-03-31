@@ -519,7 +519,7 @@ describe('PirexCvx-Reward', function () {
 
       validateEvent(
         cvxEvent,
-        'RedeemSnapshotReward(uint256,uint256,address,uint256,uint256,uint256)',
+        'RedeemSnapshotReward(uint256,uint256,address,uint96,uint256,uint256)',
         {
           epoch: currentEpoch,
           to: admin.address,
@@ -531,7 +531,7 @@ describe('PirexCvx-Reward', function () {
       );
       validateEvent(
         crvEvent,
-        'RedeemSnapshotReward(uint256,uint256,address,uint256,uint256,uint256)',
+        'RedeemSnapshotReward(uint256,uint256,address,uint96,uint256,uint256)',
         {
           epoch: currentEpoch,
           to: admin.address,
