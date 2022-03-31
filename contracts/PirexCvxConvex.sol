@@ -11,15 +11,16 @@ import {ICvxRewardPool} from "./interfaces/ICvxRewardPool.sol";
 contract PirexCvxConvex is Ownable {
     using SafeERC20 for ERC20;
 
+    /**
+        @notice Convex reward details
+        @param  token    address  Token
+        @param  amount   uint256  Amount
+        @param  balance  uint256  Balance (used for calculating the actual received amount)
+     */
     struct ConvexReward {
         address token;
         uint256 amount;
         uint256 balance;
-    }
-
-    struct ConvexLock {
-        uint256 amount;
-        uint256 unlockTime;
     }
 
     // Configurable contracts
