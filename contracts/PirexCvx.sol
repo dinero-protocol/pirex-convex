@@ -345,14 +345,12 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     ) internal {
         emit MintFutures(rounds, to, amount, f);
 
-        unchecked {
-            uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
-            ERC1155PresetMinterSupply token = f == Futures.Vote ? vpCvx : rpCvx;
+        uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
+        ERC1155PresetMinterSupply token = f == Futures.Vote ? vpCvx : rpCvx;
 
-            for (uint8 i; i < rounds; ++i) {
-                // Validates `to`
-                token.mint(to, startingEpoch + i * EPOCH_DURATION, amount, "");
-            }
+        for (uint8 i; i < rounds; ++i) {
+            // Validates `to`
+            token.mint(to, startingEpoch + i * EPOCH_DURATION, amount, "");
         }
     }
 
@@ -772,18 +770,16 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Burn rpCVX tokens
         rpCvx.burn(msg.sender, epoch, rpCvxBalance);
 
-        unchecked {
-            uint256[] memory f = epochs[epoch].futuresRewards;
-            uint8 rLen = uint8(r.length);
+        uint256[] memory f = epochs[epoch].futuresRewards;
+        uint8 rLen = uint8(r.length);
 
-            // Loop over rewards and transfer the amount entitled to the rpCVX token holder
-            for (uint8 i; i < rLen; ++i) {
-                // Proportionate to the % of rpCVX owned out of the rpCVX total supply
-                ERC20(r[i]).safeTransfer(
-                    to,
-                    (f[i] * rpCvxBalance) / rpCvxTotalSupply
-                );
-            }
+        // Loop over rewards and transfer the amount entitled to the rpCVX token holder
+        for (uint8 i; i < rLen; ++i) {
+            // Proportionate to the % of rpCVX owned out of the rpCVX total supply
+            ERC20(r[i]).safeTransfer(
+                to,
+                (f[i] * rpCvxBalance) / rpCvxTotalSupply
+            );
         }
     }
 
