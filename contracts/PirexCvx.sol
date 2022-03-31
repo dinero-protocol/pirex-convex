@@ -565,13 +565,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         emit Stake(rounds, f, to, amount);
 
-        // Mint spCVX with the unstaking timestamp as the id
-        spCvx.mint(
-            to,
-            getCurrentEpoch() + (EPOCH_DURATION * rounds),
-            amount,
-            ""
-        );
+        // Mint spCVX with the stake expiry timestamp as the id
+        spCvx.mint(to, getCurrentEpoch() + EPOCH_DURATION * rounds, amount, "");
 
         _mintFutures(rounds, to, amount, f);
     }

@@ -33,8 +33,7 @@ let votiumAddressRegistry: AddressRegistry;
 let votiumMultiMerkleStash: MultiMerkleStash;
 
 before(async function () {
-  [admin, notAdmin, treasury, contributors] =
-    await ethers.getSigners();
+  [admin, notAdmin, treasury, contributors] = await ethers.getSigners();
 
   const initialBalanceForAdmin = toBN(100e18);
   const crvDepositorAddr = '0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae';
@@ -161,7 +160,7 @@ before(async function () {
     upCvx: 1,
     vpCvx: 2,
     rpCvx: 3,
-    spCvxImplementation: 4,
+    spCvx: 4,
     unionPirex: 5,
   };
   this.convexContractEnum = {
@@ -206,7 +205,7 @@ before(async function () {
   this.getUpCvx = async (address: string) =>
     await ethers.getContractAt('ERC1155PresetMinterSupply', address);
   this.getSpCvx = async (address: string) =>
-    await ethers.getContractAt('StakedPirexCvx', address);
+    await ethers.getContractAt('ERC1155PresetMinterSupply', address);
   this.getRpCvx = async (address: string) =>
     await ethers.getContractAt('ERC1155PresetMinterSupply', address);
   this.getVpCvx = async (address: string) =>

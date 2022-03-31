@@ -93,7 +93,7 @@ describe('PirexCvx-Base', function () {
       const upCvx = await pCvx.upCvx();
       const vpCvx = await pCvx.vpCvx();
       const rpCvx = await pCvx.rpCvx();
-      const spCvxImplementation = await pCvx.spCvxImplementation();
+      const spCvx = await pCvx.spCvx();
       const _name = await pCvx.name();
       const _symbol = await pCvx.symbol();
 
@@ -113,7 +113,7 @@ describe('PirexCvx-Base', function () {
       expect(upCvx).to.not.equal(zeroAddress);
       expect(vpCvx).to.not.equal(zeroAddress);
       expect(rpCvx).to.not.equal(zeroAddress);
-      expect(spCvxImplementation).to.not.equal(zeroAddress);
+      expect(spCvx).to.not.equal(zeroAddress);
       expect(_name).to.equal('Pirex CVX');
       expect(_symbol).to.equal('pCVX');
     });
@@ -212,28 +212,23 @@ describe('PirexCvx-Base', function () {
       expect(rpCvxBefore).to.equal(await pCvx.rpCvx());
     });
 
-    it('Should set spCvxImplementation', async function () {
-      const spCvxImplementationBefore = await pCvx.spCvxImplementation();
+    it('Should set spCvx', async function () {
+      const spCvxBefore = await pCvx.spCvx();
       const setEvent = await callAndReturnEvent(pCvx.setContract, [
-        contractEnum.spCvxImplementation,
+        contractEnum.spCvx,
         admin.address,
       ]);
-      const spCvxImplementationAfter = await pCvx.spCvxImplementation();
+      const spCvxAfter = await pCvx.spCvx();
 
-      await pCvx.setContract(
-        contractEnum.spCvxImplementation,
-        spCvxImplementationBefore
-      );
+      await pCvx.setContract(contractEnum.spCvx, spCvxBefore);
 
-      expect(spCvxImplementationBefore).to.not.equal(spCvxImplementationAfter);
-      expect(spCvxImplementationAfter).to.equal(admin.address);
+      expect(spCvxBefore).to.not.equal(spCvxAfter);
+      expect(spCvxAfter).to.equal(admin.address);
       validateEvent(setEvent, 'SetContract(uint8,address)', {
         contractAddress: admin.address,
-        c: contractEnum.spCvxImplementation,
+        c: contractEnum.spCvx,
       });
-      expect(spCvxImplementationBefore).to.equal(
-        await pCvx.spCvxImplementation()
-      );
+      expect(spCvxBefore).to.equal(await pCvx.spCvx());
     });
 
     it('Should set unionPirex', async function () {
