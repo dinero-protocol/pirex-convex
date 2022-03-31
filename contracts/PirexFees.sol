@@ -10,7 +10,6 @@ contract PirexFees is AccessControl {
 
     enum FeeRecipient {
         Treasury,
-        RevenueLockers,
         Contributors
     }
 
@@ -20,22 +19,16 @@ contract PirexFees is AccessControl {
 
     // Configurable fee recipient addresses
     address public treasury;
-    address public revenueLockers;
     address public contributors;
 
     // Configurable fee recipient percent-share
-    uint8 public treasuryPercent = 25;
-    uint8 public revenueLockersPercent = 50;
+    uint8 public treasuryPercent = 75;
     uint8 public contributorsPercent = 25;
 
     event GrantFeeDistributorRole(address distributor);
     event RevokeFeeDistributorRole(address distributor);
     event SetFeeRecipient(FeeRecipient f, address recipient);
-    event SetFeePercents(
-        uint8 _treasuryPercent,
-        uint8 _revenueLockersPercent,
-        uint8 _contributorsPercent
-    );
+    event SetFeePercents(uint8 _treasuryPercent, uint8 _contributorsPercent);
     event DistributeFees(address token, uint256 amount);
 
     error ZeroAddress();
@@ -44,19 +37,11 @@ contract PirexFees is AccessControl {
 
     /**
         @param  _treasury        address  Redacted treasury
-        @param  _revenueLockers  address  rlBTRFLY fee distributor
-        @param  _contributors    address  Contributor fee distributor
+        @param  _contributors    address  Pirex contributor multisig
      */
-    constructor(
-        address _treasury,
-        address _revenueLockers,
-        address _contributors
-    ) {
+    constructor(address _treasury, address _contributors) {
         if (_treasury == address(0)) revert ZeroAddress();
         treasury = _treasury;
-
-        if (_revenueLockers == address(0)) revert ZeroAddress();
-        revenueLockers = _revenueLockers;
 
         if (_contributors == address(0)) revert ZeroAddress();
         contributors = _contributors;
@@ -113,40 +98,25 @@ contract PirexFees is AccessControl {
             return;
         }
 
-        if (f == FeeRecipient.RevenueLockers) {
-            revenueLockers = recipient;
-            return;
-        }
-
         contributors = recipient;
     }
 
     /** 
         @notice Set fee percents
         @param  _treasuryPercent        uint8  Treasury fee percent
-        @param  _revenueLockersPercent  uint8  RevenueLockers fee percent
         @param  _contributorsPercent    uint8  Contributors fee percent
      */
-    function setFeePercents(
-        uint8 _treasuryPercent,
-        uint8 _revenueLockersPercent,
-        uint8 _contributorsPercent
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (
-            (_treasuryPercent +
-                _revenueLockersPercent +
-                _contributorsPercent) != 100
-        ) revert InvalidFeePercent();
+    function setFeePercents(uint8 _treasuryPercent, uint8 _contributorsPercent)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        if ((_treasuryPercent + _contributorsPercent) != 100)
+            revert InvalidFeePercent();
 
         treasuryPercent = _treasuryPercent;
-        revenueLockersPercent = _revenueLockersPercent;
         contributorsPercent = _contributorsPercent;
 
-        emit SetFeePercents(
-            _treasuryPercent,
-            _revenueLockersPercent,
-            _contributorsPercent
-        );
+        emit SetFeePercents(_treasuryPercent, _contributorsPercent);
     }
 
     /** 
@@ -170,11 +140,7 @@ contract PirexFees is AccessControl {
             treasury,
             (amount * treasuryPercent) / PERCENT_DENOMINATOR
         );
-        t.safeTransferFrom(
-            from,
-            revenueLockers,
-            (amount * revenueLockersPercent) / PERCENT_DENOMINATOR
-        );
+
         t.safeTransferFrom(
             from,
             contributors,

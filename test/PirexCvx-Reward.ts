@@ -23,7 +23,6 @@ describe('PirexCvx-Reward', function () {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let treasury: SignerWithAddress;
-  let revenueLockers: SignerWithAddress;
   let contributors: SignerWithAddress;
   let pCvx: PirexCvx;
   let pirexFees: PirexFees;
@@ -46,7 +45,6 @@ describe('PirexCvx-Reward', function () {
       admin,
       notAdmin,
       treasury,
-      revenueLockers,
       contributors,
       cvx,
       crv,
@@ -218,16 +216,10 @@ describe('PirexCvx-Reward', function () {
       const cvxFee = amounts[0].mul(rewardFee).div(feeDenominator);
       const crvFee = amounts[1].mul(rewardFee).div(feeDenominator);
       const treasuryCvxBalanceBefore = await cvx.balanceOf(treasury.address);
-      const revenueLockersCvxBalanceBefore = await cvx.balanceOf(
-        revenueLockers.address
-      );
       const contributorsCvxBalanceBefore = await cvx.balanceOf(
         contributors.address
       );
       const treasuryCrvBalanceBefore = await crv.balanceOf(treasury.address);
-      const revenueLockersCrvBalanceBefore = await crv.balanceOf(
-        revenueLockers.address
-      );
       const contributorsCrvBalanceBefore = await crv.balanceOf(
         contributors.address
       );
@@ -272,36 +264,23 @@ describe('PirexCvx-Reward', function () {
         }),
       };
       const treasuryCvxBalanceAfter = await cvx.balanceOf(treasury.address);
-      const revenueLockersCvxBalanceAfter = await cvx.balanceOf(
-        revenueLockers.address
-      );
       const contributorsCvxBalanceAfter = await cvx.balanceOf(
         contributors.address
       );
       const treasuryCrvBalanceAfter = await crv.balanceOf(treasury.address);
-      const revenueLockersCrvBalanceAfter = await crv.balanceOf(
-        revenueLockers.address
-      );
       const contributorsCrvBalanceAfter = await crv.balanceOf(
         contributors.address
       );
       const treasuryPercent = await pirexFees.treasuryPercent();
-      const revenueLockersPercent = await pirexFees.revenueLockersPercent();
       const contributorsPercent = await pirexFees.contributorsPercent();
       const expectedTreasuryCvxFees = cvxFee
         .mul(treasuryPercent)
-        .div(feePercentDenominator);
-      const expectedRevenueLockersCvxFees = cvxFee
-        .mul(revenueLockersPercent)
         .div(feePercentDenominator);
       const expectedContributorsCvxFees = cvxFee
         .mul(contributorsPercent)
         .div(feePercentDenominator);
       const expectedTreasuryCrvFees = crvFee
         .mul(treasuryPercent)
-        .div(feePercentDenominator);
-      const expectedRevenueLockersCrvFees = crvFee
-        .mul(revenueLockersPercent)
         .div(feePercentDenominator);
       const expectedContributorsCrvFees = crvFee
         .mul(contributorsPercent)
@@ -319,12 +298,6 @@ describe('PirexCvx-Reward', function () {
       expect(treasuryCvxBalanceAfter).to.equal(
         treasuryCvxBalanceBefore.add(expectedTreasuryCvxFees)
       );
-      expect(revenueLockersCvxBalanceAfter).to.not.equal(
-        revenueLockersCvxBalanceBefore
-      );
-      expect(revenueLockersCvxBalanceAfter).to.equal(
-        revenueLockersCvxBalanceBefore.add(expectedRevenueLockersCvxFees)
-      );
       expect(contributorsCvxBalanceAfter).to.not.equal(
         contributorsCvxBalanceBefore
       );
@@ -334,12 +307,6 @@ describe('PirexCvx-Reward', function () {
       expect(treasuryCrvBalanceAfter).to.not.equal(treasuryCrvBalanceBefore);
       expect(treasuryCrvBalanceAfter).to.equal(
         treasuryCrvBalanceBefore.add(expectedTreasuryCrvFees)
-      );
-      expect(revenueLockersCrvBalanceAfter).to.not.equal(
-        revenueLockersCrvBalanceBefore
-      );
-      expect(revenueLockersCrvBalanceAfter).to.equal(
-        revenueLockersCrvBalanceBefore.add(expectedRevenueLockersCrvFees)
       );
       expect(contributorsCrvBalanceAfter).to.not.equal(
         contributorsCrvBalanceBefore
@@ -371,17 +338,11 @@ describe('PirexCvx-Reward', function () {
   describe('claimMiscRewards', function () {
     it('Should claim misc rewards for the epoch', async function () {
       const treasuryCrvBalanceBefore = await crv.balanceOf(treasury.address);
-      const revenueLockersCrvBalanceBefore = await crv.balanceOf(
-        revenueLockers.address
-      );
       const contributorsCrvBalanceBefore = await crv.balanceOf(
         contributors.address
       );
       const treasuryCvxCrvBalanceBefore = await cvxCrvToken.balanceOf(
         treasury.address
-      );
-      const revenueLockersCvxCrvBalanceBefore = await cvxCrvToken.balanceOf(
-        revenueLockers.address
       );
       const contributorsCvxCrvBalanceBefore = await cvxCrvToken.balanceOf(
         contributors.address
@@ -392,38 +353,25 @@ describe('PirexCvx-Reward', function () {
       const events = await callAndReturnEvents(pCvx.claimMiscRewards, []);
       const claimEvent = events[0];
       const treasuryCrvBalanceAfter = await crv.balanceOf(treasury.address);
-      const revenueLockersCrvBalanceAfter = await crv.balanceOf(
-        revenueLockers.address
-      );
       const contributorsCrvBalanceAfter = await crv.balanceOf(
         contributors.address
       );
       const treasuryCvxCrvBalanceAfter = await cvxCrvToken.balanceOf(
         treasury.address
       );
-      const revenueLockersCvxCrvBalanceAfter = await cvxCrvToken.balanceOf(
-        revenueLockers.address
-      );
       const contributorsCvxCrvBalanceAfter = await cvxCrvToken.balanceOf(
         contributors.address
       );
       const treasuryPercent = await pirexFees.treasuryPercent();
-      const revenueLockersPercent = await pirexFees.revenueLockersPercent();
       const contributorsPercent = await pirexFees.contributorsPercent();
       const expectedTreasuryCrvFees = claimableCrv.amount
         .mul(treasuryPercent)
-        .div(feePercentDenominator);
-      const expectedRevenueLockersCrvFees = claimableCrv.amount
-        .mul(revenueLockersPercent)
         .div(feePercentDenominator);
       const expectedContributorsCrvFees = claimableCrv.amount
         .mul(contributorsPercent)
         .div(feePercentDenominator);
       const expectedTreasuryCvxCrvFees = claimableCvxCrv.amount
         .mul(treasuryPercent)
-        .div(feePercentDenominator);
-      const expectedRevenueLockersCvxCrvFees = claimableCvxCrv.amount
-        .mul(revenueLockersPercent)
         .div(feePercentDenominator);
       const expectedContributorsCvxCrvFees = claimableCvxCrv.amount
         .mul(contributorsPercent)
@@ -439,22 +387,6 @@ describe('PirexCvx-Reward', function () {
         treasuryCrvBalanceAfter.lt(
           treasuryCrvBalanceBefore
             .add(expectedTreasuryCrvFees)
-            .mul(101)
-            .div(100)
-        )
-      ).to.equal(true);
-      expect(revenueLockersCrvBalanceAfter).to.not.equal(
-        revenueLockersCrvBalanceBefore
-      );
-      expect(
-        revenueLockersCrvBalanceAfter.gt(
-          revenueLockersCrvBalanceBefore.add(expectedRevenueLockersCrvFees)
-        )
-      ).to.equal(true);
-      expect(
-        revenueLockersCrvBalanceAfter.lt(
-          revenueLockersCrvBalanceBefore
-            .add(expectedRevenueLockersCrvFees)
             .mul(101)
             .div(100)
         )
@@ -487,24 +419,6 @@ describe('PirexCvx-Reward', function () {
         treasuryCvxCrvBalanceAfter.lt(
           treasuryCvxCrvBalanceBefore
             .add(expectedTreasuryCvxCrvFees)
-            .mul(101)
-            .div(100)
-        )
-      ).to.equal(true);
-      expect(revenueLockersCvxCrvBalanceAfter).to.not.equal(
-        revenueLockersCvxCrvBalanceBefore
-      );
-      expect(
-        revenueLockersCvxCrvBalanceAfter.gt(
-          revenueLockersCvxCrvBalanceBefore.add(
-            expectedRevenueLockersCvxCrvFees
-          )
-        )
-      ).to.equal(true);
-      expect(
-        revenueLockersCvxCrvBalanceAfter.lt(
-          revenueLockersCvxCrvBalanceBefore
-            .add(expectedRevenueLockersCvxCrvFees)
             .mul(101)
             .div(100)
         )

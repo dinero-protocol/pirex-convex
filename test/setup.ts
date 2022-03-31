@@ -19,7 +19,6 @@ import {
 let admin: SignerWithAddress;
 let notAdmin: SignerWithAddress;
 let treasury: SignerWithAddress;
-let revenueLockers: SignerWithAddress;
 let contributors: SignerWithAddress;
 let pCvx: PirexCvx;
 let pirexFees: PirexFees;
@@ -34,7 +33,7 @@ let votiumAddressRegistry: AddressRegistry;
 let votiumMultiMerkleStash: MultiMerkleStash;
 
 before(async function () {
-  [admin, notAdmin, treasury, revenueLockers, contributors] =
+  [admin, notAdmin, treasury, contributors] =
     await ethers.getSigners();
 
   const initialBalanceForAdmin = toBN(100e18);
@@ -113,7 +112,7 @@ before(async function () {
 
   pirexFees = await (
     await ethers.getContractFactory('PirexFees')
-  ).deploy(treasury.address, revenueLockers.address, contributors.address);
+  ).deploy(treasury.address, contributors.address);
   pCvx = await (
     await ethers.getContractFactory('PirexCvx')
   ).deploy(
@@ -133,7 +132,6 @@ before(async function () {
   this.admin = admin;
   this.notAdmin = notAdmin;
   this.treasury = treasury;
-  this.revenueLockers = revenueLockers;
   this.contributors = contributors;
   this.cvx = cvx;
   this.crv = crv;

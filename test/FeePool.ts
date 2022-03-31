@@ -9,7 +9,6 @@ describe('PirexFees', function () {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let treasury: SignerWithAddress;
-  let revenueLockers: SignerWithAddress;
   let contributors: SignerWithAddress;
   let pirexFees: PirexFees;
 
@@ -19,20 +18,12 @@ describe('PirexFees', function () {
 
   const feeRecipientEnum = {
     treasury: 0,
-    revenueLockers: 1,
-    contributors: 2,
+    contributors: 1,
   };
 
   before(async function () {
-    ({
-      admin,
-      notAdmin,
-      treasury,
-      revenueLockers,
-      contributors,
-      pirexFees,
-      zeroAddress,
-    } = this);
+    ({ admin, notAdmin, treasury, contributors, pirexFees, zeroAddress } =
+      this);
   });
 
   describe('initial state', function () {
@@ -40,15 +31,13 @@ describe('PirexFees', function () {
       feeDistributorRole = await pirexFees.FEE_DISTRIBUTOR_ROLE();
       const percentDenominator = await pirexFees.PERCENT_DENOMINATOR();
       const treasuryPercent = await pirexFees.treasuryPercent();
-      const revenueLockersPercent = await pirexFees.revenueLockersPercent();
       const contributorsPercent = await pirexFees.contributorsPercent();
 
       expect(percentDenominator).to.equal(100);
       expect(feeDistributorRole).to.equal(
         ethers.utils.formatBytes32String('FEE_DISTRIBUTOR')
       );
-      expect(treasuryPercent).to.equal(25);
-      expect(revenueLockersPercent).to.equal(50);
+      expect(treasuryPercent).to.equal(75);
       expect(contributorsPercent).to.equal(25);
     });
   });
@@ -56,7 +45,6 @@ describe('PirexFees', function () {
   describe('constructor', function () {
     it('Should set up contract state', async function () {
       const _treasury = await pirexFees.treasury();
-      const _revenueLockers = await pirexFees.revenueLockers();
       const _contributors = await pirexFees.contributors();
       adminRole = await pirexFees.DEFAULT_ADMIN_ROLE();
       const adminHasRole = await pirexFees.hasRole(adminRole, admin.address);
@@ -71,7 +59,6 @@ describe('PirexFees', function () {
       const roles = [adminRole, feeDistributorRole];
 
       expect(_treasury).to.equal(treasury.address);
-      expect(_revenueLockers).to.equal(revenueLockers.address);
       expect(_contributors).to.equal(contributors.address);
       expect(adminHasRole).to.equal(true);
       expect(notAdminHasAdminRole).to.equal(false);
@@ -231,30 +218,6 @@ describe('PirexFees', function () {
       expect(treasuryBefore).to.equal(await pirexFees.treasury());
     });
 
-    it('Should set revenueLockers', async function () {
-      const newRevenueLockers = notAdmin.address;
-      const revenueLockersBefore = await pirexFees.revenueLockers();
-      const [setEvent] = await callAndReturnEvents(pirexFees.setFeeRecipient, [
-        feeRecipientEnum.revenueLockers,
-        newRevenueLockers,
-      ]);
-      const revenueLockersAfter = await pirexFees.revenueLockers();
-
-      await pirexFees.setFeeRecipient(
-        feeRecipientEnum.revenueLockers,
-        revenueLockersBefore
-      );
-
-      expect(revenueLockersBefore).to.equal(revenueLockers.address);
-      expect(revenueLockersBefore).to.not.equal(revenueLockersAfter);
-      expect(revenueLockersAfter).to.equal(notAdmin.address);
-      validateEvent(setEvent, 'SetFeeRecipient(uint8,address)', {
-        f: feeRecipientEnum.revenueLockers,
-        recipient: notAdmin.address,
-      });
-      expect(revenueLockersBefore).to.equal(await pirexFees.revenueLockers());
-    });
-
     it('Should set contributors', async function () {
       const newContributors = notAdmin.address;
       const contributorsBefore = await pirexFees.contributors();
@@ -283,15 +246,13 @@ describe('PirexFees', function () {
   describe('setFeePercent', function () {
     it('Should revert if percents sum is not 100', async function () {
       const invalidPercents = {
-        treasury: 0,
-        revenueLockers: 1,
+        treasury: 1,
         contributors: 100,
       };
 
       await expect(
         pirexFees.setFeePercents(
           invalidPercents.treasury,
-          invalidPercents.revenueLockers,
           invalidPercents.contributors
         )
       ).to.be.revertedWith('InvalidFeePercent()');
@@ -299,19 +260,14 @@ describe('PirexFees', function () {
 
     it('Should revert if not called by admin', async function () {
       const percents = {
-        treasury: 40,
-        revenueLockers: 40,
-        contributors: 20,
+        treasury: 50,
+        contributors: 50,
       };
 
       await expect(
         pirexFees
           .connect(notAdmin)
-          .setFeePercents(
-            percents.treasury,
-            percents.revenueLockers,
-            percents.contributors
-          )
+          .setFeePercents(percents.treasury, percents.contributors)
       ).to.be.revertedWith(
         `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${adminRole}`
       );
@@ -319,31 +275,26 @@ describe('PirexFees', function () {
 
     it('Should revert if not called by admin', async function () {
       const percents = {
-        treasury: 40,
-        revenueLockers: 40,
-        contributors: 20,
+        treasury: 50,
+        contributors: 50,
       };
       const percentsBefore = {
         treasury: await pirexFees.treasuryPercent(),
-        revenueLockers: await pirexFees.revenueLockersPercent(),
         contributors: await pirexFees.contributorsPercent(),
       };
       const [setEvent] = await callAndReturnEvents(pirexFees.setFeePercents, [
         percents.treasury,
-        percents.revenueLockers,
         percents.contributors,
       ]);
       const percentsAfter = {
         treasury: await pirexFees.treasuryPercent(),
-        revenueLockers: await pirexFees.revenueLockersPercent(),
         contributors: await pirexFees.contributorsPercent(),
       };
 
       expect(percents).to.not.deep.equal(percentsBefore);
       expect(percents).to.deep.equal(percentsAfter);
-      validateEvent(setEvent, 'SetFeePercents(uint8,uint8,uint8)', {
+      validateEvent(setEvent, 'SetFeePercents(uint8,uint8)', {
         _treasuryPercent: percents.treasury,
-        _revenueLockersPercent: percents.revenueLockers,
         _contributorsPercent: percents.contributors,
       });
     });
