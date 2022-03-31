@@ -14,6 +14,7 @@ import {
   ConvexToken,
   CvxLocker,
   PirexCvx,
+  PirexFees,
   UnionPirexVault,
 } from '../typechain-types';
 
@@ -22,6 +23,7 @@ describe('PirexCvx-Main', function () {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let pCvx: PirexCvx;
+  let pirexFees: PirexFees;
   let unionPirex: UnionPirexVault;
   let cvx: ConvexToken;
   let cvxLocker: CvxLocker;
@@ -38,6 +40,7 @@ describe('PirexCvx-Main', function () {
       admin,
       notAdmin,
       pCvx,
+      pirexFees,
       unionPirex,
       cvx,
       cvxLocker,
@@ -123,7 +126,7 @@ describe('PirexCvx-Main', function () {
         value: depositAmount,
       });
 
-      validateEvent(depositEvent, 'Deposit(address,uint256)', {
+      validateEvent(depositEvent, 'Deposit(address,uint256,bool)', {
         to,
         shares: depositAmount,
       });
@@ -162,7 +165,7 @@ describe('PirexCvx-Main', function () {
       const f = futuresEnum.reward;
 
       await expect(
-        pCvx.initiateRedemption(lockIndex, to, invalidAmount, f)
+        pCvx.initiateRedemption(lockIndex, f, to, invalidAmount)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
@@ -182,7 +185,7 @@ describe('PirexCvx-Main', function () {
 
       expect(lockData[lockIndex].amount.lt(invalidAmount)).is.true;
       await expect(
-        pCvx.initiateRedemption(lockIndex, to, invalidAmount, f)
+        pCvx.initiateRedemption(lockIndex, f, to, invalidAmount)
       ).to.be.revertedWith('InsufficientRedemptionAllowance()');
     });
 
@@ -193,7 +196,7 @@ describe('PirexCvx-Main', function () {
       const f = futuresEnum.reward;
 
       await expect(
-        pCvx.initiateRedemption(lockIndex, invalidTo, amount, f)
+        pCvx.initiateRedemption(lockIndex, f, invalidTo, amount)
       ).to.be.revertedWith('ZeroAddress()');
     });
 
@@ -208,7 +211,7 @@ describe('PirexCvx-Main', function () {
       await expect(
         pCvx
           .connect(notAdmin)
-          .initiateRedemption(lockIndex, to, invalidRedemptionAmount, f)
+          .initiateRedemption(lockIndex, f, to, invalidRedemptionAmount)
       ).to.be.revertedWith('ERC20: burn amount exceeds balance');
     });
 
@@ -219,7 +222,7 @@ describe('PirexCvx-Main', function () {
       const invalidF = futuresEnum.reward + 1;
 
       await expect(
-        pCvx.initiateRedemption(lockIndex, to, redemptionAmount, invalidF)
+        pCvx.initiateRedemption(lockIndex, invalidF, to, redemptionAmount)
       ).to.be.revertedWith(
         'Transaction reverted: function was called with incorrect parameters'
       );
@@ -228,7 +231,7 @@ describe('PirexCvx-Main', function () {
     it('Should initiate a redemption', async function () {
       const { timestamp } = await ethers.provider.getBlock('latest');
       const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
-      const lockIndex = 1;
+      const lockIndex = 0;
       const { unlockTime } = lockData[lockIndex];
 
       redemptionUnlockTime = unlockTime;
@@ -258,12 +261,15 @@ describe('PirexCvx-Main', function () {
       const f = futuresEnum.reward;
       const events = await callAndReturnEvents(pCvx.initiateRedemption, [
         lockIndex,
+        f,
         to,
         redemptionAmount,
-        f,
       ]);
-      const burnEvent = events[6];
-      const initiateEvent = events[7];
+      const burnEvent = events[0];
+      const approvalEvent = events[1];
+      const initiateEvent = events[2];
+      const treasuryFeeTransferEvent = events[5];
+      const contributorsFeeTransferEvent = events[7];
       const mintFuturesEvent = events[9];
       const ppCvxBalanceAfter = await unionPirex.balanceOf(admin.address);
       const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
@@ -310,6 +316,42 @@ describe('PirexCvx-Main', function () {
         value: postFeeAmount,
       });
       expect(burnEvent.args.from).to.not.equal(zeroAddress);
+      validateEvent(approvalEvent, 'Approval(address,address,uint256)', {
+        owner: msgSender,
+        spender: pirexFees.address,
+        value: feeAmount,
+      });
+      expect(approvalEvent.args.owner).to.not.equal(zeroAddress);
+      expect(approvalEvent.args.spender).to.not.equal(zeroAddress);
+      expect(approvalEvent.args.value).to.not.equal(0);
+      validateEvent(
+        treasuryFeeTransferEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: msgSender,
+          to: await pirexFees.treasury(),
+          value: feeAmount
+            .mul(await pirexFees.treasuryPercent())
+            .div(await pirexFees.PERCENT_DENOMINATOR()),
+        }
+      );
+      expect(approvalEvent.args.from).to.not.equal(zeroAddress);
+      expect(approvalEvent.args.to).to.not.equal(zeroAddress);
+      expect(approvalEvent.args.value).to.not.equal(0);
+      validateEvent(
+        contributorsFeeTransferEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: msgSender,
+          to: await pirexFees.contributors(),
+          value: feeAmount
+            .mul(await pirexFees.contributorsPercent())
+            .div(await pirexFees.PERCENT_DENOMINATOR()),
+        }
+      );
+      expect(approvalEvent.args.from).to.not.equal(zeroAddress);
+      expect(approvalEvent.args.to).to.not.equal(zeroAddress);
+      expect(approvalEvent.args.value).to.not.equal(0);
       validateEvent(
         initiateEvent,
         'InitiateRedemption(address,address,uint256,uint256,uint256,uint256)',
@@ -352,7 +394,7 @@ describe('PirexCvx-Main', function () {
       const f = futuresEnum.reward;
 
       await expect(
-        pCvx.initiateRedemption(lockIndex, to, invalidAmount, f)
+        pCvx.initiateRedemption(lockIndex, f, to, invalidAmount)
       ).to.be.revertedWith('InsufficientRedemptionAllowance()');
     });
   });
@@ -494,7 +536,7 @@ describe('PirexCvx-Main', function () {
       const amount = toBN(1e18);
       const f = futuresEnum.reward;
 
-      await expect(pCvx.stake(invalidRounds, to, amount, f)).to.be.revertedWith(
+      await expect(pCvx.stake(invalidRounds, f, to, amount)).to.be.revertedWith(
         'ZeroAmount()'
       );
     });
@@ -505,7 +547,7 @@ describe('PirexCvx-Main', function () {
       const amount = toBN(1e18);
       const f = futuresEnum.reward;
 
-      await expect(pCvx.stake(rounds, invalidTo, amount, f)).to.be.revertedWith(
+      await expect(pCvx.stake(rounds, f, invalidTo, amount)).to.be.revertedWith(
         'ZeroAddress()'
       );
     });
@@ -516,7 +558,7 @@ describe('PirexCvx-Main', function () {
       const invalidAmount = toBN(0);
       const f = futuresEnum.reward;
 
-      await expect(pCvx.stake(rounds, to, invalidAmount, f)).to.be.revertedWith(
+      await expect(pCvx.stake(rounds, f, to, invalidAmount)).to.be.revertedWith(
         'ZeroAmount()'
       );
     });
@@ -527,7 +569,7 @@ describe('PirexCvx-Main', function () {
       const amount = toBN(1e18);
       const invalidF = futuresEnum.reward + 1;
 
-      await expect(pCvx.stake(rounds, to, amount, invalidF)).to.be.revertedWith(
+      await expect(pCvx.stake(rounds, invalidF, to, amount)).to.be.revertedWith(
         'Transaction reverted: function was called with incorrect parameters'
       );
     });
@@ -543,7 +585,7 @@ describe('PirexCvx-Main', function () {
         await pCvx.balanceOf(admin.address)
       );
 
-      await expect(pCvx.stake(rounds, to, amount, f)).to.be.revertedWith(
+      await expect(pCvx.stake(rounds, f, to, amount)).to.be.revertedWith(
         'ERC20: transfer amount exceeds balance'
       );
 
@@ -573,9 +615,9 @@ describe('PirexCvx-Main', function () {
 
       const events = await callAndReturnEvents(pCvx.stake, [
         rounds,
+        f,
         to,
         amount,
-        f,
       ]);
       const transferEvent = events[0];
       const approveEvent = events[1];

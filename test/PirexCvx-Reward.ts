@@ -667,9 +667,9 @@ describe('PirexCvx-Reward', function () {
       await pCvx.deposit(admin.address, depositAmount, true);
       await pCvx.stake(
         stakeRounds,
+        futuresEnum.reward,
         admin.address,
-        depositAmount,
-        futuresEnum.reward
+        depositAmount
       );
     });
 
