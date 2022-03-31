@@ -660,17 +660,12 @@ describe('PirexCvx-Reward', function () {
 
   describe('exchangeFutures', function () {
     before(async function () {
-      const depositAmount = toBN(1e18);
+      const assets = toBN(1e18);
       const stakeRounds = 1;
 
-      await cvx.approve(pCvx.address, depositAmount);
-      await pCvx.deposit(admin.address, depositAmount, true);
-      await pCvx.stake(
-        stakeRounds,
-        futuresEnum.reward,
-        admin.address,
-        depositAmount
-      );
+      await cvx.approve(pCvx.address, assets);
+      await pCvx.deposit(assets, admin.address, true);
+      await pCvx.stake(stakeRounds, futuresEnum.reward, assets, admin.address);
     });
 
     it('Should revert if epoch is current', async function () {

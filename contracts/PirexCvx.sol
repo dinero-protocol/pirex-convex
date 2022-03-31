@@ -99,31 +99,35 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     event SetFee(Fees indexed f, uint32 fee);
     event MintFutures(
         uint8 rounds,
-        address indexed to,
-        uint256 amount,
-        Futures indexed f
+        Futures indexed f,
+        uint256 assets,
+        address indexed receiver
     );
     event Deposit(
-        address indexed to,
-        uint256 shares,
+        uint256 assets,
+        address indexed receiver,
         bool indexed shouldCompound
     );
     event InitiateRedemption(
         address indexed sender,
-        address indexed to,
-        uint256 amount,
+        uint256 assets,
+        address indexed receiver,
         uint256 unlockTime,
         uint256 postFeeAmount,
         uint256 feeAmount
     );
-    event Redeem(uint256 indexed epoch, address indexed to, uint256 amount);
+    event Redeem(
+        uint256 indexed epoch,
+        uint256 assets,
+        address indexed receiver
+    );
     event Stake(
         uint8 rounds,
         Futures indexed f,
-        address indexed to,
-        uint256 amount
+        uint256 assets,
+        address indexed receiver
     );
-    event Unstake(uint256 id, address indexed to, uint256 amount);
+    event Unstake(uint256 id, uint256 assets, address indexed receiver);
     event ClaimMiscRewards(uint256 timestamp, ConvexReward[] rewards);
     event ClaimVotiumReward(
         address indexed token,
@@ -321,25 +325,30 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Mint futures tokens
-        @param  rounds  uint8    Rounds (i.e. Convex voting rounds)
-        @param  to      address  Futures recipient
-        @param  amount  uint256  Futures amount
-        @param  f       enum     Futures
+        @param  rounds    uint8    Rounds (i.e. Convex voting rounds)
+        @param  f         enum     Futures
+        @param  assets    uint256  Futures amount
+        @param  receiver  address  Receives futures
     */
     function _mintFutures(
         uint8 rounds,
-        address to,
-        uint256 amount,
-        Futures f
+        Futures f,
+        uint256 assets,
+        address receiver
     ) internal {
-        emit MintFutures(rounds, to, amount, f);
+        emit MintFutures(rounds, f, assets, receiver);
 
         uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
         ERC1155PresetMinterSupply token = f == Futures.Vote ? vpCvx : rpCvx;
 
         for (uint8 i; i < rounds; ++i) {
             // Validates `to`
-            token.mint(to, startingEpoch + i * EPOCH_DURATION, amount, "");
+            token.mint(
+                receiver,
+                startingEpoch + i * EPOCH_DURATION,
+                assets,
+                ""
+            );
         }
     }
 
@@ -393,69 +402,69 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Deposit CVX
-        @param  to              address  Address receiving pCVX
-        @param  amount          uint256  CVX amount
-        @param  shouldCompound  bool     Deposit into auto-compounding vault
+        @param  assets          uint256  CVX amount
+        @param  receiver        address  Receives pCVX
+        @param  shouldCompound  bool     Whether to auto-compound
      */
     function deposit(
-        address to,
-        uint256 amount,
+        uint256 assets,
+        address receiver,
         bool shouldCompound
     ) external whenNotPaused nonReentrant {
-        if (to == address(0)) revert ZeroAddress();
-        if (amount == 0) revert ZeroAmount();
+        if (assets == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
 
         // Perform epoch maintenance if necessary
         takeEpochSnapshot();
 
         // Mint pCVX - recipient depends on whether or not to compound
-        _mint(shouldCompound ? address(this) : to, amount);
+        _mint(shouldCompound ? address(this) : receiver, assets);
 
-        emit Deposit(to, amount, shouldCompound);
+        emit Deposit(assets, receiver, shouldCompound);
 
         if (shouldCompound) {
-            _approve(address(this), address(unionPirex), amount);
+            _approve(address(this), address(unionPirex), assets);
 
             // Deposit pCVX into pounder vault - user receives shares
-            unionPirex.deposit(amount, to);
+            unionPirex.deposit(assets, receiver);
         }
 
         // Transfer CVX to self and approve for locking
-        CVX.safeTransferFrom(msg.sender, address(this), amount);
+        CVX.safeTransferFrom(msg.sender, address(this), assets);
 
         // Lock CVX
-        _lock(amount);
+        _lock(assets);
     }
 
     /**
         @notice Initiate CVX redemption
         @param  lockIndex  uint8    Locked balance index
         @param  f          enum     Futures
-        @param  to         address  upCVX recipient
-        @param  amount     uint256  pCVX/upCVX amount
+        @param  assets     uint256  pCVX amount
+        @param  receiver   address  Receives upCVX
      */
     function initiateRedemption(
         uint8 lockIndex,
         Futures f,
-        address to,
-        uint256 amount
+        uint256 assets,
+        address receiver
     ) external whenNotPaused nonReentrant {
-        if (to == address(0)) revert ZeroAddress();
-        if (amount == 0) revert ZeroAmount();
+        if (assets == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
 
         // Validates `lockIndex` is within bounds of the array - reverts otherwise
         (uint256 lockAmount, uint256 unlockTime) = _getLockData(lockIndex);
 
         // Calculate the fee based on the duration a user has to wait before redeeming CVX
-        uint256 waitTime = unlockTime - block.timestamp;
+        uint192 waitTime = uint192(unlockTime - block.timestamp);
         uint32 feeMax = fees[Fees.RedemptionMax];
         uint32 feePercent = uint32(
             feeMax -
                 (((feeMax - fees[Fees.RedemptionMin]) * waitTime) /
                     MAX_REDEMPTION_TIME)
         );
-        uint256 feeAmount = (amount * feePercent) / FEE_DENOMINATOR;
-        uint256 postFeeAmount = amount - feeAmount;
+        uint256 feeAmount = (assets * feePercent) / FEE_DENOMINATOR;
+        uint256 postFeeAmount = assets - feeAmount;
 
         // Increment redemptions for this unlockTime to prevent over-redeeming
         redemptions[unlockTime] += postFeeAmount;
@@ -470,13 +479,13 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Allow PirexFees to distribute fees directly from sender
         _approve(msg.sender, address(pirexFees), feeAmount);
 
-        // Track amount that needs to remain unlocked for redemptions
+        // Track assets that needs to remain unlocked for redemptions
         outstandingRedemptions += postFeeAmount;
 
         emit InitiateRedemption(
             msg.sender,
-            to,
-            amount,
+            assets,
+            receiver,
             unlockTime,
             postFeeAmount,
             feeAmount
@@ -486,7 +495,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         pirexFees.distributeFees(msg.sender, address(this), feeAmount);
 
         // Mint upCVX with unlockTime as the id - validates `to`
-        upCvx.mint(to, unlockTime, postFeeAmount, "");
+        upCvx.mint(receiver, unlockTime, postFeeAmount, "");
 
         // Determine how many futures notes rounds to mint
         uint8 rounds = uint8(waitTime / EPOCH_DURATION);
@@ -506,90 +515,96 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             }
         }
 
-        // Mint vpCVX or rpCVX (using amount as we do not take a fee from this)
-        _mintFutures(rounds, to, amount, f);
+        // Mint vpCVX or rpCVX (using assets as we do not take a fee from this)
+        _mintFutures(rounds, f, assets, receiver);
     }
 
     /**
         @notice Redeem CVX
         @param  unlockTime  uint256  CVX unlock timestamp
-        @param  to          address  CVX recipient
-        @param  amount      uint256  upCVX/CVX amount
+        @param  assets      uint256  upCVX amount
+        @param  receiver    address  Receives CVX
      */
     function redeem(
         uint256 unlockTime,
-        address to,
-        uint256 amount
+        uint256 assets,
+        address receiver
     ) external whenNotPaused nonReentrant {
         // Revert if CVX has not been unlocked and cannot be redeemed yet
         if (unlockTime > block.timestamp) revert BeforeUnlock();
-        if (amount == 0) revert ZeroAmount();
+        if (assets == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
 
-        emit Redeem(unlockTime, to, amount);
+        emit Redeem(unlockTime, assets, receiver);
 
         // Unlock and relock if balance is greater than outstandingRedemptions
         _relock();
 
         // Subtract redemption amount from outstanding CVX amount
-        outstandingRedemptions -= amount;
+        outstandingRedemptions -= assets;
 
         // Reverts if sender has an insufficient amount of upCVX with unlockTime id
-        upCvx.burn(msg.sender, unlockTime, amount);
+        upCvx.burn(msg.sender, unlockTime, assets);
 
         // Validates `to`
-        CVX.safeTransfer(to, amount);
+        CVX.safeTransfer(receiver, assets);
     }
 
     /**
         @notice Stake pCVX
-        @param  rounds  uint8    Rounds (i.e. Convex voting rounds)
-        @param  f       enum     Futures
-        @param  to      address  spCVX recipient
-        @param  amount  uint256  pCVX/spCVX amount
+        @param  rounds    uint8    Rounds (i.e. Convex voting rounds)
+        @param  f         enum     Futures
+        @param  assets    uint256  pCVX amount
+        @param  receiver  address  Receives spCVX
     */
     function stake(
         uint8 rounds,
         Futures f,
-        address to,
-        uint256 amount
+        uint256 assets,
+        address receiver
     ) external whenNotPaused nonReentrant {
         if (rounds == 0) revert ZeroAmount();
-        if (to == address(0)) revert ZeroAddress();
-        if (amount == 0) revert ZeroAmount();
+        if (assets == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
 
         // Burn pCVX
-        _burn(msg.sender, amount);
+        _burn(msg.sender, assets);
 
-        emit Stake(rounds, f, to, amount);
+        emit Stake(rounds, f, assets, receiver);
 
         // Mint spCVX with the stake expiry timestamp as the id
-        spCvx.mint(to, getCurrentEpoch() + EPOCH_DURATION * rounds, amount, "");
+        spCvx.mint(
+            receiver,
+            getCurrentEpoch() + EPOCH_DURATION * rounds,
+            assets,
+            ""
+        );
 
-        _mintFutures(rounds, to, amount, f);
+        _mintFutures(rounds, f, assets, receiver);
     }
 
     /**
         @notice Unstake pCVX
-        @param  id      uint256  spCVX id
-        @param  to      address  pCVX recipient
-        @param  amount  uint256  pCVX/spCVX amount
+        @param  id        uint256  spCVX id
+        @param  assets    uint256  spCVX amount
+        @param  receiver  address  Receives pCVX
     */
     function unstake(
         uint256 id,
-        address to,
-        uint256 amount
+        uint256 assets,
+        address receiver
     ) external whenNotPaused nonReentrant {
         if (id > block.timestamp) revert BeforeStakingExpiry();
-        if (to == address(0)) revert ZeroAddress();
-        if (amount == 0) revert ZeroAmount();
+        if (assets == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
 
-        // Mint pCVX
-        _mint(to, amount);
+        // Mint pCVX for receiver
+        _mint(receiver, assets);
 
-        emit Unstake(id, to, amount);
+        emit Unstake(id, assets, receiver);
 
-        // Burn spCVX
-        spCvx.burn(msg.sender, id, amount);
+        // Burn spCVX from sender
+        spCvx.burn(msg.sender, id, assets);
     }
 
     /**
