@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import "@rari-capital/solmate/src/mixins/ERC4626.sol";
+import {ERC4626} from "@rari-capital/solmate/src/mixins/ERC4626.sol";
+import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {PirexCvx} from "./PirexCvx.sol";
 
 contract UnionPirexVault is ERC4626 {

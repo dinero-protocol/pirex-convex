@@ -40,7 +40,7 @@ contract PirexCvxConvex is Ownable, Pausable {
     ERC20 public cvxCRV;
 
     // Convex Snapshot space
-    bytes32 public delegationSpace = bytes32(bytes("cvx.eth"));
+    bytes32 public delegationSpace = bytes32("cvx.eth");
 
     // The amount of CVX that needs to remain unlocked for redemptions
     uint256 public outstandingRedemptions;

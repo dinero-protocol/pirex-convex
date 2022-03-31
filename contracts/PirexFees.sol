@@ -13,17 +13,17 @@ contract PirexFees is AccessControl {
         Contributors
     }
 
-    uint8 public constant PERCENT_DENOMINATOR = 100;
-    bytes32 public immutable FEE_DISTRIBUTOR_ROLE =
-        bytes32(bytes("FEE_DISTRIBUTOR"));
+    bytes32 public immutable FEE_DISTRIBUTOR_ROLE = bytes32("FEE_DISTRIBUTOR");
 
-    // Configurable fee recipient addresses
-    address public treasury;
-    address public contributors;
+    uint8 public constant PERCENT_DENOMINATOR = 100;
 
     // Configurable fee recipient percent-share
     uint8 public treasuryPercent = 75;
     uint8 public contributorsPercent = 25;
+
+    // Configurable fee recipient addresses
+    address public treasury;
+    address public contributors;
 
     event GrantFeeDistributorRole(address distributor);
     event RevokeFeeDistributorRole(address distributor);
@@ -36,8 +36,8 @@ contract PirexFees is AccessControl {
     error InvalidFeePercent();
 
     /**
-        @param  _treasury        address  Redacted treasury
-        @param  _contributors    address  Pirex contributor multisig
+        @param  _treasury      address  Redacted treasury
+        @param  _contributors  address  Pirex contributor multisig
      */
     constructor(address _treasury, address _contributors) {
         if (_treasury == address(0)) revert ZeroAddress();
@@ -103,8 +103,8 @@ contract PirexFees is AccessControl {
 
     /** 
         @notice Set fee percents
-        @param  _treasuryPercent        uint8  Treasury fee percent
-        @param  _contributorsPercent    uint8  Contributors fee percent
+        @param  _treasuryPercent      uint8  Treasury fee percent
+        @param  _contributorsPercent  uint8  Contributors fee percent
      */
     function setFeePercents(uint8 _treasuryPercent, uint8 _contributorsPercent)
         external
