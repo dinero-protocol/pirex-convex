@@ -1,70 +1,71 @@
 # Pirex
 
-Our protocol provides a similar experience to locking CVX directly with the Convex protocol, with these added benefits:
-- Users can sell their vlCVX at any time
-- Users can sell 16 weeks' worth of bribes prior to their voting rounds
-- Users will receive PRX tokens which entitles them to a share of protocol fees
+### General
 
-And more
+Liquid vote-locked Convex with the ability to sell your future bribes and votes and collect upfront liquidity.
+
+We have a "difficulty mode" for every type of user:
+
+- Easy mode: Deposit CVX and we will auto-compound your bribes every round into more liquid pCVX
+- Intermediate mode: Deposit your CVX and unlock in 17 weeks - same as Convex - but get all 17 weeks of your bribes upfront in the form of tokens. Sell, trade, or keep them - it’s up to you
+- Expert mode: Deposit your CVX, sell your bribes upfront or borrow against your CVX to buy more CVX. Rinse and repeat
+
+Users can deposit CVX and manage their own pCVX or let our partner Union compound their bribes into more pCVX. Users will be able to collateralize both uCVX (UnionPirex vault shares) and/or pCVX tokens and borrow against them.
+
+And more!
+
+### Overview
+
+Pirex provides a similar experience to locking CVX directly with the Convex protocol, with these added benefits (to name a few):
+
+- Fungible, liquid CVX wrapper token which be used as collateral for Fuse and more
+- Native auto-compounding integration with our partners in crime, Alu and Benny from the Union
+- Flexible CVX redemptions which allow users to withdraw their CVX anywhere from 1-17 weeks
+- No upfront fees - Pirex's goal is to provide the user with the same APR as Convex and will only share in any surplus
+- Efficient and novel ERC1155-based system used for segregating tokens by time
+  - upCVX: Represents CVX being unlocked which can be redeemed after a specific timestamp
+  - rpCVX: Represents bribes which can be claimed for a specific Convex voting round
+  - vpCVX: Represents votes which can be used for a specific Convex voting round
+  - spCVX: Represents pCVX which can be unstaked after a specific timestamp
 
 ### Setup
 
-IDE: VSCode 1.65 (Universal)
+IDE: VSCode 1.66 (Universal)
 
-Node: 16.13.1
+Node: 16.14.2
 
-NPM: 8.1.2
+NPM: 8.5.0
 
 1. Create a `.env` file with the same variables as `.env.example` and set them
 2. Install global and local dependencies
-`npm i -g typescript && npm i`
+   `npm i -g typescript && npm i`
 3. Compile contracts and run tests to ensure the project is set up correctly
-`npx hardhat compile && npx hardhat test`
+   `npx hardhat compile && npx hardhat test` (`npx hardhat clean` may be required if an older version is cached)
 
-### Contract Overview
+### Core Contract Overview
 
-**VaultController.sol** (1 instance deployed)
-- Deploys, sets up, and tracks LockedCvxVault, RewardCvxVault, and RewardClaimer contract instances
-- Implements a time-based structure for protocol operations (e.g. deploys and initializes vaults with data for gating actions before/after a certain time, mints users vault shares for a sequence of epochs, etc.)
-- Routes key method calls (e.g. deposit underlying, share redemptions, etc.) to the correct contracts
+**PirexCvx.sol**
 
-_NOTE: An epoch is 2 weeks_
+- Custodies deposited CVX and manages it through interactions with Convex's contracts
+- Produces tokenized versions of vlCVX (i.e. pCVX, upCVX, and spCVX) and derivatives (i.e. futures notes: rpCVX and vpCVX)
+- Claims rewards from Votium and Convex and maintains the logic for their distribution
 
-**LockedCvxVault.sol** (1 instance deployed per epoch)
-- Provides an ERC4626 interface for securely depositing and redeeming CVX
-- Integrates various Convex contracts for carrying out actions such as unlocking CVX, delegating vlCVX, etc.
-- Tokenizes vlCVX and enables users to transfer ownership prior to their tokens' lock expiry
+**PirexCvxConvex.sol**
 
-**RewardCvxVault.sol** (1 instance deployed per epoch)
-- Tokenizes future bribes, staking emissions, and other incentives
-- Securely custodies reward assets and enables their redemption
-- Makes it possible to segregate an asset and its rights or benefits (e.g. CVX and its voting power or future bribes)
+- Provides an interface to Convex contract methods that are relevant to the Pirex protocol
+- Allows the protocol to be paused and provides emergency methods to handle unforeseen events (e.g. [this mass Convex unlock on March 4, 2022](https://convexfinance.medium.com/vote-locked-cvx-contract-migration-8546b3d9a38c))
 
-**RewardClaimer.sol** (1 instance deployed per epoch)
-- Handles reward-claiming for a variety of protocols (e.g. Convex, Votium, etc.)
-- Transfers rewards - as they are claimed - to the appropriate RewardCvxVault and updates its state
-- Provides the means for custom reward management in the future 
+**PirexFees.sol**
 
-![Contract Diagram](https://i.imgur.com/g9WKF73.png)
-_<p align="center">CVX deposit (order: green, blue, orange, purple)</p>_
+- Distributes protocol fees to stakeholders
+- Offers a variety of methods for security and administrative purposes (e.g. granting/revoking roles and updating fee recipient addresses)
+
+**UnionPirexVault.sol**
+
+Work-in-progress! See [this implementation](https://github.com/convex-community/union_contracts/tree/feat/pcvx/contracts/strategies/pCVX) by our partners, the Union, which will be continuously updated.
 
 ### User Roles
 
-- Owner: Work-in-progress
-- VaultController: Has permission to call sensitive vault methods for minting rewardCVX and delegating votes
-- RewardClaimer: Has permission to update the state of RewardCvxVaults to reflect the reward balances
-
-### Action-chain: CVX Deposit-Redemption
-
-A series of actions, from CVX deposit to redemption (in this example, only the VaultController is deployed)
-1. Alice calls `deposit` on the VaultController contract, specifying 100 CVX as the amount
-2. VaultController checks for the existence of a LockedCvxVault for the current epoch. It does not exist, so it carries out the process of deploying and setting up 1 LockedCvxVault, 8 RewardCvxVaults, and 1 RewardClaimer by calling `setUpVaults`
-3. VaultController calls `deposit` on the LockedCvxVault contract, which results in 100 lockedCVX being minted for Alice and 100 CVX being locked with Convex
-4. VaultController calls `_mintRewardCvxTokens` which mints 800 rewardCVX for Alice - 100 rewardCVX per Convex gauge-weight voting round (8 rounds in total during the CVX locking period) on each RewardCvxVault
-5. Alice is bullish on CVX but wants to take off risk in the face of a potential bear market. She sells all 800 rewardCVX - capturing 16 weeks of bribe revenue in an instant
-
-_17-19 weeks later (depending on when Alice deposited in the epoch)..._
-
-6. Alice calls `redeem` on the VaultController contract, specifying 100 lockedCVX as the amount
-7. VaultController transfers the lockedCVX to itself, calls `unlock` and `redeem` on the correct LockedCvxVault
-8. LockedCvxVault burns the lockedCVX and transfers the unlocked CVX to Alice
+- Owner: Pirex 3/5 multi-sig that has permission to call owner-only methods within the PirexCvx and PirexCvxConvex contract
+- Admin: Pirex 3/5 multi-sig that has permission to call admin-only methods within the PirexFees contract
+- Fee Distributor: Addresses that have permission to call the PirexFees contract's `distributeFees` method
