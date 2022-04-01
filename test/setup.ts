@@ -27,6 +27,7 @@ let cvx: ConvexToken;
 let crv: Crv;
 let cvxCrvToken: any;
 let cvxLocker: CvxLocker;
+let cvxLockerNew: CvxLocker;
 let cvxDelegateRegistry: DelegateRegistry;
 let cvxRewardPool: CvxRewardPool;
 let votiumAddressRegistry: AddressRegistry;
@@ -67,6 +68,9 @@ before(async function () {
   cvxLocker = await (
     await ethers.getContractFactory('CvxLocker')
   ).deploy(cvx.address, cvxCrvToken.address, baseRewardPool.address);
+  cvxLockerNew = await (
+    await ethers.getContractFactory('CvxLocker')
+  ).deploy(cvx.address, cvxCrvToken.address, baseRewardPool.address);
   cvxRewardPool = await (
     await ethers.getContractFactory('CvxRewardPool')
   ).deploy(
@@ -82,6 +86,15 @@ before(async function () {
     await ethers.getContractFactory('CvxStakingProxy')
   ).deploy(
     cvxLocker.address,
+    cvxRewardPool.address,
+    crv.address,
+    cvx.address,
+    cvxCrvToken.address
+  );
+  const cvxStakingProxyNew = await (
+    await ethers.getContractFactory('CvxStakingProxy')
+  ).deploy(
+    cvxLockerNew.address,
     cvxRewardPool.address,
     crv.address,
     cvx.address,
@@ -104,7 +117,12 @@ before(async function () {
   await cvxLocker.setApprovals();
   await cvxLocker.addReward(crv.address, admin.address, true);
   await cvxLocker.addReward(cvxCrvToken.address, admin.address, true);
+  await cvxLockerNew.setStakingContract(cvxStakingProxyNew.address);
+  await cvxLockerNew.setApprovals();
+  await cvxLockerNew.addReward(crv.address, admin.address, true);
+  await cvxLockerNew.addReward(cvxCrvToken.address, admin.address, true);
   await cvxStakingProxy.setApprovals();
+  await cvxStakingProxyNew.setApprovals();
   await cvx.mint(admin.address, initialBalanceForAdmin);
   await crv.mint(admin.address, initialBalanceForAdmin);
   await cvxCrvToken.mint(admin.address, initialBalanceForAdmin);
@@ -136,6 +154,7 @@ before(async function () {
   this.crv = crv;
   this.cvxCrvToken = cvxCrvToken;
   this.cvxLocker = cvxLocker;
+  this.cvxLockerNew = cvxLockerNew;
   this.cvxRewardPool = cvxRewardPool;
   this.cvxDelegateRegistry = cvxDelegateRegistry;
   this.votiumAddressRegistry = votiumAddressRegistry;
