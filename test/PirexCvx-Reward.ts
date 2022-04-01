@@ -699,8 +699,6 @@ describe('PirexCvx-Reward', function () {
         amount.mul(rpCvxBalanceBefore).div(rpCvxSupplyBefore)
       );
 
-      console.log(futuresRewards);
-
       expect(rpCvxBalanceAfter).to.not.equal(rpCvxBalanceBefore);
       expect(rpCvxBalanceAfter).to.equal(0);
       expect(rpCvxSupplyAfter).to.not.equal(rpCvxSupplyBefore);
@@ -733,14 +731,13 @@ describe('PirexCvx-Reward', function () {
       const invalidEpoch2 = invalidEpoch1.sub(epochDuration);
       const amount = toBN(1e18);
       const receiver = admin.address;
-      const i = futuresEnum.reward;
-      const o = futuresEnum.vote;
+      const f = futuresEnum.reward;
 
       await expect(
-        pCvx.exchangeFutures(invalidEpoch1, amount, receiver, i, o)
+        pCvx.exchangeFutures(invalidEpoch1, amount, receiver, f)
       ).to.be.revertedWith('PastExchangePeriod()');
       await expect(
-        pCvx.exchangeFutures(invalidEpoch2, amount, receiver, i, o)
+        pCvx.exchangeFutures(invalidEpoch2, amount, receiver, f)
       ).to.be.revertedWith('PastExchangePeriod()');
     });
 
@@ -748,11 +745,10 @@ describe('PirexCvx-Reward', function () {
       const epoch = (await pCvx.getCurrentEpoch()).add(epochDuration);
       const invalidAmount = 0;
       const receiver = admin.address;
-      const i = futuresEnum.reward;
-      const o = futuresEnum.vote;
+      const f = futuresEnum.reward;
 
       await expect(
-        pCvx.exchangeFutures(epoch, invalidAmount, receiver, i, o)
+        pCvx.exchangeFutures(epoch, invalidAmount, receiver, f)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
@@ -760,11 +756,10 @@ describe('PirexCvx-Reward', function () {
       const epoch = (await pCvx.getCurrentEpoch()).add(epochDuration);
       const amount = toBN(1);
       const invalidReceiver = zeroAddress;
-      const i = futuresEnum.reward;
-      const o = futuresEnum.vote;
+      const f = futuresEnum.reward;
 
       await expect(
-        pCvx.exchangeFutures(epoch, amount, invalidReceiver, i, o)
+        pCvx.exchangeFutures(epoch, amount, invalidReceiver, f)
       ).to.be.revertedWith('ZeroAddress()');
     });
 
@@ -775,14 +770,13 @@ describe('PirexCvx-Reward', function () {
       const rpCvxBalance = await rpCvx.balanceOf(sender, epoch);
       const amount = toBN(1);
       const receiver = admin.address;
-      const i = futuresEnum.reward;
-      const o = futuresEnum.vote;
+      const f = futuresEnum.reward;
 
       await rpCvx.connect(notAdmin).setApprovalForAll(pCvx.address, true);
 
       expect(rpCvxBalance.lt(amount)).to.equal(true);
       await expect(
-        pCvx.connect(notAdmin).exchangeFutures(epoch, amount, receiver, i, o)
+        pCvx.connect(notAdmin).exchangeFutures(epoch, amount, receiver, f)
       ).to.be.revertedWith('ERC1155: burn amount exceeds balance');
     });
 
@@ -790,13 +784,12 @@ describe('PirexCvx-Reward', function () {
       const epoch = (await pCvx.getCurrentEpoch()).add(epochDuration);
       const amount = toBN(1);
       const receiver = admin.address;
-      const i = futuresEnum.reward;
-      const o = futuresEnum.vote;
+      const f = futuresEnum.reward;
 
       await pCvx.setPauseState(true);
 
       await expect(
-        pCvx.exchangeFutures(epoch, amount, receiver, i, o)
+        pCvx.exchangeFutures(epoch, amount, receiver, f)
       ).to.be.revertedWith('Pausable: paused');
 
       await pCvx.setPauseState(false);
@@ -811,14 +804,12 @@ describe('PirexCvx-Reward', function () {
       const rpCvxBalanceBefore = await rpCvx.balanceOf(sender, epoch);
       const vpCvxBalanceBefore = await vpCvx.balanceOf(receiver, epoch);
       const amount = toBN(1);
-      const i = futuresEnum.reward;
-      const o = futuresEnum.vote;
+      const f = futuresEnum.reward;
       const events = await callAndReturnEvents(pCvx.exchangeFutures, [
         epoch,
         amount,
         receiver,
-        i,
-        o,
+        f,
       ]);
       const exchangeEvent = events[0];
       const rpCvxBalanceAfter = await rpCvx.balanceOf(sender, epoch);
@@ -828,13 +819,12 @@ describe('PirexCvx-Reward', function () {
       expect(vpCvxBalanceAfter).to.equal(vpCvxBalanceBefore.add(amount));
       validateEvent(
         exchangeEvent,
-        'ExchangeFutures(uint256,uint256,address,uint8,uint8)',
+        'ExchangeFutures(uint256,uint256,address,uint8)',
         {
           epoch,
           amount,
           receiver,
-          i,
-          o,
+          f,
         }
       );
     });

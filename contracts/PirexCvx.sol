@@ -34,7 +34,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     /**
         @notice Queued fee changes
         @param  newFee          uint32   New fee
-        @param  effectiveAfter  uint256  Timestamp after which new fee could take affect
+        @param  effectiveAfter  uint224  Timestamp after which new fee could take affect
      */
     struct QueuedFee {
         uint32 newFee;
@@ -153,8 +153,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 indexed epoch,
         uint256 amount,
         address indexed receiver,
-        Futures i,
-        Futures o
+        Futures f
     );
 
     error ZeroAmount();
@@ -782,27 +781,25 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         @param  epoch     uint256  Epoch (ERC1155 token id)
         @param  amount    uint256  Exchange amount
         @param  receiver  address  Receives futures token
-        @param  i         Futures  Futures token to burn
-        @param  o         Futures  Futures token to mint
+        @param  f         enum     Futures token to exchange
     */
     function exchangeFutures(
         uint256 epoch,
         uint256 amount,
         address receiver,
-        Futures i,
-        Futures o
+        Futures f
     ) external whenNotPaused {
         // Users can only exchange futures tokens for future epochs
         if (epoch <= getCurrentEpoch()) revert PastExchangePeriod();
         if (amount == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
-        ERC1155PresetMinterSupply futuresIn = i == Futures.Vote ? vpCvx : rpCvx;
-        ERC1155PresetMinterSupply futuresOut = o == Futures.Reward
+        ERC1155PresetMinterSupply futuresIn = f == Futures.Vote ? vpCvx : rpCvx;
+        ERC1155PresetMinterSupply futuresOut = f == Futures.Vote
             ? rpCvx
             : vpCvx;
 
-        emit ExchangeFutures(epoch, amount, receiver, i, o);
+        emit ExchangeFutures(epoch, amount, receiver, f);
 
         // Validates `amount` (balance)
         futuresIn.burn(msg.sender, epoch, amount);
