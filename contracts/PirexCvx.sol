@@ -1,552 +1,425 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.12;
 
-import "hardhat/console.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {ERC20Snapshot} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ERC20PresetMinterPauserUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/presets/ERC20PresetMinterPauserUpgradeable.sol";
-import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
+import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
+import {PirexCvxConvex} from "./PirexCvxConvex.sol";
+import {PirexFees} from "./PirexFees.sol";
+import {UnionPirexVault} from "./UnionPirexVault.sol";
 
-interface ICvxLocker {
-    struct LockedBalance {
-        uint112 amount;
-        uint112 boosted;
-        uint32 unlockTime;
+contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
+    using SafeERC20 for ERC20;
+
+    /**
+        @notice Epoch details
+        @notice Reward/snapshotRewards/futuresRewards indexes are associated with 1 reward
+        @param  snapshotId               uint256    Snapshot id
+        @param  rewards                  address[]  Rewards
+        @param  snapshotRewards          uint256[]  Snapshot reward amounts
+        @param  futuresRewards           uint256[]  Futures reward amounts
+        @param  redeemedSnapshotRewards  mapping    Redeemed snapshot rewards
+     */
+    struct Epoch {
+        uint256 snapshotId;
+        address[] rewards;
+        uint256[] snapshotRewards;
+        uint256[] futuresRewards;
+        mapping(address => mapping(uint8 => uint256)) redeemedSnapshotRewards;
     }
 
-    struct EarnedData {
-        address token;
-        uint256 amount;
+    /**
+        @notice Queued fee changes
+        @param  newFee          uint32   New fee
+        @param  effectiveAfter  uint224  Timestamp after which new fee could take affect
+     */
+    struct QueuedFee {
+        uint32 newFee;
+        uint224 effectiveAfter;
     }
 
-    function lock(
-        address _account,
-        uint256 _amount,
-        uint256 _spendRatio
-    ) external;
+    // Users can choose between the two futures tokens when staking or unlocking
+    enum Futures {
+        Vote,
+        Reward
+    }
 
-    function processExpiredLocks(
-        bool _relock,
-        uint256 _spendRatio,
-        address _withdrawTo
-    ) external;
+    // Configurable contracts
+    enum Contract {
+        PirexFees,
+        UpCvx,
+        VpCvx,
+        RpCvx,
+        SpCvx,
+        UnionPirexVault
+    }
 
-    function lockedBalances(address _user)
-        external
-        view
-        returns (
-            uint256 total,
-            uint256 unlockable,
-            uint256 locked,
-            LockedBalance[] memory lockData
-        );
+    // Configurable fees
+    enum Fees {
+        Reward,
+        RedemptionMax,
+        RedemptionMin
+    }
 
-    function getReward(address _account, bool _stake) external;
+    // Seconds between Convex voting rounds (2 weeks)
+    uint32 public constant EPOCH_DURATION = 1209600;
 
-    function claimableRewards(address _account)
-        external
-        view
-        returns (EarnedData[] memory userRewards);
-}
+    // Fee denominator
+    uint32 public constant FEE_DENOMINATOR = 1000000;
 
-interface IcvxRewardPool {
-    function stake(uint256 _amount) external;
+    // Maximum wait time (seconds) for a CVX redemption (17 weeks)
+    uint32 public constant MAX_REDEMPTION_TIME = 10281600;
 
-    function withdraw(uint256 _amount, bool claim) external;
-}
+    // Unused ERC1155 `data` param value
+    bytes private constant UNUSED_1155_DATA = "";
 
-interface IConvexDelegateRegistry {
-    function setDelegate(bytes32 id, address delegate) external;
-}
+    PirexFees public pirexFees;
+    IVotiumMultiMerkleStash public votiumMultiMerkleStash;
+    ERC1155PresetMinterSupply public upCvx;
+    ERC1155PresetMinterSupply public vpCvx;
+    ERC1155PresetMinterSupply public rpCvx;
+    ERC1155PresetMinterSupply public spCvx;
+    UnionPirexVault public unionPirex;
 
-interface IVotiumMultiMerkleStash {
-    function claim(
-        address token,
+    // Epochs mapped to epoch details
+    mapping(uint256 => Epoch) private epochs;
+
+    // Fees (e.g. 5000 / 1000000 = 0.5%)
+    mapping(Fees => uint32) public fees;
+
+    // Convex unlock timestamps mapped to amount being redeemed
+    mapping(uint256 => uint256) public redemptions;
+
+    // Queued fees which will take effective after 1 epoch (2 weeks)
+    mapping(Fees => QueuedFee) public queuedFees;
+
+    event SetContract(Contract indexed c, address contractAddress);
+    event QueueFee(Fees indexed f, uint32 newFee, uint224 effectiveAfter);
+    event SetFee(Fees indexed f, uint32 fee);
+    event MintFutures(
+        uint8 rounds,
+        Futures indexed f,
+        uint256 assets,
+        address indexed receiver
+    );
+    event Deposit(
+        uint256 assets,
+        address indexed receiver,
+        bool indexed shouldCompound
+    );
+    event InitiateRedemption(
+        address indexed sender,
+        uint256 assets,
+        address indexed receiver,
+        uint256 unlockTime,
+        uint256 postFeeAmount,
+        uint256 feeAmount
+    );
+    event Redeem(
+        uint256 indexed epoch,
+        uint256 assets,
+        address indexed receiver
+    );
+    event Stake(
+        uint8 rounds,
+        Futures indexed f,
+        uint256 assets,
+        address indexed receiver
+    );
+    event Unstake(uint256 id, uint256 assets, address indexed receiver);
+    event ClaimMiscRewards(uint256 timestamp, ConvexReward[] rewards);
+    event ClaimVotiumReward(
+        address indexed token,
         uint256 index,
-        address account,
+        uint256 amount
+    );
+    event RedeemSnapshotReward(
+        uint256 indexed epoch,
+        uint256 rewardIndex,
+        address receiver,
+        uint256 indexed snapshotId,
+        uint256 snapshotBalance,
+        uint256 redeemAmount
+    );
+    event RedeemFuturesRewards(
+        uint256 indexed epoch,
+        address indexed receiver,
+        address[] rewards
+    );
+    event ExchangeFutures(
+        uint256 indexed epoch,
         uint256 amount,
-        bytes32[] calldata merkleProof
-    ) external;
-}
-
-interface IVotiumRewardManager {
-    function manage(address token, uint256 amount)
-        external
-        returns (address newToken, uint256 newTokenAmount);
-}
-
-interface IBaseRewardPool {
-    function balanceOf(address account) external view returns (uint256);
-
-    function withdraw(uint256 amount, bool claim) external returns (bool);
-
-    function stake(uint256 _amount) external returns (bool);
-}
-
-contract PirexCvx is Ownable {
-    using SafeERC20 for IERC20;
-    using Strings for uint256;
-
-    struct Deposit {
-        uint256 lockExpiry;
-        address token;
-    }
-
-    struct Reward {
-        address token;
-        uint256 amount;
-    }
-
-    address public cvxLocker;
-    address public cvx;
-    address public cvxRewardPool;
-    address public cvxDelegateRegistry;
-    address public votiumMultiMerkleStash;
-    uint256 public epochDepositDuration;
-    uint256 public lockDuration;
-    address public immutable erc20Implementation;
-    address public voteDelegate;
-    address public votiumRewardManager;
-    address public baseRewardPool;
-    address public cvxCrv;
-
-    mapping(uint256 => Deposit) public deposits;
-
-    // Voter bribes
-    mapping(uint256 => Reward[]) public voteEpochRewards;
-
-    // Convex emissions and extra rewards
-    mapping(uint256 => mapping(address => uint256)) public epochRewards;
-    mapping(uint256 => address[]) public epochRewardTokens;
-
-    event VoteDelegateSet(bytes32 id, address delegate);
-    event VotiumRewardManagerSet(address manager);
-
-    // Epoch mapped to vote token addresses
-    mapping(uint256 => address) public voteEpochs;
-
-    // Epoch mapped to reward token addresses
-    mapping(uint256 => address) public rewardEpochs;
-
-    event Deposited(
-        uint256 amount,
-        uint256 spendRatio,
-        uint256 epoch,
-        uint256 lockExpiry,
-        address token,
-        uint256[8] epochs
-    );
-    event Withdrew(
-        uint256 amount,
-        uint256 spendRatio,
-        uint256 epoch,
-        uint256 lockExpiry,
-        address token,
-        uint256 unlocked,
-        uint256 staked
-    );
-    event Staked(uint256 amount);
-    event Unstaked(uint256 amount);
-    event VotiumRewardClaimed(
-        address token,
-        uint256 index,
-        uint256 amount,
-        bytes32[] merkleProof,
-        uint256 voteEpoch,
-        uint256 voteEpochRewardsIndex,
-        address manager,
-        address managerToken,
-        uint256 managerTokenAmount
-    );
-    event VoteEpochRewardsRedeemed(
-        address[] tokens,
-        uint256[] amounts,
-        uint256[] remaining
-    );
-    event EpochRewardsClaimedAndStaked(ICvxLocker.EarnedData[] claimed);
-    event EpochRewardsRedeemed(
-        address[] tokens,
-        uint256[] amounts,
-        uint256[] remaining
+        address indexed receiver,
+        Futures f
     );
 
+    error ZeroAmount();
+    error BeforeUnlock();
+    error InsufficientBalance();
+    error AlreadyRedeemed();
+    error SnapshotRequired();
+    error InsufficientRedemptionAllowance();
+    error PastExchangePeriod();
+    error InvalidNewFee();
+    error BeforeEffectiveTimestamp();
+    error BeforeStakingExpiry();
+    error InvalidEpoch();
+    error EmptyArray();
+    error MismatchedArrays();
+    error NoRewards();
+
+    /**
+        @param  _CVX                     address  CVX address    
+        @param  _cvxLocker               address  CvxLocker address
+        @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
+        @param  _cvxRewardPool           address  CvxRewardPool address
+        @param  _cvxCRV                  address  CvxCrvToken address
+        @param  _pirexFees               address  PirexFees address
+        @param  _votiumMultiMerkleStash  address  VotiumMultiMerkleStash address
+     */
     constructor(
+        address _CVX,
         address _cvxLocker,
-        address _cvx,
-        address _cvxRewardPool,
         address _cvxDelegateRegistry,
-        address _votiumMultiMerkleStash,
-        uint256 _epochDepositDuration,
-        uint256 _lockDuration,
-        address _voteDelegate,
-        address _baseRewardPool,
-        address _cvxCrv
-    ) {
-        require(_cvxLocker != address(0), "Invalid _cvxLocker");
-        cvxLocker = _cvxLocker;
+        address _cvxRewardPool,
+        address _cvxCRV,
+        address _pirexFees,
+        address _votiumMultiMerkleStash
+    )
+        ERC20("Pirex CVX", "pCVX")
+        PirexCvxConvex(
+            _CVX,
+            _cvxLocker,
+            _cvxDelegateRegistry,
+            _cvxRewardPool,
+            _cvxCRV
+        )
+    {
+        // Set up 1st epoch with snapshot id 1 and prevent reward claims until subsequent epochs
+        epochs[getCurrentEpoch()].snapshotId = _snapshot();
 
-        require(_cvx != address(0), "Invalid _cvx");
-        cvx = _cvx;
+        if (_pirexFees == address(0)) revert ZeroAddress();
+        pirexFees = PirexFees(_pirexFees);
 
-        require(_cvxRewardPool != address(0), "Invalid _cvxRewardPool");
-        cvxRewardPool = _cvxRewardPool;
-
-        require(
-            _cvxDelegateRegistry != address(0),
-            "Invalid _cvxDelegateRegistry"
-        );
-        cvxDelegateRegistry = _cvxDelegateRegistry;
-
-        require(_votiumMultiMerkleStash != address(0));
-        votiumMultiMerkleStash = _votiumMultiMerkleStash;
-
-        require(_epochDepositDuration != 0, "Invalid _epochDepositDuration");
-        epochDepositDuration = _epochDepositDuration;
-
-        require(_lockDuration != 0, "Invalid _lockDuration");
-        lockDuration = _lockDuration;
-
-        require(_voteDelegate != address(0), "Invalid _voteDelegate");
-        voteDelegate = _voteDelegate;
-
-        require(_baseRewardPool != address(0), "Invalid _baseRewardPool");
-        baseRewardPool = _baseRewardPool;
-
-        require(_cvxCrv != address(0), "Invalid _cvxCrv");
-        cvxCrv = _cvxCrv;
-
-        // Default reward manager
-        votiumRewardManager = address(this);
-
-        erc20Implementation = address(new ERC20PresetMinterPauserUpgradeable());
-    }
-
-    /**
-        @notice Restricts calls to owner or votiumRewardManager
-     */
-    modifier onlyVotiumRewardManager() {
-        require(
-            msg.sender == owner() || msg.sender == votiumRewardManager,
-            "Must be owner or votiumRewardManager"
+        if (_votiumMultiMerkleStash == address(0)) revert ZeroAddress();
+        votiumMultiMerkleStash = IVotiumMultiMerkleStash(
+            _votiumMultiMerkleStash
         );
 
-        _;
+        upCvx = new ERC1155PresetMinterSupply("");
+        vpCvx = new ERC1155PresetMinterSupply("");
+        rpCvx = new ERC1155PresetMinterSupply("");
+        spCvx = new ERC1155PresetMinterSupply("");
     }
 
-    /**
-        @notice Set vote delegate
-        @param  id        bytes32  Id from Convex when setting delegate
-        @param  delegate  address  Account to delegate votes to
+    /** 
+        @notice Set a contract address
+        @param  c                enum     Contract
+        @param  contractAddress  address  Contract address    
      */
-    function setVoteDelegate(bytes32 id, address delegate) external onlyOwner {
-        require(delegate != address(0), "Invalid delegate");
-        voteDelegate = delegate;
+    function setContract(Contract c, address contractAddress)
+        external
+        onlyOwner
+    {
+        if (contractAddress == address(0)) revert ZeroAddress();
 
-        IConvexDelegateRegistry(cvxDelegateRegistry).setDelegate(id, delegate);
+        emit SetContract(c, contractAddress);
 
-        emit VoteDelegateSet(id, delegate);
+        if (c == Contract.PirexFees) {
+            pirexFees = PirexFees(contractAddress);
+            return;
+        }
+
+        if (c == Contract.UpCvx) {
+            upCvx = ERC1155PresetMinterSupply(contractAddress);
+            return;
+        }
+
+        if (c == Contract.VpCvx) {
+            vpCvx = ERC1155PresetMinterSupply(contractAddress);
+            return;
+        }
+
+        if (c == Contract.RpCvx) {
+            rpCvx = ERC1155PresetMinterSupply(contractAddress);
+            return;
+        }
+
+        if (c == Contract.SpCvx) {
+            spCvx = ERC1155PresetMinterSupply(contractAddress);
+            return;
+        }
+
+        unionPirex = UnionPirexVault(contractAddress);
     }
 
-    /**
-        @notice Set Votium reward manager
-        @param  manager  address  Reward manager
+    /** 
+        @notice Queue fee
+        @param  f       enum    Fee enum
+        @param  newFee  uint32  New fee
      */
-    function setVotiumRewardManager(address manager) external onlyOwner {
-        require(manager != address(0), "Invalid manager");
-        votiumRewardManager = manager;
+    function queueFee(Fees f, uint32 newFee) external onlyOwner {
+        if (newFee > FEE_DENOMINATOR) revert InvalidNewFee();
 
-        emit VotiumRewardManagerSet(manager);
+        uint224 effectiveAfter = uint224(block.timestamp + EPOCH_DURATION);
+
+        // Queue up the fee change, which can be set after 2 weeks
+        queuedFees[f].newFee = newFee;
+        queuedFees[f].effectiveAfter = effectiveAfter;
+
+        emit QueueFee(f, newFee, effectiveAfter);
+    }
+
+    /** 
+        @notice Set fee
+        @param  f  Fees  Fee enum
+     */
+    function setFee(Fees f) external onlyOwner {
+        QueuedFee memory q = queuedFees[f];
+
+        if (q.effectiveAfter > block.timestamp)
+            revert BeforeEffectiveTimestamp();
+
+        fees[f] = q.newFee;
+
+        emit SetFee(f, q.newFee);
     }
 
     /**
         @notice Get current epoch
-        @return uint256 Current epoch
+        @return uint256  Current epoch
      */
     function getCurrentEpoch() public view returns (uint256) {
-        return (block.timestamp / epochDepositDuration) * epochDepositDuration;
+        return (block.timestamp / EPOCH_DURATION) * EPOCH_DURATION;
     }
 
     /**
-        @notice Get epoch reward
+        @notice Get current snapshot id
+        @return uint256  Current snapshot id
      */
-    function getEpochReward(uint256 epoch, address token)
+    function getCurrentSnapshotId() external view returns (uint256) {
+        return _getCurrentSnapshotId();
+    }
+
+    /**
+        @notice Get epoch
+        @param  epoch            uint256    Epoch
+        @return snapshotId       uint256     Snapshot id
+        @return rewards          address[]  Reward tokens
+        @return snapshotRewards  uint256[]  Snapshot reward amounts
+        @return futuresRewards   uint256[]  Futures reward amounts
+     */
+    function getEpoch(uint256 epoch)
         external
         view
-        returns (uint256)
+        returns (
+            uint256 snapshotId,
+            address[] memory rewards,
+            uint256[] memory snapshotRewards,
+            uint256[] memory futuresRewards
+        )
     {
-        return epochRewards[epoch][token];
+        Epoch storage e = epochs[epoch];
+
+        return (e.snapshotId, e.rewards, e.snapshotRewards, e.futuresRewards);
     }
 
     /**
-        @notice Deposit CVX into our protocol
-        @param  amount      uint256  CVX amount
-        @param  spendRatio  uint256  Used to calculate the spend amount and boost ratio
-     */
-    function deposit(uint256 amount, uint256 spendRatio) external {
-        require(amount != 0, "Invalid amount");
+        @notice Mint futures tokens
+        @param  rounds    uint8    Rounds (i.e. Convex voting rounds)
+        @param  f         enum     Futures
+        @param  assets    uint256  Futures amount
+        @param  receiver  address  Receives futures
+    */
+    function _mintFutures(
+        uint8 rounds,
+        Futures f,
+        uint256 assets,
+        address receiver
+    ) internal {
+        emit MintFutures(rounds, f, assets, receiver);
 
-        // CvxLocker transfers CVX from msg.sender (this contract) to itself
-        IERC20(cvx).safeTransferFrom(msg.sender, address(this), amount);
+        uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
+        ERC1155PresetMinterSupply token = f == Futures.Vote ? vpCvx : rpCvx;
 
-        IERC20(cvx).safeIncreaseAllowance(cvxLocker, amount);
-        ICvxLocker(cvxLocker).lock(address(this), amount, spendRatio);
-
-        // Deposit periods are every 2 weeks
-        uint256 currentEpoch = getCurrentEpoch();
-
-        Deposit storage d = deposits[currentEpoch];
-
-        // CVX can be withdrawn 17 weeks *after the end of the epoch*
-        uint256 lockExpiry = currentEpoch + epochDepositDuration + lockDuration;
-        address token = mintLockedCvx(msg.sender, amount, currentEpoch);
-        uint256[8] memory epochs = mintVoteAndRewardCvx(
-            msg.sender,
-            amount,
-            currentEpoch
-        );
-
-        assert(lockExpiry != 0);
-        assert(token != address(0));
-
-        if (d.lockExpiry == 0) {
-            d.lockExpiry = lockExpiry;
-            d.token = token;
-        }
-
-        emit Deposited(
-            amount,
-            spendRatio,
-            currentEpoch,
-            lockExpiry,
-            token,
-            epochs
-        );
-    }
-
-    /**
-        @notice Reusable method for minting different types of CVX tokens
-        @param  token      address  Token address
-        @param  tokenId    string   Token name/symbol
-        @param  recipient  address  Account receiving tokens
-        @param  amount     uint256  Amount of tokens to mint account
-     */
-    function mintCvx(
-        address token,
-        string memory tokenId,
-        address recipient,
-        uint256 amount
-    ) internal returns (address) {
-        require(bytes(tokenId).length != 0, "Invalid tokenId");
-        require(recipient != address(0), "Invalid recipient");
-        require(amount != 0, "Invalid amount");
-
-        // If token does not yet exist, deploy minimal proxy
-        if (token == address(0)) {
-            ERC20PresetMinterPauserUpgradeable _erc20 = ERC20PresetMinterPauserUpgradeable(
-                    Clones.clone(erc20Implementation)
-                );
-
-            _erc20.initialize(tokenId, tokenId);
-            _erc20.mint(recipient, amount);
-
-            return address(_erc20);
-        }
-
-        ERC20PresetMinterPauserUpgradeable(token).mint(recipient, amount);
-
-        return token;
-    }
-
-    /**
-        @notice Mints locked CVX
-        @param  recipient  uint256  Account receiving lockedCVX
-        @param  amount     uint256  Amount of lockedCVX
-        @param  epoch      uint256  Epoch to mint lockedCVX for
-     */
-    function mintLockedCvx(
-        address recipient,
-        uint256 amount,
-        uint256 epoch
-    ) internal returns (address) {
-        string memory tokenId = string(
-            abi.encodePacked("lockedCVX-", epoch.toString())
-        );
-        Deposit memory d = deposits[epoch];
-
-        return mintCvx(d.token, tokenId, recipient, amount);
-    }
-
-    /**
-        @notice Mints voteCVX and rewardCVX
-        @param  recipient     uint256     Account receiving voteCVX and rewardCVX
-        @param  amount        uint256     Amount of voteCVX and rewardCVX
-        @param  depositEpoch  uint256     Epoch that user deposited CVX
-        @return epochs        uint256[8]  Epochs for both tokens
-     */
-    function mintVoteAndRewardCvx(
-        address recipient,
-        uint256 amount,
-        uint256 depositEpoch
-    ) internal returns (uint256[8] memory epochs) {
-        // Users can only vote/claim rewards in subsequent epochs (after deposit epoch)
-        uint256 startingEpoch = depositEpoch + epochDepositDuration;
-
-        // Mint 1 voteCVX for each Convex gauge weight proposal that users can vote on
-        // Mint 1 rewardCVX for each reward-claiming period (every 2 weeks)
-        for (uint8 i = 0; i < 8; ++i) {
-            uint256 epoch = startingEpoch + (epochDepositDuration * i);
-
-            epochs[i] = epoch;
-
-            string memory voteCvxId = string(
-                abi.encodePacked("voteCVX-", epoch.toString())
+        for (uint8 i; i < rounds; ++i) {
+            // Validates `to`
+            token.mint(
+                receiver,
+                startingEpoch + i * EPOCH_DURATION,
+                assets,
+                UNUSED_1155_DATA
             );
-            string memory rewardCvxId = string(
-                abi.encodePacked("rewardCVX-", epoch.toString())
-            );
-            address voteCvx = voteEpochs[epoch];
-            address rewardCvx = rewardEpochs[epoch];
-            address mintedVoteCvx = mintCvx(
-                voteCvx,
-                voteCvxId,
-                recipient,
-                amount
-            );
-            address mintedRewardCvx = mintCvx(
-                rewardCvx,
-                rewardCvxId,
-                recipient,
-                amount
-            );
-
-            // If voteCvx is zero address, so is rewardCvx, since they're minted at the same time
-            if (voteCvx == address(0) && rewardCvx == address(0)) {
-                voteEpochs[epoch] = mintedVoteCvx;
-                rewardEpochs[epoch] = mintedRewardCvx;
-            }
         }
     }
 
     /**
-        @notice Withdraw deposit
-        @param  epoch       uint256  Epoch to withdraw locked CVX for
-        @param  spendRatio  uint256  Used to calculate the spend amount and boost ratio
-     */
-    function withdraw(uint256 epoch, uint256 spendRatio) external {
-        Deposit memory d = deposits[epoch];
-        require(d.lockExpiry != 0 && d.token != address(0), "Invalid epoch");
-        require(
-            d.lockExpiry <= block.timestamp,
-            "Cannot withdraw before lock expiry"
-        );
+        @notice Calculate rewards
+        @param  feePercent      uint32   Reward fee percent
+        @param  snapshotSupply  uint256  pCVX supply for the current snapshot id
+        @param  rpCvxSupply     uint256  rpCVX supply for the current epoch
+        @param  received        uint256  Received amount
+    */
+    function _calculateRewards(
+        uint32 feePercent,
+        uint256 snapshotSupply,
+        uint256 rpCvxSupply,
+        uint256 received
+    )
+        internal
+        pure
+        returns (
+            uint256 rewardFee,
+            uint256 snapshotRewards,
+            uint256 futuresRewards
+        )
+    {
+        // Rewards paid to the protocol
+        rewardFee = (received * feePercent) / FEE_DENOMINATOR;
 
-        ERC20PresetMinterPauserUpgradeable _erc20 = ERC20PresetMinterPauserUpgradeable(
-                d.token
-            );
-        uint256 epochTokenBalance = _erc20.balanceOf(msg.sender);
-        require(
-            epochTokenBalance != 0,
-            "Msg.sender does not have lockedCVX for epoch"
-        );
+        // Rewards distributed amongst snapshot and futures tokenholders
+        uint256 rewards = received - rewardFee;
 
-        // Burn user lockedCVX
-        _erc20.burnFrom(msg.sender, epochTokenBalance);
+        // Rewards distributed to snapshotted tokenholders
+        snapshotRewards =
+            (rewards * snapshotSupply) /
+            (snapshotSupply + rpCvxSupply);
 
-        uint256 unlocked = unlockCvx(spendRatio);
-
-        // Unstake CVX if we do not have enough to complete withdrawal
-        if (unlocked < epochTokenBalance) {
-            unstakeCvx(epochTokenBalance - unlocked);
-        }
-
-        // Send msg.sender CVX equal to the amount of their epoch token balance
-        IERC20(cvx).safeTransfer(msg.sender, epochTokenBalance);
-
-        uint256 stakeableCvx = IERC20(cvx).balanceOf(address(this));
-
-        // Stake remaining CVX to keep assets productive
-        if (stakeableCvx != 0) {
-            stakeCvx(stakeableCvx);
-        }
-
-        emit Withdrew(
-            epochTokenBalance,
-            spendRatio,
-            epoch,
-            d.lockExpiry,
-            d.token,
-            unlocked,
-            stakeableCvx
-        );
+        // Rewards distributed to rpCVX token holders
+        futuresRewards = rewards - snapshotRewards;
     }
 
     /**
-        @notice Unlock CVX (if any)
-        @param  spendRatio  uint256  Used to calculate the spend amount and boost ratio
-        @return unlocked    uint256  Amount of unlocked CVX
-     */
-    function unlockCvx(uint256 spendRatio) public returns (uint256 unlocked) {
-        ICvxLocker _cvxLocker = ICvxLocker(cvxLocker);
-        (, uint256 unlockable, , ) = _cvxLocker.lockedBalances(address(this));
-
-        // Withdraw all unlockable tokens
-        if (unlockable != 0) {
-            _cvxLocker.processExpiredLocks(false, spendRatio, address(this));
-        }
-
-        return unlockable;
-    }
-
-    /**
-        @notice Stake CVX
-        @param  amount  uint256  Amount of CVX to stake
-     */
-    function stakeCvx(uint256 amount) public {
-        require(amount != 0, "Invalid amount");
-
-        IERC20(cvx).safeIncreaseAllowance(cvxRewardPool, amount);
-        IcvxRewardPool(cvxRewardPool).stake(amount);
-
-        emit Staked(amount);
-    }
-
-    /**
-        @notice Unstake CVX
-        @param  amount  uint256  Amount of CVX to unstake
-     */
-    function unstakeCvx(uint256 amount) public {
-        require(amount != 0, "Invalid amount");
-
-        IcvxRewardPool(cvxRewardPool).withdraw(amount, false);
-
-        emit Unstaked(amount);
-    }
-
-    /**
-        @notice Claim Votium reward
-        @param  token        address   Reward token address
-        @param  index        uint256   Merkle tree node index
-        @param  amount       uint256   Reward token amount
-        @param  merkleProof  bytes2[]  Merkle proof
-        @param  voteEpoch    uint256   Vote epoch associated with rewards
-     */
-    function claimVotiumReward(
+        @notice Claim a single Votium reward
+        @param  token        address    Reward token address
+        @param  index        uint256    Merkle tree node index
+        @param  amount       uint256    Reward token amount
+        @param  merkleProof  bytes32[]  Merkle proof
+    */
+    function _claimVotiumReward(
         address token,
         uint256 index,
         uint256 amount,
-        bytes32[] calldata merkleProof,
-        uint256 voteEpoch
-    ) external onlyVotiumRewardManager {
-        require(voteEpoch != 0, "Invalid voteEpoch");
-        require(
-            voteEpoch < getCurrentEpoch(),
-            "voteEpoch must be previous epoch"
-        );
-        require(voteEpochs[voteEpoch] != address(0), "Invalid voteEpoch");
+        bytes32[] memory merkleProof
+    ) internal {
+        if (token == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
 
-        IVotiumMultiMerkleStash(votiumMultiMerkleStash).claim(
+        // Take snapshot before claiming rewards, if necessary
+        takeEpochSnapshot();
+
+        emit ClaimVotiumReward(token, index, amount);
+
+        ERC20 t = ERC20(token);
+
+        // Used for calculating the actual token amount received
+        uint256 prevBalance = t.balanceOf(address(this));
+
+        // Validates `token`, `index`, `amount`, and `merkleProof`
+        votiumMultiMerkleStash.claim(
             token,
             index,
             address(this),
@@ -554,220 +427,421 @@ contract PirexCvx is Ownable {
             merkleProof
         );
 
-        Reward[] storage v = voteEpochRewards[voteEpoch];
+        uint256 currentEpoch = getCurrentEpoch();
+        (
+            uint256 rewardFee,
+            uint256 snapshotRewards,
+            uint256 futuresRewards
+        ) = _calculateRewards(
+                fees[Fees.Reward],
+                totalSupplyAt(_getCurrentSnapshotId()),
+                rpCvx.totalSupply(currentEpoch),
+                t.balanceOf(address(this)) - prevBalance
+            );
 
-        address managerToken;
-        uint256 managerTokenAmount;
+        // Add reward token address and snapshot/futuresRewards amounts (same index for all)
+        Epoch storage e = epochs[currentEpoch];
+        e.rewards.push(token);
+        e.snapshotRewards.push(snapshotRewards);
+        e.futuresRewards.push(futuresRewards);
 
-        // Default to storing vote epoch rewards as-is if default reward manager is set
-        if (address(this) == votiumRewardManager) {
-            v.push(Reward(token, amount));
-        } else {
-            IERC20(token).safeIncreaseAllowance(votiumRewardManager, amount);
-
-            // Doesn't actually do anything for MVP besides demonstrate call flow
-            (managerToken, managerTokenAmount) = IVotiumRewardManager(
-                votiumRewardManager
-            ).manage(token, amount);
-
-            v.push(Reward(managerToken, managerTokenAmount));
-        }
-
-        emit VotiumRewardClaimed(
-            token,
-            index,
-            amount,
-            merkleProof,
-            voteEpoch,
-            v.length - 1,
-            votiumRewardManager,
-            managerToken,
-            managerTokenAmount
-        );
+        // Distribute fees
+        t.safeIncreaseAllowance(address(pirexFees), rewardFee);
+        pirexFees.distributeFees(address(this), token, rewardFee);
     }
 
     /**
-        @notice Redeem vote epoch rewards by burning voteCVX
-        @param  voteEpoch    uint256   Vote epoch associated with rewards
+        @notice Snapshot token balances for the current epoch
      */
-    function redeemVoteEpochRewards(uint256 voteEpoch) external {
-        Reward[] storage v = voteEpochRewards[voteEpoch];
-        uint256 vLen = v.length;
-        require(vLen != 0, "No rewards to claim");
+    function takeEpochSnapshot() public whenNotPaused {
+        uint256 currentEpoch = getCurrentEpoch();
 
-        // If there are redeemable rewards, there has to be a vote epoch token set
-        address voteEpochToken = voteEpochs[voteEpoch];
-        assert(voteEpochToken != address(0));
-
-        ERC20PresetMinterPauserUpgradeable voteCvx = ERC20PresetMinterPauserUpgradeable(
-                voteEpochToken
-            );
-        uint256 voteCvxBalance = voteCvx.balanceOf(msg.sender);
-        require(
-            voteCvxBalance != 0,
-            "Msg.sender does not have voteCVX for epoch"
-        );
-
-        uint256 voteCvxSupply = voteCvx.totalSupply();
-        address[] memory rewardTokens = new address[](vLen);
-        uint256[] memory rewardTokenAmounts = new uint256[](vLen);
-        uint256[] memory rewardTokenAmountsRemaining = new uint256[](vLen);
-
-        voteCvx.burnFrom(msg.sender, voteCvxBalance);
-
-        for (uint256 i = 0; i < vLen; ++i) {
-            // The reward amount is calculated using the user's % voteCVX ownership for the vote epoch
-            // E.g. Owning 10% of voteCVX tokens means they'll get 10% of the rewards
-            Reward storage row = v[i];
-            uint256 amount = row.amount;
-            uint256 rewardAmount = (amount * voteCvxBalance) / voteCvxSupply;
-
-            rewardTokens[i] = row.token;
-            rewardTokenAmounts[i] = rewardAmount;
-            rewardTokenAmountsRemaining[i] = amount - rewardAmount;
-            row.amount = rewardTokenAmountsRemaining[i];
-
-            IERC20(rewardTokens[i]).safeTransfer(
-                msg.sender,
-                rewardTokenAmounts[i]
-            );
+        // If snapshot has not been set for current epoch, take snapshot
+        if (epochs[currentEpoch].snapshotId == 0) {
+            epochs[currentEpoch].snapshotId = _snapshot();
         }
-
-        emit VoteEpochRewardsRedeemed(
-            rewardTokens,
-            rewardTokenAmounts,
-            rewardTokenAmountsRemaining
-        );
     }
 
     /**
-        @notice Claim and stake epoch rewards
+        @notice Deposit CVX
+        @param  assets          uint256  CVX amount
+        @param  receiver        address  Receives pCVX
+        @param  shouldCompound  bool     Whether to auto-compound
      */
-    function claimAndStakeEpochRewards() external {
-        ICvxLocker c = ICvxLocker(cvxLocker);
-        ICvxLocker.EarnedData[] memory claimable = c.claimableRewards(
-            address(this)
-        );
-        uint256 cLen = claimable.length;
+    function deposit(
+        uint256 assets,
+        address receiver,
+        bool shouldCompound
+    ) external whenNotPaused nonReentrant {
+        if (assets == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
 
-        // Store balances to calculate differences to account for ERC20 token fees
-        uint256[] memory balancesBeforeClaiming = new uint256[](cLen);
+        // Perform epoch maintenance if necessary
+        takeEpochSnapshot();
 
-        for (uint256 i = 0; i < cLen; ++i) {
-            address claimableToken = claimable[i].token;
-            // Skip if there's nothing to claim or if the token is cvxCRV
-            // The contract's cvxCRV balance will always be 0 before claiming
-            // since it is immediately staked, so no need to calculate the diff
-            if (claimable[i].amount == 0 || claimableToken == cvxCrv) {
-                continue;
-            }
+        // Mint pCVX - recipient depends on whether or not to compound
+        _mint(shouldCompound ? address(this) : receiver, assets);
 
-            balancesBeforeClaiming[i] = IERC20(claimableToken).balanceOf(
-                address(this)
-            );
+        emit Deposit(assets, receiver, shouldCompound);
+
+        if (shouldCompound) {
+            _approve(address(this), address(unionPirex), assets);
+
+            // Deposit pCVX into pounder vault - user receives shares
+            unionPirex.deposit(assets, receiver);
         }
 
-        // Get claimable tokens
-        c.getReward(address(this), false);
+        // Transfer CVX to self and approve for locking
+        CVX.safeTransferFrom(msg.sender, address(this), assets);
 
-        // Users will be able to redeem these rewards next epoch
-        uint256 rewardEpoch = getCurrentEpoch() + epochDepositDuration;
-
-        for (uint256 j = 0; j < cLen; ++j) {
-            // Skip if there's nothing to claim
-            if (claimable[j].amount == 0) {
-                continue;
-            }
-
-            address claimableToken = claimable[j].token;
-
-            // Only add claimableToken to epochRewardTokens if it's not a duplicate
-            if (epochRewards[rewardEpoch][claimableToken] == 0) {
-                epochRewardTokens[rewardEpoch].push(claimableToken);
-            }
-
-            // Calculate the difference between before and after balances
-            epochRewards[rewardEpoch][claimableToken] +=
-                IERC20(claimableToken).balanceOf(address(this)) -
-                balancesBeforeClaiming[j];
-        }
-
-        uint256 cvxCrvBalance = IERC20(cvxCrv).balanceOf(address(this));
-
-        // Stake cvxCrv, if any
-        if (cvxCrvBalance != 0) {
-            IERC20(cvxCrv).safeIncreaseAllowance(baseRewardPool, cvxCrvBalance);
-
-            require(
-                IBaseRewardPool(baseRewardPool).stake(cvxCrvBalance),
-                "Error staking cvxCRV"
-            );
-        }
-
-        emit EpochRewardsClaimedAndStaked(claimable);
+        // Lock CVX
+        _lock(assets);
     }
 
     /**
-        @notice Redeem epoch rewards by burning rewardCVX
-        @param  rewardEpoch  uint256  Epoch associated with rewards
+        @notice Initiate CVX redemption
+        @param  lockIndex  uint8    Locked balance index
+        @param  f          enum     Futures
+        @param  assets     uint256  pCVX amount
+        @param  receiver   address  Receives upCVX
      */
-    function redeemEpochRewards(uint256 rewardEpoch) external {
-        require(
-            rewardEpoch <= getCurrentEpoch(),
-            "Cannot claim rewards for a future epoch"
+    function initiateRedemption(
+        uint8 lockIndex,
+        Futures f,
+        uint256 assets,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        if (assets == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        // Validates `lockIndex` is within bounds of the array - reverts otherwise
+        (uint256 lockAmount, uint256 unlockTime) = _getLockData(lockIndex);
+
+        // Calculate the fee based on the duration a user has to wait before redeeming CVX
+        uint192 waitTime = uint192(unlockTime - block.timestamp);
+        uint32 feeMax = fees[Fees.RedemptionMax];
+        uint32 feePercent = uint32(
+            feeMax -
+                (((feeMax - fees[Fees.RedemptionMin]) * waitTime) /
+                    MAX_REDEMPTION_TIME)
+        );
+        uint256 feeAmount = (assets * feePercent) / FEE_DENOMINATOR;
+        uint256 postFeeAmount = assets - feeAmount;
+
+        // Increment redemptions for this unlockTime to prevent over-redeeming
+        redemptions[unlockTime] += postFeeAmount;
+
+        // Check if there is any sufficient allowance after factoring in redemptions by others
+        if (redemptions[unlockTime] > lockAmount)
+            revert InsufficientRedemptionAllowance();
+
+        // Burn pCVX - reverts if sender balance is insufficient
+        _burn(msg.sender, postFeeAmount);
+
+        // Allow PirexFees to distribute fees directly from sender
+        _approve(msg.sender, address(pirexFees), feeAmount);
+
+        // Track assets that needs to remain unlocked for redemptions
+        outstandingRedemptions += postFeeAmount;
+
+        emit InitiateRedemption(
+            msg.sender,
+            assets,
+            receiver,
+            unlockTime,
+            postFeeAmount,
+            feeAmount
         );
 
-        address[] memory r = epochRewardTokens[rewardEpoch];
-        uint256 rLen = r.length;
-        require(rLen != 0, "No rewards to claim");
+        // Distribute fees
+        pirexFees.distributeFees(msg.sender, address(this), feeAmount);
 
-        ERC20PresetMinterPauserUpgradeable rewardCvx = ERC20PresetMinterPauserUpgradeable(
-                rewardEpochs[rewardEpoch]
-            );
-        uint256 rewardCvxBalance = rewardCvx.balanceOf(msg.sender);
-        require(
-            rewardCvxBalance != 0,
-            "Msg.sender does not have rewardCVX for epoch"
-        );
+        // Mint upCVX with unlockTime as the id - validates `to`
+        upCvx.mint(receiver, unlockTime, postFeeAmount, UNUSED_1155_DATA);
 
-        uint256 rewardCvxSupply = rewardCvx.totalSupply();
-        address[] memory rewardTokens = new address[](rLen);
-        uint256[] memory rewardTokenAmounts = new uint256[](rLen);
-        uint256[] memory rewardTokenAmountsRemaining = new uint256[](rLen);
+        // Determine how many futures notes rounds to mint
+        uint8 rounds = uint8(waitTime / EPOCH_DURATION);
 
-        rewardCvx.burnFrom(msg.sender, rewardCvxBalance);
-
-        for (uint256 i = 0; i < rLen; ++i) {
-            // The reward amount is calculated using the user's % rewardCVX ownership for the reward epoch
-            // E.g. Owning 10% of rewardCVX tokens means they'll get 10% of the rewards
-            address rewardToken = r[i];
-            uint256 epochReward = epochRewards[rewardEpoch][rewardToken];
-            uint256 rewardAmount = (epochReward * rewardCvxBalance) /
-                rewardCvxSupply;
-
-            // Unstake enough cvxCRV to satisfy withdrawal
-            if (rewardToken == cvxCrv) {
-                require(
-                    IBaseRewardPool(baseRewardPool).withdraw(
-                        rewardAmount,
-                        true
-                    ),
-                    "Failed to withdraw reward"
-                );
+        // Check if the lock was in the first week/half of an epoch
+        // Handle case where remaining time is between 1 and 2 weeks
+        if (
+            rounds == 0 &&
+            unlockTime % EPOCH_DURATION != 0 &&
+            waitTime > (EPOCH_DURATION / 2)
+        ) {
+            // Rounds is 0 if waitTime is between 1 and 2 weeks
+            // Increment by 1 since user should receive 1 round of rewards
+            unchecked {
+                ++rounds;
             }
-
-            rewardTokens[i] = rewardToken;
-            rewardTokenAmounts[i] = rewardAmount;
-            rewardTokenAmountsRemaining[i] = epochReward - rewardAmount;
-            epochRewards[rewardEpoch][rewardToken] = epochReward - rewardAmount;
-
-            IERC20(rewardToken).safeTransfer(msg.sender, rewardAmount);
         }
 
-        emit EpochRewardsRedeemed(
-            rewardTokens,
-            rewardTokenAmounts,
-            rewardTokenAmountsRemaining
+        // Mint vpCVX or rpCVX (using assets as we do not take a fee from this)
+        _mintFutures(rounds, f, assets, receiver);
+    }
+
+    /**
+        @notice Redeem CVX
+        @param  unlockTime  uint256  CVX unlock timestamp
+        @param  assets      uint256  upCVX amount
+        @param  receiver    address  Receives CVX
+     */
+    function redeem(
+        uint256 unlockTime,
+        uint256 assets,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        // Revert if CVX has not been unlocked and cannot be redeemed yet
+        if (unlockTime > block.timestamp) revert BeforeUnlock();
+        if (assets == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        emit Redeem(unlockTime, assets, receiver);
+
+        // Unlock and relock if balance is greater than outstandingRedemptions
+        _relock();
+
+        // Subtract redemption amount from outstanding CVX amount
+        outstandingRedemptions -= assets;
+
+        // Reverts if sender has an insufficient amount of upCVX with unlockTime id
+        upCvx.burn(msg.sender, unlockTime, assets);
+
+        // Validates `to`
+        CVX.safeTransfer(receiver, assets);
+    }
+
+    /**
+        @notice Stake pCVX
+        @param  rounds    uint8    Rounds (i.e. Convex voting rounds)
+        @param  f         enum     Futures
+        @param  assets    uint256  pCVX amount
+        @param  receiver  address  Receives spCVX
+    */
+    function stake(
+        uint8 rounds,
+        Futures f,
+        uint256 assets,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        if (rounds == 0) revert ZeroAmount();
+        if (assets == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        // Burn pCVX
+        _burn(msg.sender, assets);
+
+        emit Stake(rounds, f, assets, receiver);
+
+        // Mint spCVX with the stake expiry timestamp as the id
+        spCvx.mint(
+            receiver,
+            getCurrentEpoch() + EPOCH_DURATION * rounds,
+            assets,
+            UNUSED_1155_DATA
         );
+
+        _mintFutures(rounds, f, assets, receiver);
+    }
+
+    /**
+        @notice Unstake pCVX
+        @param  id        uint256  spCVX id (an epoch timestamp)
+        @param  assets    uint256  spCVX amount
+        @param  receiver  address  Receives pCVX
+    */
+    function unstake(
+        uint256 id,
+        uint256 assets,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        if (id > block.timestamp) revert BeforeStakingExpiry();
+        if (assets == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        // Mint pCVX for receiver
+        _mint(receiver, assets);
+
+        emit Unstake(id, assets, receiver);
+
+        // Burn spCVX from sender
+        spCvx.burn(msg.sender, id, assets);
+    }
+
+    /**
+        @notice Claim multiple Votium rewards
+        @param  tokens        address[]    Reward token address
+        @param  indexes       uint256[]    Merkle tree node index
+        @param  amounts       uint256[]    Reward token amount
+        @param  merkleProofs  bytes32[][]  Merkle proof
+    */
+    function claimVotiumRewards(
+        address[] calldata tokens,
+        uint256[] calldata indexes,
+        uint256[] calldata amounts,
+        bytes32[][] calldata merkleProofs
+    ) external whenNotPaused nonReentrant {
+        uint256 tLen = tokens.length;
+        if (tLen == 0) revert EmptyArray();
+        if (
+            !(tLen == indexes.length &&
+                indexes.length == amounts.length &&
+                amounts.length == merkleProofs.length)
+        ) revert MismatchedArrays();
+
+        for (uint8 i; i < tLen; ++i) {
+            _claimVotiumReward(
+                tokens[i],
+                indexes[i],
+                amounts[i],
+                merkleProofs[i]
+            );
+        }
+    }
+
+    /**
+        @notice Claim misc. rewards (e.g. emissions) and distribute to stakeholders
+     */
+    function claimMiscRewards() external whenNotPaused nonReentrant {
+        // Get claimable rewards and balances
+        ConvexReward[] memory c = _claimableRewards();
+
+        emit ClaimMiscRewards(block.timestamp, c);
+
+        // Claim rewards from Convex
+        _getReward();
+
+        uint8 cLen = uint8(c.length);
+
+        // Iterate over rewards and distribute to stakeholders (rlBTRFLY, Redacted, and Pirex)
+        for (uint8 i; i < cLen; ++i) {
+            if (c[i].amount == 0) continue;
+
+            ERC20 t = ERC20(c[i].token);
+            uint256 received = t.balanceOf(address(this)) - c[i].balance;
+
+            // Distribute fees
+            t.safeIncreaseAllowance(address(pirexFees), received);
+            pirexFees.distributeFees(address(this), c[i].token, received);
+        }
+    }
+
+    /**
+        @notice Redeem a Snapshot reward as a pCVX holder
+        @param  epoch        uint256  Epoch
+        @param  rewardIndex  uint8    Reward token index
+        @param  receiver     address  Receives snapshot rewards
+    */
+    function redeemSnapshotReward(
+        uint256 epoch,
+        uint8 rewardIndex,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        if (epoch == 0) revert InvalidEpoch();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        Epoch storage e = epochs[epoch];
+
+        // Check whether msg.sender maintained a positive balance before the snapshot
+        uint256 snapshotId = e.snapshotId;
+        uint256 snapshotBalance = balanceOfAt(msg.sender, snapshotId);
+        if (snapshotBalance == 0) revert InsufficientBalance();
+
+        // Check whether msg.sender has already redeemed this reward
+        if (e.redeemedSnapshotRewards[msg.sender][rewardIndex] != 0)
+            revert AlreadyRedeemed();
+
+        // Proportionate to the % of pCVX owned out of total supply for the snapshot
+        uint256 redeemAmount = (e.snapshotRewards[rewardIndex] *
+            snapshotBalance) / totalSupplyAt(snapshotId);
+
+        // Set redeem amount to prevent double redemptions
+        e.redeemedSnapshotRewards[msg.sender][rewardIndex] = redeemAmount;
+
+        emit RedeemSnapshotReward(
+            epoch,
+            rewardIndex,
+            receiver,
+            snapshotId,
+            snapshotBalance,
+            redeemAmount
+        );
+
+        ERC20(e.rewards[rewardIndex]).safeTransfer(receiver, redeemAmount);
+    }
+
+    /**
+        @notice Redeem Futures rewards for rpCVX holders for an epoch
+        @param  epoch     uint256  Epoch (ERC1155 token id)
+        @param  receiver  address  Receives futures rewards
+    */
+    function redeemFuturesRewards(uint256 epoch, address receiver)
+        external
+        whenNotPaused
+        nonReentrant
+    {
+        if (epoch == 0) revert InvalidEpoch();
+        if (epoch > getCurrentEpoch()) revert InvalidEpoch();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        // Prevent users from burning their futures notes before rewards are claimed
+        address[] memory r = epochs[epoch].rewards;
+        if (r.length == 0) revert NoRewards();
+
+        emit RedeemFuturesRewards(epoch, receiver, r);
+
+        // Check sender rpCVX balance
+        uint256 rpCvxBalance = rpCvx.balanceOf(msg.sender, epoch);
+        if (rpCvxBalance == 0) revert InsufficientBalance();
+
+        // Store rpCVX total supply before burning
+        uint256 rpCvxTotalSupply = rpCvx.totalSupply(epoch);
+
+        // Burn rpCVX tokens
+        rpCvx.burn(msg.sender, epoch, rpCvxBalance);
+
+        uint256[] memory f = epochs[epoch].futuresRewards;
+        uint8 rLen = uint8(r.length);
+
+        // Loop over rewards and transfer the amount entitled to the rpCVX token holder
+        for (uint8 i; i < rLen; ++i) {
+            // Proportionate to the % of rpCVX owned out of the rpCVX total supply
+            ERC20(r[i]).safeTransfer(
+                receiver,
+                (f[i] * rpCvxBalance) / rpCvxTotalSupply
+            );
+        }
+    }
+
+    /**
+        @notice Exchange one futures token for another
+        @param  epoch     uint256  Epoch (ERC1155 token id)
+        @param  amount    uint256  Exchange amount
+        @param  receiver  address  Receives futures token
+        @param  f         enum     Futures token to exchange
+    */
+    function exchangeFutures(
+        uint256 epoch,
+        uint256 amount,
+        address receiver,
+        Futures f
+    ) external whenNotPaused {
+        // Users can only exchange futures tokens for future epochs
+        if (epoch <= getCurrentEpoch()) revert PastExchangePeriod();
+        if (amount == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        ERC1155PresetMinterSupply futuresIn = f == Futures.Vote ? vpCvx : rpCvx;
+        ERC1155PresetMinterSupply futuresOut = f == Futures.Vote
+            ? rpCvx
+            : vpCvx;
+
+        emit ExchangeFutures(epoch, amount, receiver, f);
+
+        // Validates `amount` (balance)
+        futuresIn.burn(msg.sender, epoch, amount);
+
+        // Validates `to`
+        futuresOut.mint(receiver, epoch, amount, UNUSED_1155_DATA);
     }
 }

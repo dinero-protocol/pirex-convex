@@ -72,7 +72,7 @@ contract CvxStakingProxy {
         address _crv,
         address _cvx,
         address _cvxCrv
-    ) public {
+    ) {
         rewards = _rewards;
         owner = msg.sender;
 

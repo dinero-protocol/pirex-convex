@@ -4,6 +4,7 @@ import { HardhatUserConfig, task } from 'hardhat/config';
 
 import '@nomiclabs/hardhat-waffle';
 import '@typechain/hardhat';
+import 'solidity-coverage';
 
 dotenv.config();
 
@@ -52,6 +53,15 @@ const config: HardhatUserConfig = {
       },
       {
         version: '0.8.4',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
+      },
+      {
+        version: '0.8.12',
         settings: {
           optimizer: {
             enabled: true,
