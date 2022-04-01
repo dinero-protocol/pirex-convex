@@ -255,14 +255,14 @@ contract PirexCvxConvex is Ownable, Pausable {
     /**
         @notice Only for emergency purposes in the case of a forced-unlock by Convex
      */
-    function unlock() external onlyOwner {
+    function unlock() external whenPaused onlyOwner {
         _unlock();
     }
 
     /**
         @notice Only for emergency purposes in the case of a forced-unlock by Convex
      */
-    function relock() external onlyOwner {
+    function relock() external whenPaused onlyOwner {
         _relock();
     }
 }
