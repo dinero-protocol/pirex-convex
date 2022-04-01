@@ -747,6 +747,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         nonReentrant
     {
         if (epoch == 0) revert InvalidEpoch();
+        if (epoch > getCurrentEpoch()) revert InvalidEpoch();
         if (receiver == address(0)) revert ZeroAddress();
 
         address[] memory r = epochs[epoch].rewards;

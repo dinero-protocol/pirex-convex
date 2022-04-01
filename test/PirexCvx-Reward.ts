@@ -630,6 +630,15 @@ describe('PirexCvx-Reward', function () {
       ).to.be.revertedWith('InvalidEpoch()');
     });
 
+    it('Should revert if epoch is greater than the current epoch', async function () {
+      const invalidEpoch = (await pCvx.getCurrentEpoch()).add(1);
+      const receiver = admin.address;
+
+      await expect(
+        pCvx.redeemFuturesRewards(invalidEpoch, receiver)
+      ).to.be.revertedWith('InvalidEpoch()');
+    });
+
     it('Should revert if receiver is zero address', async function () {
       const epoch = await pCvx.getCurrentEpoch();
       const invalidReceiver = zeroAddress;
