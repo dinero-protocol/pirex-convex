@@ -507,7 +507,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (
             rounds == 0 &&
             unlockTime % EPOCH_DURATION != 0 &&
-            waitTime < EPOCH_DURATION &&
             waitTime > (EPOCH_DURATION / 2)
         ) {
             // Rounds is 0 if waitTime is between 1 and 2 weeks
