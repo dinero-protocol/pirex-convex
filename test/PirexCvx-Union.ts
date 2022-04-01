@@ -5,7 +5,7 @@ import {
 } from '../typechain-types';
 
 // Tests foundational units outside of the actual deposit flow
-describe('PirexCvx-Base', function () {
+describe('PirexCvx-Union', function () {
   let pCvx: PirexCvx;
   let unionPirex: UnionPirexVault;
 
