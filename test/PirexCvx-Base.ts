@@ -661,4 +661,28 @@ describe('PirexCvx-Base', function () {
       expect(snapshotId).to.equal(currentSnapshotId);
     });
   });
+
+  describe('setPauseState', function () {
+    it('shoud pause the contract', async function () {
+      const isPausedBefore = await pCvx.paused();
+
+      await pCvx.setPauseState(true);
+
+      const isPausedAfter = await pCvx.paused();
+
+      expect(isPausedBefore).to.be.false;
+      expect(isPausedAfter).to.be.true;
+    });
+
+    it('shoud unpause the contract', async function () {
+      const isPausedBefore = await pCvx.paused();
+
+      await pCvx.setPauseState(false);
+
+      const isPausedAfter = await pCvx.paused();
+
+      expect(isPausedBefore).to.be.true;
+      expect(isPausedAfter).to.be.false;
+    });
+  });
 });

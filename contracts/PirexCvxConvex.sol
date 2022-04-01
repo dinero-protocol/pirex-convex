@@ -87,6 +87,17 @@ contract PirexCvxConvex is Ownable, Pausable {
     }
 
     /** 
+        @notice Only for emergency purposes when we need to resume/halt all user actions
+    */
+    function setPauseState(bool state) external onlyOwner {
+        if (state) {
+            _pause();
+        } else {
+            _unpause();
+        }
+    }
+
+    /** 
         @notice Set a contract address
         @param  c                enum     Contract enum
         @param  contractAddress  address  Contract address    

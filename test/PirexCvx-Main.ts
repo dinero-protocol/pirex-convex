@@ -85,6 +85,20 @@ describe('PirexCvx-Main', function () {
       ).to.be.revertedWith('ERC20: transfer amount exceeds balance');
     });
 
+    it('should revert if the contract is paused', async function () {
+      const cvxBalance = await cvx.balanceOf(admin.address);
+      const receiver = admin.address;
+      const shouldCompound = true;
+
+      await pCvx.setPauseState(true);
+
+      await expect(
+        pCvx.deposit(cvxBalance, receiver, shouldCompound)
+      ).to.be.revertedWith('Pausable: paused');
+
+      await pCvx.setPauseState(false);
+    });
+
     it('Should deposit CVX', async function () {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const lockedBalanceBefore = await cvxLocker.lockedBalanceOf(pCvx.address);
@@ -250,6 +264,21 @@ describe('PirexCvx-Main', function () {
           .connect(notAdmin)
           .initiateRedemption(lockIndex, f, invalidAssets, receiver)
       ).to.be.revertedWith('ERC20: burn amount exceeds balance');
+    });
+
+    it('should revert if the contract is paused', async function () {
+      const pCvxBalance = await pCvx.balanceOf(notAdmin.address);
+      const lockIndex = 0;
+      const f = futuresEnum.reward;
+      const receiver = admin.address;
+
+      await pCvx.setPauseState(true);
+
+      await expect(
+        pCvx.initiateRedemption(lockIndex, f, pCvxBalance, receiver)
+      ).to.be.revertedWith('Pausable: paused');
+
+      await pCvx.setPauseState(false);
     });
 
     it('Should initiate a redemption', async function () {
@@ -474,6 +503,19 @@ describe('PirexCvx-Main', function () {
       );
     });
 
+    it('should revert if the contract is paused', async function () {
+      const assets = toBN(1e18);
+      const receiver = admin.address;
+
+      await pCvx.setPauseState(true);
+
+      await expect(
+        pCvx.redeem(redemptionUnlockTime, assets, receiver)
+      ).to.be.revertedWith('Pausable: paused');
+
+      await pCvx.setPauseState(false);
+    });
+
     it('Should redeem CVX', async function () {
       const upCvx = await this.getUpCvx(await pCvx.upCvx());
       const upCvxBalanceBefore = await upCvx.balanceOf(
@@ -618,6 +660,21 @@ describe('PirexCvx-Main', function () {
       await pCvx
         .connect(notAdmin)
         .transfer(admin.address, await pCvx.balanceOf(notAdmin.address));
+    });
+
+    it('should revert if the contract is paused', async function () {
+      const rounds = 1;
+      const f = futuresEnum.reward;
+      const assets = toBN(1e18);
+      const receiver = admin.address;
+
+      await pCvx.setPauseState(true);
+
+      await expect(
+        pCvx.stake(rounds, f, assets, receiver)
+      ).to.be.revertedWith('Pausable: paused');
+
+      await pCvx.setPauseState(false);
     });
 
     it('Should stake pCVX', async function () {
@@ -766,6 +823,21 @@ describe('PirexCvx-Main', function () {
           1,
           emptyByteString
         );
+    });
+
+    it('should revert if the contract is paused', async function () {
+      const spCvx = await this.getSpCvx(await pCvx.spCvx());
+      const id = stakeExpiry;
+      const receiver = admin.address;
+      const spCvxBalance = await spCvx.balanceOf(admin.address, stakeExpiry);
+
+      await pCvx.setPauseState(true);
+
+      await expect(
+        pCvx.unstake(id, spCvxBalance, receiver)
+      ).to.be.revertedWith('Pausable: paused');
+
+      await pCvx.setPauseState(false);
     });
 
     it('Should unstake pCVX', async function () {

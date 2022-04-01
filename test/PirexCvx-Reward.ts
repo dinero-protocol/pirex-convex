@@ -93,6 +93,16 @@ describe('PirexCvx-Reward', function () {
 
       expect(snapshotIdAfter).to.equal(snapshotIdBefore);
     });
+
+    it('should revert if the contract is paused', async function () {
+      await pCvx.setPauseState(true);
+
+      await expect(
+        pCvx.takeEpochSnapshot()
+      ).to.be.revertedWith('Pausable: paused');
+
+      await pCvx.setPauseState(false);
+    });
   });
 
   describe('claimVotiumReward', function () {
@@ -213,6 +223,23 @@ describe('PirexCvx-Reward', function () {
       ).to.be.revertedWith(
         `VM Exception while processing transaction: reverted with reason string 'Invalid proof.'`
       );
+    });
+
+    it('should revert if the contract is paused', async function () {
+      const token = cvx.address;
+      const index = 0;
+      const account = pCvx.address;
+      const invalidAmount = toBN(100e18);
+      const amount = cvxRewardDistribution[0].amount;
+      const proof = cvxTree.getProof(index, account, amount);
+
+      await pCvx.setPauseState(true);
+
+      await expect(
+        pCvx.claimVotiumReward(token, index, invalidAmount, proof)
+      ).to.be.revertedWith('Pausable: paused');
+
+      await pCvx.setPauseState(false);
     });
 
     it('Should claim Votium rewards and set distribution for pCVX and rpCVX token holders', async function () {
@@ -374,6 +401,16 @@ describe('PirexCvx-Reward', function () {
       await increaseBlockTimestamp(1000);
     });
 
+    it('should revert if the contract is paused', async function () {
+      await pCvx.setPauseState(true);
+
+      await expect(
+        pCvx.claimMiscRewards()
+      ).to.be.revertedWith('Pausable: paused');
+
+      await pCvx.setPauseState(false);
+    });
+
     it('Should claim misc rewards for the epoch', async function () {
       const treasuryCrvBalanceBefore = await crv.balanceOf(treasury.address);
       const contributorsCrvBalanceBefore = await crv.balanceOf(
@@ -530,6 +567,20 @@ describe('PirexCvx-Reward', function () {
       ).to.be.revertedWith('InsufficientBalance()');
     });
 
+    it('should revert if the contract is paused', async function () {
+      const epoch = await pCvx.getCurrentEpoch();
+      const rewardIndex = 0;
+      const receiver = admin.address;
+
+      await pCvx.setPauseState(true);
+
+      await expect(
+        pCvx.redeemSnapshotReward(epoch, rewardIndex, receiver)
+      ).to.be.revertedWith('Pausable: paused');
+
+      await pCvx.setPauseState(false);
+    });
+
     it('Should redeem snapshot reward', async function () {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const crvBalanceBefore = await crv.balanceOf(admin.address);
@@ -632,6 +683,19 @@ describe('PirexCvx-Reward', function () {
       await expect(
         pCvx.connect(notAdmin).redeemFuturesRewards(epoch, to)
       ).to.be.revertedWith('InsufficientBalance()');
+    });
+
+    it('should revert if the contract is paused', async function () {
+      const epoch = await pCvx.getCurrentEpoch();
+      const to = admin.address;
+
+      await pCvx.setPauseState(true);
+
+      await expect(
+        pCvx.redeemFuturesRewards(epoch, to)
+      ).to.be.revertedWith('Pausable: paused');
+
+      await pCvx.setPauseState(false);
     });
 
     it('Should redeem futures reward', async function () {
@@ -752,6 +816,22 @@ describe('PirexCvx-Reward', function () {
       await expect(
         pCvx.connect(notAdmin).exchangeFutures(epoch, amount, receiver, i, o)
       ).to.be.revertedWith('ERC1155: burn amount exceeds balance');
+    });
+
+    it('should revert if the contract is paused', async function () {
+      const epoch = (await pCvx.getCurrentEpoch()).add(epochDuration);
+      const amount = toBN(1);
+      const receiver = admin.address;
+      const i = futuresEnum.reward;
+      const o = futuresEnum.vote;
+
+      await pCvx.setPauseState(true);
+
+      await expect(
+        pCvx.exchangeFutures(epoch, amount, receiver, i, o)
+      ).to.be.revertedWith('Pausable: paused');
+
+      await pCvx.setPauseState(false);
     });
 
     it('Should exchange rewards futures for vote futures', async function () {
