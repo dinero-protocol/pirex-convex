@@ -114,7 +114,7 @@ contract PirexCvxConvex is Ownable, Pausable {
             // Revoke approval from the old locker and add allowances to the new locker
             CVX.safeApprove(address(cvxLocker), 0);
             cvxLocker = ICvxLocker(contractAddress);
-            CVX.safeIncreaseAllowance(address(cvxLocker), type(uint256).max);
+            CVX.safeIncreaseAllowance(contractAddress, type(uint256).max);
             return;
         }
 
