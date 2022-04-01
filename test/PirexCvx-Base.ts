@@ -664,7 +664,13 @@ describe('PirexCvx-Base', function () {
   });
 
   describe('setPauseState', function () {
-    it('shoud pause the contract', async function () {
+    it('Should revert if not called by owner', async function () {
+      await expect(
+        pCvx.connect(notAdmin).setPauseState(true)
+      ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('Should pause the contract', async function () {
       const isPausedBefore = await pCvx.paused();
 
       await pCvx.setPauseState(true);
@@ -675,7 +681,7 @@ describe('PirexCvx-Base', function () {
       expect(isPausedAfter).to.be.true;
     });
 
-    it('shoud unpause the contract', async function () {
+    it('Should unpause the contract', async function () {
       const isPausedBefore = await pCvx.paused();
 
       await pCvx.setPauseState(false);
