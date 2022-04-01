@@ -82,7 +82,7 @@ contract PirexCvxConvex is Ownable, Pausable {
         if (_cvxCRV == address(0)) revert ZeroAddress();
         cvxCRV = ERC20(_cvxCRV);
 
-        // Max allowance for CVX since it cannot be swapped out for a malicious contract
+        // Max allowance for cvxLocker
         CVX.safeIncreaseAllowance(address(cvxLocker), type(uint256).max);
     }
 
