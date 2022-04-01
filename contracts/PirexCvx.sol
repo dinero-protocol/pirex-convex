@@ -167,6 +167,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     error BeforeEffectiveTimestamp();
     error BeforeStakingExpiry();
     error InvalidEpoch();
+    error EmptyArray();
+    error MismatchedArrays();
+    error NoRewards();
 
     /**
         @param  _CVX                     address  CVX address    
@@ -608,7 +611,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /**
-        @notice Claim Votium reward
+        @notice Claim a single Votium reward
         @param  token        address    Reward token address
         @param  index        uint256    Merkle tree node index
         @param  amount       uint256    Reward token amount
@@ -618,8 +621,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address token,
         uint256 index,
         uint256 amount,
-        bytes32[] calldata merkleProof
-    ) external whenNotPaused nonReentrant {
+        bytes32[] memory merkleProof
+    ) public whenNotPaused nonReentrant {
         if (token == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
@@ -663,6 +666,37 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Distribute fees
         t.safeIncreaseAllowance(address(pirexFees), rewardFee);
         pirexFees.distributeFees(address(this), token, rewardFee);
+    }
+
+    /**
+        @notice Claim multiple Votium rewards
+        @param  tokens        address[]    Reward token address
+        @param  indexes       uint256[]    Merkle tree node index
+        @param  amounts       uint256[]    Reward token amount
+        @param  merkleProofs  bytes32[][]  Merkle proof
+    */
+    function claimVotiumRewards(
+        address[] calldata tokens,
+        uint256[] calldata indexes,
+        uint256[] calldata amounts,
+        bytes32[][] calldata merkleProofs
+    ) external whenNotPaused nonReentrant {
+        uint256 tLen = tokens.length;
+        if (tLen == 0) revert EmptyArray();
+        if (
+            !(tLen == indexes.length &&
+                indexes.length == amounts.length &&
+                amounts.length == merkleProofs.length)
+        ) revert MismatchedArrays();
+
+        for (uint8 i; i < tLen; ++i) {
+            claimVotiumReward(
+                tokens[i],
+                indexes[i],
+                amounts[i],
+                merkleProofs[i]
+            );
+        }
     }
 
     /**
@@ -750,7 +784,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (epoch > getCurrentEpoch()) revert InvalidEpoch();
         if (receiver == address(0)) revert ZeroAddress();
 
+        // Prevent users from burning their futures notes before rewards are claimed
         address[] memory r = epochs[epoch].rewards;
+        if (r.length == 0) revert NoRewards();
 
         emit RedeemFuturesRewards(epoch, receiver, r);
 
