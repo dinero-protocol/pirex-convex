@@ -105,7 +105,7 @@ describe('PirexCvx-Reward', function () {
     });
   });
 
-  describe('claimVotiumReward', function () {
+  describe('claimVotiumRewards', function () {
     let cvxRewardDistribution: { account: string; amount: BigNumber }[];
     let crvRewardDistribution: { account: string; amount: BigNumber }[];
     let cvxTree: BalanceTree;
@@ -149,78 +149,59 @@ describe('PirexCvx-Reward', function () {
       );
     });
 
-    it('Should revert if token is zero address', async function () {
-      await pCvx.takeEpochSnapshot();
-
-      const invalidToken = zeroAddress;
-      const index = 0;
-      const amount = cvxRewardDistribution[0].amount;
-      const merkleProof = cvxTree.getProof(index, pCvx.address, amount);
-
-      await expect(
-        pCvx.claimVotiumReward(invalidToken, index, amount, merkleProof)
-      ).to.be.revertedWith('ZeroAddress()');
-    });
-
-    it('Should revert if amount is zero', async function () {
-      await pCvx.takeEpochSnapshot();
-
-      const token = cvx.address;
-      const index = 0;
-      const invalidAmount = 0;
-      const merkleProof = cvxTree.getProof(
-        index,
-        pCvx.address,
-        cvxRewardDistribution[0].amount
-      );
-
-      await expect(
-        pCvx.claimVotiumReward(token, index, invalidAmount, merkleProof)
-      ).to.be.revertedWith('ZeroAmount()');
-    });
-
-    it('Should revert if index is invalid', async function () {
-      const token = cvx.address;
-      const invalidIndex = 10;
-      const index = 0; // Used to generate a valid proof
-      const amount = cvxRewardDistribution[0].amount;
-      const merkleProof = cvxTree.getProof(index, pCvx.address, amount);
-
-      await expect(
-        pCvx.claimVotiumReward(token, invalidIndex, amount, merkleProof)
-      ).to.be.revertedWith(
-        `VM Exception while processing transaction: reverted with reason string 'Invalid proof.'`
-      );
-    });
-
-    it('should revert if the contract is paused', async function () {
-      const token = cvx.address;
-      const index = 0;
-      const account = pCvx.address;
-      const invalidAmount = toBN(100e18);
-      const amount = cvxRewardDistribution[0].amount;
-      const proof = cvxTree.getProof(index, account, amount);
-
-      await pCvx.setPauseState(true);
-
-      await expect(
-        pCvx.claimVotiumReward(token, index, invalidAmount, proof)
-      ).to.be.revertedWith('Pausable: paused');
-
-      await pCvx.setPauseState(false);
-    });
-
-    it('Should claim Votium rewards and set distribution for pCVX and rpCVX token holders', async function () {
-      const tokens = [cvx.address, crv.address];
-      const index = 0;
-      const account = pCvx.address;
+    it('Should revert if tokens.length is zero', async function () {
+      const invalidTokens: any = [];
+      const indexes = [0, 0];
       const amounts = [
         cvxRewardDistribution[0].amount,
         crvRewardDistribution[0].amount,
       ];
-      const trees = [
-        cvxTree.getProof(index, account, amounts[0]),
-        crvTree.getProof(index, account, amounts[1]),
+      const merkleProofs = [
+        cvxTree.getProof(indexes[0], pCvx.address, amounts[0]),
+        crvTree.getProof(indexes[1], pCvx.address, amounts[1]),
+      ];
+
+      await expect(
+        pCvx.claimVotiumRewards(invalidTokens, indexes, amounts, merkleProofs)
+      ).to.be.revertedWith('EmptyArray()');
+    });
+
+    it('Should revert if array lengths are mismatched', async function () {
+      const tokens: any = [cvx.address, crv.address];
+      const indexes: any = [0, 0];
+      const amounts: any = [
+        cvxRewardDistribution[0].amount,
+        crvRewardDistribution[0].amount,
+      ];
+      const merkleProofs: any = [
+        cvxTree.getProof(indexes[0], pCvx.address, amounts[0]),
+        crvTree.getProof(indexes[1], pCvx.address, amounts[1]),
+      ];
+
+      await expect(
+        pCvx.claimVotiumRewards([tokens[0]], indexes, amounts, merkleProofs)
+      ).to.be.revertedWith('MismatchedArrays()');
+      await expect(
+        pCvx.claimVotiumRewards(tokens, [indexes[0]], amounts, merkleProofs)
+      ).to.be.revertedWith('MismatchedArrays()');
+      await expect(
+        pCvx.claimVotiumRewards(tokens, indexes, [amounts[0]], merkleProofs)
+      ).to.be.revertedWith('MismatchedArrays()');
+      await expect(
+        pCvx.claimVotiumRewards(tokens, indexes, amounts, [merkleProofs[0]])
+      ).to.be.revertedWith('MismatchedArrays()');
+    });
+
+    it('Should claim Votium rewards', async function () {
+      const tokens: any = [cvx.address, crv.address];
+      const indexes: any = [0, 0];
+      const amounts: any = [
+        cvxRewardDistribution[0].amount,
+        crvRewardDistribution[0].amount,
+      ];
+      const merkleProofs: any = [
+        cvxTree.getProof(indexes[0], pCvx.address, amounts[0]),
+        crvTree.getProof(indexes[1], pCvx.address, amounts[1]),
       ];
       const currentEpoch = await pCvx.getCurrentEpoch();
       const epochRpCvxSupply = await (
@@ -237,20 +218,8 @@ describe('PirexCvx-Reward', function () {
       const contributorsCrvBalanceBefore = await crv.balanceOf(
         contributors.address
       );
-      const cvxClaimEvents = await callAndReturnEvents(pCvx.claimVotiumReward, [
-        tokens[0],
-        index,
-        amounts[0],
-        trees[0],
-      ]);
-      const crvClaimEvents = await callAndReturnEvents(pCvx.claimVotiumReward, [
-        tokens[1],
-        index,
-        amounts[1],
-        trees[1],
-      ]);
-      const cvxClaimEvent = cvxClaimEvents[0];
-      const crvClaimEvent = crvClaimEvents[0];
+      await pCvx.claimVotiumRewards(tokens, indexes, amounts, merkleProofs);
+
       const { snapshotId, rewards, snapshotRewards, futuresRewards } =
         await pCvx.getEpoch(currentEpoch);
       const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
@@ -289,17 +258,17 @@ describe('PirexCvx-Reward', function () {
       const treasuryPercent = await pirexFees.treasuryPercent();
       const contributorsPercent = await pirexFees.contributorsPercent();
       const expectedTreasuryCvxFees = cvxFee
-        .mul(treasuryPercent)
-        .div(feePercentDenominator);
-      const expectedContributorsCvxFees = cvxFee
-        .mul(contributorsPercent)
-        .div(feePercentDenominator);
-      const expectedTreasuryCrvFees = crvFee
-        .mul(treasuryPercent)
-        .div(feePercentDenominator);
-      const expectedContributorsCrvFees = crvFee
-        .mul(contributorsPercent)
-        .div(feePercentDenominator);
+      .mul(treasuryPercent)
+      .div(feePercentDenominator);
+    const expectedContributorsCvxFees = cvxFee
+      .mul(contributorsPercent)
+      .div(feePercentDenominator);
+    const expectedTreasuryCrvFees = crvFee
+      .mul(treasuryPercent)
+      .div(feePercentDenominator);
+    const expectedContributorsCrvFees = crvFee
+      .mul(contributorsPercent)
+      .div(feePercentDenominator);
 
       expect(rewards.includes(tokens[0])).to.equal(true);
       expect(rewards.includes(tokens[1])).to.equal(true);
@@ -328,24 +297,6 @@ describe('PirexCvx-Reward', function () {
       );
       expect(contributorsCrvBalanceAfter).to.equal(
         contributorsCrvBalanceBefore.add(expectedContributorsCrvFees)
-      );
-      validateEvent(
-        cvxClaimEvent,
-        'ClaimVotiumReward(address,uint256,uint256)',
-        {
-          token: tokens[0],
-          index,
-          amount: amounts[0],
-        }
-      );
-      validateEvent(
-        crvClaimEvent,
-        'ClaimVotiumReward(address,uint256,uint256)',
-        {
-          token: tokens[1],
-          index,
-          amount: amounts[1],
-        }
       );
     });
   });

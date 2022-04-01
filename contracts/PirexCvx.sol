@@ -393,6 +393,64 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /**
+        @notice Claim a single Votium reward
+        @param  token        address    Reward token address
+        @param  index        uint256    Merkle tree node index
+        @param  amount       uint256    Reward token amount
+        @param  merkleProof  bytes32[]  Merkle proof
+    */
+    function _claimVotiumReward(
+        address token,
+        uint256 index,
+        uint256 amount,
+        bytes32[] memory merkleProof
+    ) internal {
+        if (token == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+
+        // Take snapshot before claiming rewards, if necessary
+        takeEpochSnapshot();
+
+        emit ClaimVotiumReward(token, index, amount);
+
+        ERC20 t = ERC20(token);
+
+        // Used for calculating the actual token amount received
+        uint256 prevBalance = t.balanceOf(address(this));
+
+        // Validates `token`, `index`, `amount`, and `merkleProof`
+        votiumMultiMerkleStash.claim(
+            token,
+            index,
+            address(this),
+            amount,
+            merkleProof
+        );
+
+        uint256 currentEpoch = getCurrentEpoch();
+        (
+            uint256 rewardFee,
+            uint256 snapshotRewards,
+            uint256 futuresRewards
+        ) = _calculateRewards(
+                fees[Fees.Reward],
+                totalSupplyAt(_getCurrentSnapshotId()),
+                rpCvx.totalSupply(currentEpoch),
+                t.balanceOf(address(this)) - prevBalance
+            );
+
+        // Add reward token address and snapshot/futuresRewards amounts (same index for all)
+        Epoch storage e = epochs[currentEpoch];
+        e.rewards.push(token);
+        e.snapshotRewards.push(snapshotRewards);
+        e.futuresRewards.push(futuresRewards);
+
+        // Distribute fees
+        t.safeIncreaseAllowance(address(pirexFees), rewardFee);
+        pirexFees.distributeFees(address(this), token, rewardFee);
+    }
+
+    /**
         @notice Snapshot token balances for the current epoch
      */
     function takeEpochSnapshot() public whenNotPaused {
@@ -611,64 +669,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /**
-        @notice Claim a single Votium reward
-        @param  token        address    Reward token address
-        @param  index        uint256    Merkle tree node index
-        @param  amount       uint256    Reward token amount
-        @param  merkleProof  bytes32[]  Merkle proof
-    */
-    function claimVotiumReward(
-        address token,
-        uint256 index,
-        uint256 amount,
-        bytes32[] memory merkleProof
-    ) public whenNotPaused nonReentrant {
-        if (token == address(0)) revert ZeroAddress();
-        if (amount == 0) revert ZeroAmount();
-
-        // Take snapshot before claiming rewards, if necessary
-        takeEpochSnapshot();
-
-        emit ClaimVotiumReward(token, index, amount);
-
-        ERC20 t = ERC20(token);
-
-        // Used for calculating the actual token amount received
-        uint256 prevBalance = t.balanceOf(address(this));
-
-        // Validates `token`, `index`, `amount`, and `merkleProof`
-        votiumMultiMerkleStash.claim(
-            token,
-            index,
-            address(this),
-            amount,
-            merkleProof
-        );
-
-        uint256 currentEpoch = getCurrentEpoch();
-        (
-            uint256 rewardFee,
-            uint256 snapshotRewards,
-            uint256 futuresRewards
-        ) = _calculateRewards(
-                fees[Fees.Reward],
-                totalSupplyAt(_getCurrentSnapshotId()),
-                rpCvx.totalSupply(currentEpoch),
-                t.balanceOf(address(this)) - prevBalance
-            );
-
-        // Add reward token address and snapshot/futuresRewards amounts (same index for all)
-        Epoch storage e = epochs[currentEpoch];
-        e.rewards.push(token);
-        e.snapshotRewards.push(snapshotRewards);
-        e.futuresRewards.push(futuresRewards);
-
-        // Distribute fees
-        t.safeIncreaseAllowance(address(pirexFees), rewardFee);
-        pirexFees.distributeFees(address(this), token, rewardFee);
-    }
-
-    /**
         @notice Claim multiple Votium rewards
         @param  tokens        address[]    Reward token address
         @param  indexes       uint256[]    Merkle tree node index
@@ -690,7 +690,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         ) revert MismatchedArrays();
 
         for (uint8 i; i < tLen; ++i) {
-            claimVotiumReward(
+            _claimVotiumReward(
                 tokens[i],
                 indexes[i],
                 amounts[i],
