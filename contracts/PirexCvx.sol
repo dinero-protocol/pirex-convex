@@ -621,11 +621,11 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 amount,
         bytes32[] calldata merkleProof
     ) external whenNotPaused nonReentrant {
-        // Check if maintenance has been performed on the epoch
-        uint256 currentEpoch = getCurrentEpoch();
-        if (epochs[currentEpoch].snapshotId == 0) revert SnapshotRequired();
         if (token == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
+
+        // Take snapshot before claiming rewards, if necessary
+        takeEpochSnapshot();
 
         emit ClaimVotiumReward(token, index, amount);
 
@@ -643,6 +643,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             merkleProof
         );
 
+        uint256 currentEpoch = getCurrentEpoch();
         (
             uint256 rewardFee,
             uint256 snapshotRewards,

@@ -97,9 +97,9 @@ describe('PirexCvx-Reward', function () {
     it('should revert if the contract is paused', async function () {
       await pCvx.setPauseState(true);
 
-      await expect(
-        pCvx.takeEpochSnapshot()
-      ).to.be.revertedWith('Pausable: paused');
+      await expect(pCvx.takeEpochSnapshot()).to.be.revertedWith(
+        'Pausable: paused'
+      );
 
       await pCvx.setPauseState(false);
     });
@@ -149,23 +149,6 @@ describe('PirexCvx-Reward', function () {
       );
     });
 
-    it('Should revert if maintenance has not been performed', async function () {
-      await increaseBlockTimestamp(Number(epochDuration));
-
-      const { snapshotId } = await pCvx.getEpoch(await pCvx.getCurrentEpoch());
-      const token = cvx.address;
-      const index = 0;
-      const amount = toBN(1e18);
-      const merkleProof = new BalanceTree([
-        { amount, account: admin.address },
-      ]).getProof(index, admin.address, amount);
-
-      expect(snapshotId).to.equal(0);
-      await expect(
-        pCvx.claimVotiumReward(token, index, amount, merkleProof)
-      ).to.be.revertedWith('SnapshotRequired()');
-    });
-
     it('Should revert if token is zero address', async function () {
       await pCvx.takeEpochSnapshot();
 
@@ -210,21 +193,6 @@ describe('PirexCvx-Reward', function () {
       );
     });
 
-    it('Should revert if amount is zero', async function () {
-      const token = cvx.address;
-      const index = 0;
-      const account = pCvx.address;
-      const invalidAmount = toBN(100e18);
-      const amount = cvxRewardDistribution[0].amount; // Used to generate a valid proof
-      const proof = cvxTree.getProof(index, account, amount);
-
-      await expect(
-        pCvx.claimVotiumReward(token, index, invalidAmount, proof)
-      ).to.be.revertedWith(
-        `VM Exception while processing transaction: reverted with reason string 'Invalid proof.'`
-      );
-    });
-
     it('should revert if the contract is paused', async function () {
       const token = cvx.address;
       const index = 0;
@@ -254,7 +222,6 @@ describe('PirexCvx-Reward', function () {
         cvxTree.getProof(index, account, amounts[0]),
         crvTree.getProof(index, account, amounts[1]),
       ];
-      const snapshotSupply = await pCvx.totalSupply();
       const currentEpoch = await pCvx.getCurrentEpoch();
       const epochRpCvxSupply = await (
         await this.getRpCvx(await pCvx.rpCvx())
@@ -284,30 +251,31 @@ describe('PirexCvx-Reward', function () {
       ]);
       const cvxClaimEvent = cvxClaimEvents[0];
       const crvClaimEvent = crvClaimEvents[0];
-      const epoch = await pCvx.getEpoch(currentEpoch);
-      const { snapshotRewards, futuresRewards } = await pCvx.getEpoch(
-        currentEpoch
-      );
+      const { snapshotId, rewards, snapshotRewards, futuresRewards } =
+        await pCvx.getEpoch(currentEpoch);
+      const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
       const votiumSnapshotRewards = snapshotRewards;
       const votiumFuturesRewards = futuresRewards;
+
       const expectedVotiumSnapshotRewards = {
         amounts: amounts.map((amount: BigNumber) => {
-          const rewards = amount
-            .mul(toBN(feeDenominator).sub(rewardFee))
-            .div(feeDenominator);
+          const feeAmount = amount.mul(rewardFee).div(feeDenominator);
 
-          return rewards
+          return amount
+            .sub(feeAmount)
             .mul(snapshotSupply)
             .div(snapshotSupply.add(epochRpCvxSupply));
         }),
       };
       const expectedVotiumFuturesRewards = {
-        amounts: amounts.map((amount: BigNumber, idx: number) => {
-          const rewards = amount
-            .mul(toBN(feeDenominator).sub(rewardFee))
-            .div(feeDenominator);
+        amounts: amounts.map((amount: BigNumber) => {
+          const feeAmount = amount.mul(rewardFee).div(feeDenominator);
+          const snapshotRewards = amount
+            .sub(feeAmount)
+            .mul(snapshotSupply)
+            .div(snapshotSupply.add(epochRpCvxSupply));
 
-          return rewards.sub(expectedVotiumSnapshotRewards.amounts[idx]);
+          return amount.sub(feeAmount).sub(snapshotRewards);
         }),
       };
       const treasuryCvxBalanceAfter = await cvx.balanceOf(treasury.address);
@@ -333,8 +301,8 @@ describe('PirexCvx-Reward', function () {
         .mul(contributorsPercent)
         .div(feePercentDenominator);
 
-      expect(epoch.rewards.includes(tokens[0])).to.equal(true);
-      expect(epoch.rewards.includes(tokens[1])).to.equal(true);
+      expect(rewards.includes(tokens[0])).to.equal(true);
+      expect(rewards.includes(tokens[1])).to.equal(true);
       expect(votiumSnapshotRewards).to.deep.equal(
         expectedVotiumSnapshotRewards.amounts
       );
@@ -402,9 +370,9 @@ describe('PirexCvx-Reward', function () {
     it('should revert if the contract is paused', async function () {
       await pCvx.setPauseState(true);
 
-      await expect(
-        pCvx.claimMiscRewards()
-      ).to.be.revertedWith('Pausable: paused');
+      await expect(pCvx.claimMiscRewards()).to.be.revertedWith(
+        'Pausable: paused'
+      );
 
       await pCvx.setPauseState(false);
     });
@@ -689,9 +657,9 @@ describe('PirexCvx-Reward', function () {
 
       await pCvx.setPauseState(true);
 
-      await expect(
-        pCvx.redeemFuturesRewards(epoch, to)
-      ).to.be.revertedWith('Pausable: paused');
+      await expect(pCvx.redeemFuturesRewards(epoch, to)).to.be.revertedWith(
+        'Pausable: paused'
+      );
 
       await pCvx.setPauseState(false);
     });
@@ -730,6 +698,8 @@ describe('PirexCvx-Reward', function () {
       const expectedClaimAmounts = futuresRewards.map((amount: BigNumber) =>
         amount.mul(rpCvxBalanceBefore).div(rpCvxSupplyBefore)
       );
+
+      console.log(futuresRewards);
 
       expect(rpCvxBalanceAfter).to.not.equal(rpCvxBalanceBefore);
       expect(rpCvxBalanceAfter).to.equal(0);
