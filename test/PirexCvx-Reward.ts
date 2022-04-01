@@ -379,8 +379,6 @@ describe('PirexCvx-Reward', function () {
           amount: amounts[1],
         }
       );
-
-      console.log('epoch', await pCvx.getCurrentEpoch());
     });
   });
 

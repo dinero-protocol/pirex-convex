@@ -111,7 +111,10 @@ contract PirexCvxConvex is Ownable, Pausable {
         emit SetConvexContract(c, contractAddress);
 
         if (c == ConvexContract.CvxLocker) {
+            // Revoke approval from the old locker and add allowances to the new locker
+            CVX.safeApprove(address(cvxLocker), 0);
             cvxLocker = ICvxLocker(contractAddress);
+            CVX.safeIncreaseAllowance(address(cvxLocker), type(uint256).max);
             return;
         }
 
@@ -247,6 +250,13 @@ contract PirexCvxConvex is Ownable, Pausable {
         emit ClearVoteDelegate();
 
         cvxDelegateRegistry.clearDelegate(delegationSpace);
+    }
+
+    /**
+        @notice Only for emergency purposes in the case of a forced-unlock by Convex
+     */
+    function unlock() external onlyOwner {
+        _unlock();
     }
 
     /**

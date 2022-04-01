@@ -281,10 +281,11 @@ describe('PirexCvx-Base', function () {
       const cvxLockerBefore = await pCvx.cvxLocker();
       const c = convexContractEnum.cvxLocker;
       const contractAddress = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setConvexContract, [
+      const events = await callAndReturnEvents(pCvx.setConvexContract, [
         c,
         contractAddress,
       ]);
+      const setEvent = events[0];
       const cvxLockerAfter = await pCvx.cvxLocker();
 
       // Revert change to appropriate value for future tests
