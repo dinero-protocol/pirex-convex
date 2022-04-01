@@ -26,10 +26,14 @@ describe('PirexCvx-Shutdown', function () {
     } = this);
   });
 
-  describe('relock', function () {
+  describe('unlock+relock', function () {
     it('Should revert if not called by owner', async function () {
       await expect(
         pCvx.connect(notAdmin).relock()
+      ).to.be.revertedWith('Ownable: caller is not the owner');
+
+      await expect(
+        pCvx.connect(notAdmin).unlock()
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
