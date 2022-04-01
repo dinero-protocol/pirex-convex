@@ -218,8 +218,23 @@ describe('PirexCvx-Reward', function () {
       const contributorsCrvBalanceBefore = await crv.balanceOf(
         contributors.address
       );
-      await pCvx.claimVotiumRewards(tokens, indexes, amounts, merkleProofs);
+      const events = await callAndReturnEvents(pCvx.claimVotiumRewards, [
+        tokens,
+        indexes,
+        amounts,
+        merkleProofs,
+      ]);
+      const cvxVotiumRewardClaimEvent = events[0];
+      const votiumToPirexCvxTransferEvent = events[1];
+      const cvxFeeTreasuryDistributionEvent = events[5];
+      const cvxFeeContributorsDistributionEvent = events[7];
+      const crvVotiumRewardClaimEvent = events[9];
+      const votiumToPirexCrvTransfer = events[10];
+      const crvFeeTreasuryDistributionEvent = events[15];
+      const crvFeeContributorsDistributionEvent = events[events.length - 1];
+      const votium = await pCvx.votiumMultiMerkleStash();
 
+      // console.log(events);
       const { snapshotId, rewards, snapshotRewards, futuresRewards } =
         await pCvx.getEpoch(currentEpoch);
       const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
@@ -258,17 +273,17 @@ describe('PirexCvx-Reward', function () {
       const treasuryPercent = await pirexFees.treasuryPercent();
       const contributorsPercent = await pirexFees.contributorsPercent();
       const expectedTreasuryCvxFees = cvxFee
-      .mul(treasuryPercent)
-      .div(feePercentDenominator);
-    const expectedContributorsCvxFees = cvxFee
-      .mul(contributorsPercent)
-      .div(feePercentDenominator);
-    const expectedTreasuryCrvFees = crvFee
-      .mul(treasuryPercent)
-      .div(feePercentDenominator);
-    const expectedContributorsCrvFees = crvFee
-      .mul(contributorsPercent)
-      .div(feePercentDenominator);
+        .mul(treasuryPercent)
+        .div(feePercentDenominator);
+      const expectedContributorsCvxFees = cvxFee
+        .mul(contributorsPercent)
+        .div(feePercentDenominator);
+      const expectedTreasuryCrvFees = crvFee
+        .mul(treasuryPercent)
+        .div(feePercentDenominator);
+      const expectedContributorsCrvFees = crvFee
+        .mul(contributorsPercent)
+        .div(feePercentDenominator);
 
       expect(rewards.includes(tokens[0])).to.equal(true);
       expect(rewards.includes(tokens[1])).to.equal(true);
@@ -297,6 +312,79 @@ describe('PirexCvx-Reward', function () {
       );
       expect(contributorsCrvBalanceAfter).to.equal(
         contributorsCrvBalanceBefore.add(expectedContributorsCrvFees)
+      );
+
+      validateEvent(
+        cvxVotiumRewardClaimEvent,
+        'ClaimVotiumReward(address,uint256,uint256)',
+        {
+          token: tokens[0],
+          index: indexes[0],
+          amount: amounts[0],
+        }
+      );
+      validateEvent(
+        crvVotiumRewardClaimEvent,
+        'ClaimVotiumReward(address,uint256,uint256)',
+        {
+          token: tokens[1],
+          index: indexes[1],
+          amount: amounts[1],
+        }
+      );
+      validateEvent(
+        votiumToPirexCvxTransferEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: votium,
+          to: pCvx.address,
+          value: amounts[0],
+        }
+      );
+      validateEvent(
+        cvxFeeTreasuryDistributionEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: pCvx.address,
+          to: treasury.address,
+          value: treasuryCvxBalanceAfter.sub(treasuryCvxBalanceBefore),
+        }
+      );
+      validateEvent(
+        cvxFeeContributorsDistributionEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: pCvx.address,
+          to: contributors.address,
+          value: contributorsCvxBalanceAfter.sub(contributorsCvxBalanceBefore),
+        }
+      );
+      validateEvent(
+        votiumToPirexCrvTransfer,
+        'Transfer(address,address,uint256)',
+        {
+          from: votium,
+          to: pCvx.address,
+          value: amounts[1],
+        }
+      );
+      validateEvent(
+        crvFeeTreasuryDistributionEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: pCvx.address,
+          to: treasury.address,
+          value: treasuryCrvBalanceAfter.sub(treasuryCrvBalanceBefore),
+        }
+      );
+      validateEvent(
+        crvFeeContributorsDistributionEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: pCvx.address,
+          to: contributors.address,
+          value: contributorsCrvBalanceAfter.sub(contributorsCrvBalanceBefore),
+        }
       );
     });
   });
