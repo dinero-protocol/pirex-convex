@@ -54,11 +54,11 @@ contract PirexCvxConvex is Ownable, Pausable {
     error EmptyString();
 
     /**
-        @param  _CVX                     address  CVX address    
-        @param  _cvxLocker               address  CvxLocker address
-        @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
-        @param  _cvxRewardPool           address  CvxRewardPool address
-        @param  _cvxCRV                  address  CvxCrvToken address
+        @param  _CVX                  address  CVX address    
+        @param  _cvxLocker            address  CvxLocker address
+        @param  _cvxDelegateRegistry  address  CvxDelegateRegistry address
+        @param  _cvxRewardPool        address  CvxRewardPool address
+        @param  _cvxCRV               address  CvxCrvToken address
      */
     constructor(
         address _CVX,
@@ -88,6 +88,7 @@ contract PirexCvxConvex is Ownable, Pausable {
 
     /** 
         @notice Only for emergency purposes when we need to resume/halt all user actions
+        @param state  bool  Pause state
     */
     function setPauseState(bool state) external onlyOwner {
         if (state) {
@@ -166,7 +167,7 @@ contract PirexCvxConvex is Ownable, Pausable {
 
     /**
         @notice Get claimable rewards and balances
-        @return  rewards  ConvexReward[]  Claimable rewards and balances
+        @return rewards  ConvexReward[]  Claimable rewards and balances
      */
     function _claimableRewards()
         internal

@@ -82,8 +82,8 @@ contract PirexFees is AccessControl {
 
     /** 
         @notice Set a fee recipient address
-        @param  f          FeeRecipient  FeeRecipient enum
-        @param  recipient  address       Fee recipient address
+        @param  f          enum     FeeRecipient enum
+        @param  recipient  address  Fee recipient address
      */
     function setFeeRecipient(FeeRecipient f, address recipient)
         external

@@ -406,16 +406,6 @@ describe('PirexCvx-Reward', function () {
       await increaseBlockTimestamp(1000);
     });
 
-    it('should revert if the contract is paused', async function () {
-      await pCvx.setPauseState(true);
-
-      await expect(pCvx.claimMiscRewards()).to.be.revertedWith(
-        'Pausable: paused'
-      );
-
-      await pCvx.setPauseState(false);
-    });
-
     it('Should claim misc rewards for the epoch', async function () {
       const treasuryCrvBalanceBefore = await crv.balanceOf(treasury.address);
       const contributorsCrvBalanceBefore = await crv.balanceOf(
