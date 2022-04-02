@@ -34,14 +34,14 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     /**
         @notice Queued fee changes
         @param  newFee          uint32   New fee
-        @param  effectiveAfter  uint224  Timestamp after which new fee could take affect
+        @param  effectiveAfter  uint224  Timestamp after which new fee could take effect
      */
     struct QueuedFee {
         uint32 newFee;
         uint224 effectiveAfter;
     }
 
-    // Users can choose between the two futures tokens when staking or unlocking
+    // Users can choose between the two futures tokens when staking or initiating a redemption
     enum Futures {
         Vote,
         Reward
@@ -160,7 +160,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     error BeforeUnlock();
     error InsufficientBalance();
     error AlreadyRedeemed();
-    error SnapshotRequired();
     error InsufficientRedemptionAllowance();
     error PastExchangePeriod();
     error InvalidNewFee();
@@ -258,7 +257,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /** 
         @notice Queue fee
-        @param  f       enum    Fee enum
+        @param  f       enum    Fee
         @param  newFee  uint32  New fee
      */
     function queueFee(Fees f, uint32 newFee) external onlyOwner {
@@ -275,7 +274,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /** 
         @notice Set fee
-        @param  f  Fees  Fee enum
+        @param  f  enum  Fee
      */
     function setFee(Fees f) external onlyOwner {
         QueuedFee memory q = queuedFees[f];
@@ -307,7 +306,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     /**
         @notice Get epoch
         @param  epoch            uint256    Epoch
-        @return snapshotId       uint256     Snapshot id
+        @return snapshotId       uint256    Snapshot id
         @return rewards          address[]  Reward tokens
         @return snapshotRewards  uint256[]  Snapshot reward amounts
         @return futuresRewards   uint256[]  Futures reward amounts
@@ -330,7 +329,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     /**
         @notice Mint futures tokens
         @param  rounds    uint8    Rounds (i.e. Convex voting rounds)
-        @param  f         enum     Futures
+        @param  f         enum     Futures enum
         @param  assets    uint256  Futures amount
         @param  receiver  address  Receives futures
     */
@@ -346,7 +345,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         ERC1155PresetMinterSupply token = f == Futures.Vote ? vpCvx : rpCvx;
 
         for (uint8 i; i < rounds; ++i) {
-            // Validates `to`
             token.mint(
                 receiver,
                 startingEpoch + i * EPOCH_DURATION,
@@ -358,10 +356,13 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Calculate rewards
-        @param  feePercent      uint32   Reward fee percent
-        @param  snapshotSupply  uint256  pCVX supply for the current snapshot id
-        @param  rpCvxSupply     uint256  rpCVX supply for the current epoch
-        @param  received        uint256  Received amount
+        @param  feePercent       uint32   Reward fee percent
+        @param  snapshotSupply   uint256  pCVX supply for the current snapshot id
+        @param  rpCvxSupply      uint256  rpCVX supply for the current epoch
+        @param  received         uint256  Received amount
+        @return rewardFee        uint256  Fee for protocol
+        @return snapshotRewards  uint256  Rewards for pCVX token holders
+        @return futuresRewards   uint256  Rewards for futures token holders
     */
     function _calculateRewards(
         uint32 feePercent,
@@ -501,7 +502,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     /**
         @notice Initiate CVX redemption
         @param  lockIndex  uint8    Locked balance index
-        @param  f          enum     Futures
+        @param  f          enum     Futures enum
         @param  assets     uint256  pCVX amount
         @param  receiver   address  Receives upCVX
      */
@@ -614,7 +615,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     /**
         @notice Stake pCVX
         @param  rounds    uint8    Rounds (i.e. Convex voting rounds)
-        @param  f         enum     Futures
+        @param  f         enum     Futures enum
         @param  assets    uint256  pCVX amount
         @param  receiver  address  Receives spCVX
     */
@@ -670,10 +671,10 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Claim multiple Votium rewards
-        @param  tokens        address[]    Reward token address
-        @param  indexes       uint256[]    Merkle tree node index
-        @param  amounts       uint256[]    Reward token amount
-        @param  merkleProofs  bytes32[][]  Merkle proof
+        @param  tokens        address[]    Reward token addresses
+        @param  indexes       uint256[]    Merkle tree node indexes
+        @param  amounts       uint256[]    Reward token amounts
+        @param  merkleProofs  bytes32[][]  Merkle proofs
     */
     function claimVotiumRewards(
         address[] calldata tokens,
@@ -702,7 +703,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     /**
         @notice Claim misc. rewards (e.g. emissions) and distribute to stakeholders
      */
-    function claimMiscRewards() external whenNotPaused nonReentrant {
+    function claimMiscRewards() external nonReentrant {
         // Get claimable rewards and balances
         ConvexReward[] memory c = _claimableRewards();
 
@@ -818,7 +819,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         @param  epoch     uint256  Epoch (ERC1155 token id)
         @param  amount    uint256  Exchange amount
         @param  receiver  address  Receives futures token
-        @param  f         enum     Futures token to exchange
+        @param  f         enum     Futures enum
     */
     function exchangeFutures(
         uint256 epoch,
