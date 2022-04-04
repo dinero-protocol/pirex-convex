@@ -413,9 +413,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (token == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
-        // Take snapshot before claiming rewards, if necessary
-        takeEpochSnapshot();
-
         emit ClaimVotiumReward(token, index, amount);
 
         ERC20 t = ERC20(token);
@@ -691,6 +688,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
                 indexes.length == amounts.length &&
                 amounts.length == merkleProofs.length)
         ) revert MismatchedArrays();
+
+        // Take snapshot before claiming rewards, if necessary
+        takeEpochSnapshot();
 
         uint256 currentEpoch = getCurrentEpoch();
         Epoch storage e = epochs[currentEpoch];
