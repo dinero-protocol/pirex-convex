@@ -395,12 +395,16 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Claim a single Votium reward
+        @param  e            Epoch      Epoch details
+        @param  rpCvxSupply  uint256    rpCVX supply
         @param  token        address    Reward token address
         @param  index        uint256    Merkle tree node index
         @param  amount       uint256    Reward token amount
         @param  merkleProof  bytes32[]  Merkle proof
     */
     function _claimVotiumReward(
+        Epoch storage e,
+        uint256 rpCvxSupply,
         address token,
         uint256 index,
         uint256 amount,
@@ -428,20 +432,18 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             merkleProof
         );
 
-        uint256 currentEpoch = getCurrentEpoch();
         (
             uint256 rewardFee,
             uint256 snapshotRewards,
             uint256 futuresRewards
         ) = _calculateRewards(
                 fees[Fees.Reward],
-                totalSupplyAt(_getCurrentSnapshotId()),
-                rpCvx.totalSupply(currentEpoch),
+                totalSupplyAt(e.snapshotId),
+                rpCvxSupply,
                 t.balanceOf(address(this)) - prevBalance
             );
 
         // Add reward token address and snapshot/futuresRewards amounts (same index for all)
-        Epoch storage e = epochs[currentEpoch];
         e.rewards.push(token);
         e.snapshotRewards.push(snapshotRewards);
         e.futuresRewards.push(futuresRewards);
@@ -690,8 +692,14 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
                 amounts.length == merkleProofs.length)
         ) revert MismatchedArrays();
 
+        uint256 currentEpoch = getCurrentEpoch();
+        Epoch storage e = epochs[currentEpoch];
+        uint256 rpCvxSupply = rpCvx.totalSupply(currentEpoch);
+
         for (uint8 i; i < tLen; ++i) {
             _claimVotiumReward(
+                e,
+                rpCvxSupply,
                 tokens[i],
                 indexes[i],
                 amounts[i],
