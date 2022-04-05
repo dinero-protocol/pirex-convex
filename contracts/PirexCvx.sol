@@ -167,7 +167,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     error BeforeStakingExpiry();
     error InvalidEpoch();
     error EmptyArray();
-    error MismatchedArrays();
+    error MismatchedArrayLengths();
     error NoRewards();
 
     /**
@@ -580,6 +580,23 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /**
+        @notice Initiate CVX redemption
+        @param  lockIndex  uint8[]  Locked balance index
+        @param  f          enum     Futures enum
+        @param  assets     uint256  pCVX amounts
+        @param  receiver   address  Receives upCVX
+     */
+    function initiateRedemption(
+        uint8 lockIndex,
+        Futures f,
+        uint256 assets,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        if (receiver == address(0)) revert ZeroAddress();
+        _initiateRedemption(lockIndex, f, assets, receiver);
+    }
+
+    /**
         @notice Initiate CVX redemptions
         @param  lockIndexes  uint8[]    Locked balance index
         @param  f            enum       Futures enum
@@ -593,8 +610,10 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address receiver
     ) external whenNotPaused nonReentrant {
         uint8 lockLen = uint8(lockIndexes.length);
+        uint8 assetsLen = uint8(assets.length);
         if (lockLen == 0) revert EmptyArray();
         if (assets.length == 0) revert EmptyArray();
+        if (lockLen != assetsLen) revert MismatchedArrayLengths();
         if (receiver == address(0)) revert ZeroAddress();
 
         for (uint8 i; i < lockLen; ++i) {
@@ -709,7 +728,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             !(tLen == indexes.length &&
                 indexes.length == amounts.length &&
                 amounts.length == merkleProofs.length)
-        ) revert MismatchedArrays();
+        ) revert MismatchedArrayLengths();
 
         // Take snapshot before claiming rewards, if necessary
         takeEpochSnapshot();

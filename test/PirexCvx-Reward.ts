@@ -180,16 +180,16 @@ describe('PirexCvx-Reward', function () {
 
       await expect(
         pCvx.claimVotiumRewards([tokens[0]], indexes, amounts, merkleProofs)
-      ).to.be.revertedWith('MismatchedArrays()');
+      ).to.be.revertedWith('MismatchedArrayLengths()');
       await expect(
         pCvx.claimVotiumRewards(tokens, [indexes[0]], amounts, merkleProofs)
-      ).to.be.revertedWith('MismatchedArrays()');
+      ).to.be.revertedWith('MismatchedArrayLengths()');
       await expect(
         pCvx.claimVotiumRewards(tokens, indexes, [amounts[0]], merkleProofs)
-      ).to.be.revertedWith('MismatchedArrays()');
+      ).to.be.revertedWith('MismatchedArrayLengths()');
       await expect(
         pCvx.claimVotiumRewards(tokens, indexes, amounts, [merkleProofs[0]])
-      ).to.be.revertedWith('MismatchedArrays()');
+      ).to.be.revertedWith('MismatchedArrayLengths()');
     });
 
     it('Should claim Votium rewards', async function () {
