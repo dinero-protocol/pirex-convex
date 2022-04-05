@@ -505,14 +505,13 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         @param  assets     uint256  pCVX amount
         @param  receiver   address  Receives upCVX
      */
-    function initiateRedemption(
+    function _initiateRedemption(
         uint8 lockIndex,
         Futures f,
         uint256 assets,
         address receiver
-    ) external whenNotPaused nonReentrant {
+    ) internal {
         if (assets == 0) revert ZeroAmount();
-        if (receiver == address(0)) revert ZeroAddress();
 
         // Validates `lockIndex` is within bounds of the array - reverts otherwise
         (uint256 lockAmount, uint256 unlockTime) = _getLockData(lockIndex);
@@ -578,6 +577,29 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         // Mint vpCVX or rpCVX (using assets as we do not take a fee from this)
         _mintFutures(rounds, f, assets, receiver);
+    }
+
+    /**
+        @notice Initiate CVX redemptions
+        @param  lockIndexes  uint8[]    Locked balance index
+        @param  f            enum       Futures enum
+        @param  assets       uint256[]  pCVX amounts
+        @param  receiver     address    Receives upCVX
+     */
+    function initiateRedemptions(
+        uint8[] calldata lockIndexes,
+        Futures f,
+        uint256[] calldata assets,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        uint8 lockLen = uint8(lockIndexes.length);
+        if (lockLen == 0) revert EmptyArray();
+        if (assets.length == 0) revert EmptyArray();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        for (uint8 i; i < lockLen; ++i) {
+            _initiateRedemption(lockIndexes[i], f, assets[i], receiver);
+        }
     }
 
     /**
