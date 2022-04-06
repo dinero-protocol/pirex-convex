@@ -28,7 +28,8 @@ describe('PirexCvx-Main', function () {
   let cvxLocker: CvxLocker;
 
   let zeroAddress: string;
-  let redemptionUnlockTime: number;
+  let redemptionUnlockTime1: BigNumber;
+  let redemptionUnlockTime2: BigNumber;
   let epochDuration: BigNumber;
 
   let futuresEnum: any;
@@ -45,7 +46,7 @@ describe('PirexCvx-Main', function () {
       cvx,
       cvxLocker,
       zeroAddress,
-      redemptionUnlockTime,
+      redemptionUnlockTime1,
       epochDuration,
       futuresEnum,
       feesEnum,
@@ -316,7 +317,8 @@ describe('PirexCvx-Main', function () {
       const { unlockTime: unlockTime1 } = lockData[lockIndexes[0]];
       const { unlockTime: unlockTime2 } = lockData[lockIndexes[1]];
 
-      redemptionUnlockTime = unlockTime1;
+      redemptionUnlockTime1 = toBN(unlockTime1);
+      redemptionUnlockTime2 = toBN(unlockTime2);
 
       const upCvx = await this.getUpCvx(await pCvx.upCvx());
       const currentEpoch = await pCvx.getCurrentEpoch();
@@ -699,7 +701,7 @@ describe('PirexCvx-Main', function () {
 
   describe('redeem', function () {
     it('Should revert if before lock expiry', async function () {
-      const invalidUnlockTime = redemptionUnlockTime;
+      const invalidUnlockTime = redemptionUnlockTime1;
       const receiver = admin.address;
       const assets = toBN(1e18);
 
@@ -730,7 +732,7 @@ describe('PirexCvx-Main', function () {
 
     it('Should revert if insufficient upCVX balance for epoch', async function () {
       // Does not exist, should not have a valid token balance
-      const invalidUnlockTime = toBN(redemptionUnlockTime).add(1);
+      const invalidUnlockTime = redemptionUnlockTime1.add(1);
       const assets = toBN(1e18);
       const receiver = admin.address;
       const upCvx = await this.getUpCvx(await pCvx.upCvx());
@@ -759,7 +761,7 @@ describe('PirexCvx-Main', function () {
       await pCvx.setPauseState(true);
 
       await expect(
-        pCvx.redeem(redemptionUnlockTime, assets, receiver)
+        pCvx.redeem(redemptionUnlockTime1, assets, receiver)
       ).to.be.revertedWith('Pausable: paused');
 
       await pCvx.setPauseState(false);
@@ -769,13 +771,13 @@ describe('PirexCvx-Main', function () {
       const upCvx = await this.getUpCvx(await pCvx.upCvx());
       const upCvxBalanceBefore = await upCvx.balanceOf(
         admin.address,
-        redemptionUnlockTime
+        redemptionUnlockTime1
       );
       const { unlockable: unlockableBefore, locked: lockedBefore } =
         await cvxLocker.lockedBalances(pCvx.address);
       const outstandingRedemptionsBefore = await pCvx.outstandingRedemptions();
       const upCvxTotalSupplyBefore = await upCvx.totalSupply(
-        redemptionUnlockTime
+        redemptionUnlockTime1
       );
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const assets = upCvxBalanceBefore.div(2);
@@ -797,7 +799,7 @@ describe('PirexCvx-Main', function () {
       const expectedCvxBalance = cvxBalanceBefore.add(assets);
 
       const events = await callAndReturnEvents(pCvx.redeem, [
-        redemptionUnlockTime,
+        redemptionUnlockTime1,
         assets,
         receiver,
       ]);
@@ -805,14 +807,14 @@ describe('PirexCvx-Main', function () {
       const cvxTransferEvent = events[events.length - 1];
       const upCvxBalanceAfter = await upCvx.balanceOf(
         admin.address,
-        redemptionUnlockTime
+        redemptionUnlockTime1
       );
       const { locked: lockedAfter } = await cvxLocker.lockedBalances(
         pCvx.address
       );
       const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
       const upCvxTotalSupplyAfter = await upCvx.totalSupply(
-        redemptionUnlockTime
+        redemptionUnlockTime1
       );
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const pirexCvxBalanceAfter = await cvx.balanceOf(pCvx.address);
@@ -831,7 +833,7 @@ describe('PirexCvx-Main', function () {
       expect(expectedCvxBalance).to.equal(cvxBalanceAfter);
       expect(expectedCvxBalance).to.not.equal(0);
       validateEvent(redeemEvent, 'Redeem(uint256,uint256,address)', {
-        epoch: redemptionUnlockTime,
+        unlockTime: redemptionUnlockTime1,
         assets,
         receiver,
       });
@@ -839,6 +841,102 @@ describe('PirexCvx-Main', function () {
         from: pCvx.address,
         to: receiver,
         value: assets,
+      });
+    });
+  });
+
+  describe('redeemMulti', function () {
+    let upCvxBalance1: BigNumber;
+    let upCvxBalance2: BigNumber;
+
+    before(async function () {
+      const upCvx = await this.getUpCvx(await pCvx.upCvx());
+
+      upCvxBalance1 = await upCvx.balanceOf(
+        admin.address,
+        redemptionUnlockTime1
+      );
+      upCvxBalance2 = await upCvx.balanceOf(
+        admin.address,
+        redemptionUnlockTime2
+      );
+    });
+
+    it('Should revert if unlockTimes is an empty array', async function () {
+      const invalidUnlockTimes: any = [];
+      const assets = [toBN(1e18)];
+      const receiver = admin.address;
+
+      await expect(
+        pCvx.redeemMulti(invalidUnlockTimes, assets, receiver)
+      ).to.be.revertedWith('EmptyArray()');
+    });
+
+    it('Should revert if unlockTimes and assets have mismatched lengths', async function () {
+      const unlockTimes = [redemptionUnlockTime1, redemptionUnlockTime2];
+      const assets = [upCvxBalance1];
+      const receiver = admin.address;
+
+      await expect(
+        pCvx.redeemMulti(unlockTimes, assets, receiver)
+      ).to.be.revertedWith('MismatchedArrayLengths()');
+    });
+
+    it('Should revert if receiver is zero address', async function () {
+      const unlockTimes = [redemptionUnlockTime1, redemptionUnlockTime2];
+      const assets = [upCvxBalance1, upCvxBalance2];
+      const invalidReceiver = zeroAddress;
+
+      await expect(
+        pCvx.redeemMulti(unlockTimes, assets, invalidReceiver)
+      ).to.be.revertedWith('ZeroAddress()');
+    });
+
+    it('Should make multiple redemptions', async function () {
+      const { timestamp } = await ethers.provider.getBlock('latest');
+      const unlockTimes = [redemptionUnlockTime1, redemptionUnlockTime2];
+      const assets = [upCvxBalance1, upCvxBalance2];
+      const receiver = admin.address;
+      const outstandingRedemptionsBefore = await pCvx.outstandingRedemptions();
+
+      await increaseBlockTimestamp(
+        Number(redemptionUnlockTime2.sub(timestamp).add(1))
+      );
+
+      const events = await callAndReturnEvents(pCvx.redeemMulti, [
+        unlockTimes,
+        assets,
+        receiver,
+      ]);
+      const redeemEvent1 = events[0];
+      const cvxTransferEvent1 = events[14];
+      const redeemEvent2 = events[15];
+      const cvxTransferEvent2 = events[17];
+      const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
+      const totalAssets = assets.reduce((acc, val) => acc.add(val), toBN(0));
+
+      expect(outstandingRedemptionsAfter).to.equal(
+        outstandingRedemptionsBefore.sub(totalAssets)
+      );
+      validateEvent(redeemEvent1, 'Redeem(uint256,uint256,address)', {
+        unlockTime: redemptionUnlockTime1,
+        assets: assets[0],
+        receiver,
+      });
+      validateEvent(cvxTransferEvent1, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: receiver,
+        value: assets[0],
+      });
+      validateEvent(redeemEvent2, 'Redeem(uint256,uint256,address)', {
+        unlockTime: redemptionUnlockTime2,
+        assets: assets[1],
+        receiver,
+      });
+      validateEvent(cvxTransferEvent2, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: receiver,
+        value: assets[1],
       });
     });
   });

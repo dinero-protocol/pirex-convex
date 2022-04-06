@@ -119,7 +119,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 feeAmount
     );
     event Redeem(
-        uint256 indexed epoch,
+        uint256 indexed unlockTime,
         uint256 assets,
         address indexed receiver
     );
@@ -627,11 +627,11 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         @param  assets      uint256  upCVX amount
         @param  receiver    address  Receives CVX
      */
-    function redeem(
+    function _redeem(
         uint256 unlockTime,
         uint256 assets,
         address receiver
-    ) external whenNotPaused nonReentrant {
+    ) internal {
         // Revert if CVX has not been unlocked and cannot be redeemed yet
         if (unlockTime > block.timestamp) revert BeforeUnlock();
         if (assets == 0) revert ZeroAmount();
@@ -650,6 +650,41 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         // Validates `to`
         CVX.safeTransfer(receiver, assets);
+    }
+
+    /**
+        @notice Redeem CVX
+        @param  unlockTime  uint256  CVX unlock timestamp
+        @param  assets      uint256  upCVX amount
+        @param  receiver    address  Receives CVX
+     */
+    function redeem(
+        uint256 unlockTime,
+        uint256 assets,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        _redeem(unlockTime, assets, receiver);
+    }
+
+    /**
+        @notice Redeem CVX for multiple unlock times
+        @param  unlockTimes  uint256[]  CVX unlock timestamps
+        @param  assets       uint256[]  upCVX amounts
+        @param  receiver     address    Receives CVX
+     */
+    function redeemMulti(
+        uint256[] calldata unlockTimes,
+        uint256[] calldata assets,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        uint8 unlockLen = uint8(unlockTimes.length);
+        if (unlockLen == 0) revert EmptyArray();
+        if (unlockLen != assets.length) revert MismatchedArrayLengths();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        for (uint8 i; i < unlockLen; ++i) {
+            _redeem(unlockTimes[i], assets[i], receiver);
+        }
     }
 
     /**
