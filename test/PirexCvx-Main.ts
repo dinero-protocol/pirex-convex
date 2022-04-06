@@ -227,17 +227,6 @@ describe('PirexCvx-Main', function () {
       );
     });
 
-    it('Should revert if assets is an empty array', async function () {
-      const lockIndexes = [0];
-      const f = futuresEnum.reward;
-      const invalidAssets: any = [];
-      const receiver = admin.address;
-
-      await expect(
-        pCvx.initiateRedemptions(lockIndexes, f, invalidAssets, receiver)
-      ).to.be.revertedWith('EmptyArray()');
-    });
-
     it('Should revert if assets element is zero', async function () {
       const lockIndexes = [0];
       const f = futuresEnum.reward;

@@ -512,6 +512,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address receiver
     ) internal {
         if (assets == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
 
         // Validates `lockIndex` is within bounds of the array - reverts otherwise
         (uint256 lockAmount, uint256 unlockTime) = _getLockData(lockIndex);
@@ -592,7 +593,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 assets,
         address receiver
     ) external whenNotPaused nonReentrant {
-        if (receiver == address(0)) revert ZeroAddress();
         _initiateRedemption(lockIndex, f, assets, receiver);
     }
 
@@ -610,11 +610,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address receiver
     ) external whenNotPaused nonReentrant {
         uint8 lockLen = uint8(lockIndexes.length);
-        uint8 assetsLen = uint8(assets.length);
         if (lockLen == 0) revert EmptyArray();
-        if (assets.length == 0) revert EmptyArray();
-        if (lockLen != assetsLen) revert MismatchedArrayLengths();
-        if (receiver == address(0)) revert ZeroAddress();
+        if (lockLen != assets.length) revert MismatchedArrayLengths();
 
         for (uint8 i; i < lockLen; ++i) {
             _initiateRedemption(lockIndexes[i], f, assets[i], receiver);
@@ -812,9 +809,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Redeem a Snapshot reward as a pCVX holder
-        @param  epoch          uint256  Epoch
-        @param  rewardIndex    uint8    Reward token index
-        @param  receiver       address  Receives snapshot rewards
+        @param  epoch        uint256  Epoch
+        @param  rewardIndex  uint8    Reward token index
+        @param  receiver     address  Receives snapshot rewards
     */
     function _redeemSnapshotReward(
         uint256 epoch,
@@ -856,9 +853,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Redeem a Snapshot reward as a pCVX holder
-        @param  epoch          uint256  Epoch
-        @param  rewardIndex    uint8    Reward token index
-        @param  receiver       address  Receives snapshot rewards
+        @param  epoch        uint256  Epoch
+        @param  rewardIndex  uint8    Reward token index
+        @param  receiver     address  Receives snapshot rewards
     */
     function redeemSnapshotReward(
         uint256 epoch,
