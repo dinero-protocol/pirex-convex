@@ -233,8 +233,6 @@ describe('PirexCvx-Reward', function () {
       const crvFeeTreasuryDistributionEvent = events[15];
       const crvFeeContributorsDistributionEvent = events[events.length - 1];
       const votium = await pCvx.votiumMultiMerkleStash();
-
-      // console.log(events);
       const { snapshotId, rewards, snapshotRewards, futuresRewards } =
         await pCvx.getEpoch(currentEpoch);
       const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
@@ -576,9 +574,8 @@ describe('PirexCvx-Reward', function () {
       await pCvx.setPauseState(false);
     });
 
-    it('Should redeem snapshot reward', async function () {
+    it('Should redeem a single snapshot reward', async function () {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
-      const crvBalanceBefore = await crv.balanceOf(admin.address);
       const currentEpoch = await pCvx.getCurrentEpoch();
       const { snapshotId, snapshotRewards } = await pCvx.getEpoch(currentEpoch);
       const snapshotBalance = await pCvx.balanceOfAt(admin.address, snapshotId);
@@ -589,20 +586,15 @@ describe('PirexCvx-Reward', function () {
         0,
         receiver,
       ]);
-      const [crvEvent] = await callAndReturnEvents(pCvx.redeemSnapshotReward, [
-        currentEpoch,
-        1,
-        receiver,
-      ]);
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
-      const crvBalanceAfter = await crv.balanceOf(admin.address);
       const expectedCvxRewards = snapshotRewards[0]
         .mul(snapshotBalance)
         .div(snapshotSupply);
-      const expectedCrvRewards = snapshotRewards[1]
-        .mul(snapshotBalance)
-        .div(snapshotSupply);
 
+      expect(cvxBalanceAfter).to.not.equal(cvxBalanceBefore);
+      expect(cvxBalanceAfter).to.equal(
+        cvxBalanceBefore.add(expectedCvxRewards)
+      );
       validateEvent(
         cvxEvent,
         'RedeemSnapshotReward(uint256,uint256,address,uint256,uint256,uint256)',
@@ -615,27 +607,6 @@ describe('PirexCvx-Reward', function () {
           redeemAmount: expectedCvxRewards,
         }
       );
-      validateEvent(
-        crvEvent,
-        'RedeemSnapshotReward(uint256,uint256,address,uint256,uint256,uint256)',
-        {
-          epoch: currentEpoch,
-          rewardIndex: 1,
-          receiver,
-          snapshotId,
-          snapshotBalance,
-          redeemAmount: expectedCrvRewards,
-        }
-      );
-
-      expect(cvxBalanceAfter).to.not.equal(cvxBalanceBefore);
-      expect(crvBalanceAfter).to.not.equal(crvBalanceBefore);
-      expect(cvxBalanceAfter).to.equal(
-        cvxBalanceBefore.add(expectedCvxRewards)
-      );
-      expect(crvBalanceAfter).to.equal(
-        crvBalanceBefore.add(expectedCrvRewards)
-      );
     });
 
     it('Should revert if msg.sender has already redeemed', async function () {
@@ -646,6 +617,166 @@ describe('PirexCvx-Reward', function () {
       await expect(
         pCvx.redeemSnapshotReward(epoch, rewardIndex, receiver)
       ).to.be.revertedWith('AlreadyRedeemed()');
+    });
+  });
+
+  describe('redeemSnapshotRewards', function () {
+    before(async function () {
+      const cvxRewardDistribution = [
+        {
+          account: pCvx.address,
+          amount: toBN(2e18),
+        },
+      ];
+      const crvRewardDistribution = [
+        {
+          account: pCvx.address,
+          amount: toBN(2e18),
+        },
+      ];
+      const cvxTree = new BalanceTree(cvxRewardDistribution);
+      const crvTree = new BalanceTree(crvRewardDistribution);
+
+      await cvx.transfer(votiumMultiMerkleStash.address, toBN(2e18));
+      await crv.transfer(votiumMultiMerkleStash.address, toBN(2e18));
+      await votiumMultiMerkleStash.updateMerkleRoot(
+        cvx.address,
+        cvxTree.getHexRoot()
+      );
+      await votiumMultiMerkleStash.updateMerkleRoot(
+        crv.address,
+        crvTree.getHexRoot()
+      );
+
+      const tokens = [cvx.address, crv.address];
+      const indexes = [0, 0];
+      const amounts = [
+        cvxRewardDistribution[0].amount,
+        crvRewardDistribution[0].amount,
+      ];
+      const proofs = [
+        cvxTree.getProof(
+          indexes[0],
+          pCvx.address,
+          cvxRewardDistribution[0].amount
+        ),
+        crvTree.getProof(
+          indexes[1],
+          pCvx.address,
+          crvRewardDistribution[0].amount
+        ),
+      ];
+
+      await pCvx.claimVotiumRewards(tokens, indexes, amounts, proofs);
+    });
+
+    it('Should revert if rewardIndexes is an empty array', async function () {
+      const epoch = await pCvx.getCurrentEpoch();
+      const invalidRewardIndexes: any = [];
+      const receiver = admin.address;
+
+      await expect(
+        pCvx.redeemSnapshotRewards(epoch, invalidRewardIndexes, receiver)
+      ).to.be.revertedWith('EmptyArray()');
+    });
+
+    it('Should redeem multiple snapshot rewards', async function () {
+      const epoch = await pCvx.getCurrentEpoch();
+      const rewardIndexes = [1, 2, 3];
+      const receiver = admin.address;
+      const cvxBalanceBefore = await cvx.balanceOf(admin.address);
+      const crvBalanceBefore = await crv.balanceOf(admin.address);
+      const events = await callAndReturnEvents(pCvx.redeemSnapshotRewards, [
+        epoch,
+        rewardIndexes,
+        receiver,
+      ]);
+      const redeemEvent1 = events[0];
+      const transferEvent1 = events[1];
+      const redeemEvent2 = events[2];
+      const transferEvent2 = events[3];
+      const redeemEvent3 = events[4];
+      const transferEvent3 = events[5];
+      const cvxBalanceAfter = await cvx.balanceOf(admin.address);
+      const crvBalanceAfter = await crv.balanceOf(admin.address);
+      const { snapshotId, snapshotRewards } = await pCvx.getEpoch(
+        await pCvx.getCurrentEpoch()
+      );
+      const snapshotBalance = await pCvx.balanceOfAt(admin.address, snapshotId);
+      const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
+      const expectedSnapshotCrvRewards = [
+        snapshotRewards[rewardIndexes[0]]
+          .mul(snapshotBalance)
+          .div(snapshotSupply),
+        snapshotRewards[rewardIndexes[2]]
+          .mul(snapshotBalance)
+          .div(snapshotSupply),
+      ];
+      const expectedSnapshotCvxRewards = snapshotRewards[rewardIndexes[1]]
+        .mul(snapshotBalance)
+        .div(snapshotSupply);
+      const totalExpectedSnapshotCrvRewards = expectedSnapshotCrvRewards.reduce(
+        (acc, val) => acc.add(val),
+        toBN(0)
+      );
+
+      expect(cvxBalanceAfter).to.equal(
+        cvxBalanceBefore.add(expectedSnapshotCvxRewards)
+      );
+      expect(crvBalanceAfter).to.equal(
+        crvBalanceBefore.add(totalExpectedSnapshotCrvRewards)
+      );
+      validateEvent(
+        redeemEvent1,
+        'RedeemSnapshotReward(uint256,uint256,address,uint256,uint256,uint256)',
+        {
+          epoch,
+          rewardIndex: rewardIndexes[0],
+          receiver,
+          snapshotId,
+          snapshotBalance,
+          redeemAmount: expectedSnapshotCrvRewards[0],
+        }
+      );
+      validateEvent(
+        redeemEvent2,
+        'RedeemSnapshotReward(uint256,uint256,address,uint256,uint256,uint256)',
+        {
+          epoch,
+          rewardIndex: rewardIndexes[1],
+          receiver,
+          snapshotId,
+          snapshotBalance,
+          redeemAmount: expectedSnapshotCvxRewards,
+        }
+      );
+      validateEvent(
+        redeemEvent3,
+        'RedeemSnapshotReward(uint256,uint256,address,uint256,uint256,uint256)',
+        {
+          epoch,
+          rewardIndex: rewardIndexes[2],
+          receiver,
+          snapshotId,
+          snapshotBalance,
+          redeemAmount: expectedSnapshotCrvRewards[1],
+        }
+      );
+      validateEvent(transferEvent1, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: receiver,
+        value: expectedSnapshotCrvRewards[0],
+      });
+      validateEvent(transferEvent2, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: receiver,
+        value: expectedSnapshotCvxRewards,
+      });
+      validateEvent(transferEvent3, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: receiver,
+        value: expectedSnapshotCrvRewards[1],
+      });
     });
   });
 
@@ -736,6 +867,12 @@ describe('PirexCvx-Reward', function () {
       const expectedClaimAmounts = futuresRewards.map((amount: BigNumber) =>
         amount.mul(rpCvxBalanceBefore).div(rpCvxSupplyBefore)
       );
+      const totalExpectedCvxClaimAmounts = expectedClaimAmounts[0].add(
+        expectedClaimAmounts[2]
+      );
+      const totalExpectedCrvClaimAmounts = expectedClaimAmounts[1].add(
+        expectedClaimAmounts[3]
+      );
 
       expect(rpCvxBalanceAfter).to.not.equal(rpCvxBalanceBefore);
       expect(rpCvxBalanceAfter).to.equal(0);
@@ -745,11 +882,11 @@ describe('PirexCvx-Reward', function () {
       );
       expect(cvxBalanceAfter).to.not.equal(cvxBalanceBefore);
       expect(cvxBalanceAfter).to.equal(
-        cvxBalanceBefore.add(expectedClaimAmounts[0])
+        cvxBalanceBefore.add(totalExpectedCvxClaimAmounts)
       );
       expect(crvBalanceAfter).to.not.equal(crvBalanceBefore);
       expect(crvBalanceAfter).to.equal(
-        crvBalanceBefore.add(expectedClaimAmounts[1])
+        crvBalanceBefore.add(totalExpectedCrvClaimAmounts)
       );
       validateEvent(
         redeemEvent,

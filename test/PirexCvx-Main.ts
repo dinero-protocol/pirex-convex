@@ -882,16 +882,6 @@ describe('PirexCvx-Main', function () {
       ).to.be.revertedWith('MismatchedArrayLengths()');
     });
 
-    it('Should revert if receiver is zero address', async function () {
-      const unlockTimes = [redemptionUnlockTime1, redemptionUnlockTime2];
-      const assets = [upCvxBalance1, upCvxBalance2];
-      const invalidReceiver = zeroAddress;
-
-      await expect(
-        pCvx.redeemMulti(unlockTimes, assets, invalidReceiver)
-      ).to.be.revertedWith('ZeroAddress()');
-    });
-
     it('Should make multiple redemptions', async function () {
       const { timestamp } = await ethers.provider.getBlock('latest');
       const unlockTimes = [redemptionUnlockTime1, redemptionUnlockTime2];
