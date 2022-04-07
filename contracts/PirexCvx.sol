@@ -119,7 +119,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 feeAmount
     );
     event Redeem(
-        uint256 indexed epoch,
+        uint256 indexed unlockTime,
         uint256 assets,
         address indexed receiver
     );
@@ -167,7 +167,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     error BeforeStakingExpiry();
     error InvalidEpoch();
     error EmptyArray();
-    error MismatchedArrays();
+    error MismatchedArrayLengths();
     error NoRewards();
 
     /**
@@ -505,12 +505,12 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         @param  assets     uint256  pCVX amount
         @param  receiver   address  Receives upCVX
      */
-    function initiateRedemption(
+    function _initiateRedemption(
         uint8 lockIndex,
         Futures f,
         uint256 assets,
         address receiver
-    ) external whenNotPaused nonReentrant {
+    ) internal {
         if (assets == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
@@ -581,16 +581,54 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /**
+        @notice Initiate CVX redemption
+        @param  lockIndex  uint8[]  Locked balance index
+        @param  f          enum     Futures enum
+        @param  assets     uint256  pCVX amounts
+        @param  receiver   address  Receives upCVX
+     */
+    function initiateRedemption(
+        uint8 lockIndex,
+        Futures f,
+        uint256 assets,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        _initiateRedemption(lockIndex, f, assets, receiver);
+    }
+
+    /**
+        @notice Initiate CVX redemptions
+        @param  lockIndexes  uint8[]    Locked balance index
+        @param  f            enum       Futures enum
+        @param  assets       uint256[]  pCVX amounts
+        @param  receiver     address    Receives upCVX
+     */
+    function initiateRedemptions(
+        uint8[] calldata lockIndexes,
+        Futures f,
+        uint256[] calldata assets,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        uint8 lockLen = uint8(lockIndexes.length);
+        if (lockLen == 0) revert EmptyArray();
+        if (lockLen != assets.length) revert MismatchedArrayLengths();
+
+        for (uint8 i; i < lockLen; ++i) {
+            _initiateRedemption(lockIndexes[i], f, assets[i], receiver);
+        }
+    }
+
+    /**
         @notice Redeem CVX
         @param  unlockTime  uint256  CVX unlock timestamp
         @param  assets      uint256  upCVX amount
         @param  receiver    address  Receives CVX
      */
-    function redeem(
+    function _redeem(
         uint256 unlockTime,
         uint256 assets,
         address receiver
-    ) external whenNotPaused nonReentrant {
+    ) internal {
         // Revert if CVX has not been unlocked and cannot be redeemed yet
         if (unlockTime > block.timestamp) revert BeforeUnlock();
         if (assets == 0) revert ZeroAmount();
@@ -609,6 +647,40 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         // Validates `to`
         CVX.safeTransfer(receiver, assets);
+    }
+
+    /**
+        @notice Redeem CVX
+        @param  unlockTime  uint256  CVX unlock timestamp
+        @param  assets      uint256  upCVX amount
+        @param  receiver    address  Receives CVX
+     */
+    function redeem(
+        uint256 unlockTime,
+        uint256 assets,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        _redeem(unlockTime, assets, receiver);
+    }
+
+    /**
+        @notice Redeem CVX for multiple unlock times
+        @param  unlockTimes  uint256[]  CVX unlock timestamps
+        @param  assets       uint256[]  upCVX amounts
+        @param  receiver     address    Receives CVX
+     */
+    function redeemMulti(
+        uint256[] calldata unlockTimes,
+        uint256[] calldata assets,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        uint8 unlockLen = uint8(unlockTimes.length);
+        if (unlockLen == 0) revert EmptyArray();
+        if (unlockLen != assets.length) revert MismatchedArrayLengths();
+
+        for (uint8 i; i < unlockLen; ++i) {
+            _redeem(unlockTimes[i], assets[i], receiver);
+        }
     }
 
     /**
@@ -687,7 +759,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             !(tLen == indexes.length &&
                 indexes.length == amounts.length &&
                 amounts.length == merkleProofs.length)
-        ) revert MismatchedArrays();
+        ) revert MismatchedArrayLengths();
 
         // Take snapshot before claiming rewards, if necessary
         takeEpochSnapshot();
@@ -741,11 +813,11 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         @param  rewardIndex  uint8    Reward token index
         @param  receiver     address  Receives snapshot rewards
     */
-    function redeemSnapshotReward(
+    function _redeemSnapshotReward(
         uint256 epoch,
         uint8 rewardIndex,
         address receiver
-    ) external whenNotPaused nonReentrant {
+    ) internal {
         if (epoch == 0) revert InvalidEpoch();
         if (receiver == address(0)) revert ZeroAddress();
 
@@ -777,6 +849,39 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         );
 
         ERC20(e.rewards[rewardIndex]).safeTransfer(receiver, redeemAmount);
+    }
+
+    /**
+        @notice Redeem a Snapshot reward as a pCVX holder
+        @param  epoch        uint256  Epoch
+        @param  rewardIndex  uint8    Reward token index
+        @param  receiver     address  Receives snapshot rewards
+    */
+    function redeemSnapshotReward(
+        uint256 epoch,
+        uint8 rewardIndex,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        _redeemSnapshotReward(epoch, rewardIndex, receiver);
+    }
+
+    /**
+        @notice Redeem multiple Snapshot rewards as a pCVX holder
+        @param  epoch          uint256  Epoch
+        @param  rewardIndexes  uint8[]  Reward token indexes
+        @param  receiver       address  Receives snapshot rewards
+    */
+    function redeemSnapshotRewards(
+        uint256 epoch,
+        uint8[] calldata rewardIndexes,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        uint8 rewardLen = uint8(rewardIndexes.length);
+        if (rewardLen == 0) revert EmptyArray();
+
+        for (uint8 i; i < rewardLen; ++i) {
+            _redeemSnapshotReward(epoch, rewardIndexes[i], receiver);
+        }
     }
 
     /**

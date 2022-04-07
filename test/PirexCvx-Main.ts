@@ -8,7 +8,6 @@ import {
   toBN,
   increaseBlockTimestamp,
   validateEvent,
-  randomNumberBetweenRange,
 } from './helpers';
 import {
   ConvexToken,
@@ -29,7 +28,8 @@ describe('PirexCvx-Main', function () {
   let cvxLocker: CvxLocker;
 
   let zeroAddress: string;
-  let redemptionUnlockTime: number;
+  let redemptionUnlockTime1: BigNumber;
+  let redemptionUnlockTime2: BigNumber;
   let epochDuration: BigNumber;
 
   let futuresEnum: any;
@@ -46,7 +46,7 @@ describe('PirexCvx-Main', function () {
       cvx,
       cvxLocker,
       zeroAddress,
-      redemptionUnlockTime,
+      redemptionUnlockTime1,
       epochDuration,
       futuresEnum,
       feesEnum,
@@ -181,53 +181,71 @@ describe('PirexCvx-Main', function () {
     });
   });
 
-  describe('initiateRedemption', function () {
-    it('Should revert if lockIndex is out of bounds', async function () {
-      const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
-      const invalidLockIndex = lockData.length + 1;
+  describe('initiateRedemptions', function () {
+    before(async () => {
+      const amount = toBN(1e18);
+
+      await cvx.approve(pCvx.address, amount);
+      await pCvx.deposit(amount, admin.address, false);
+    });
+
+    it('Should revert if lockIndexes is an empty array', async function () {
+      const invalidLockIndexes: any = [];
       const f = futuresEnum.reward;
-      const assets = toBN(1e18);
+      const assets = [toBN(1e18)];
       const receiver = admin.address;
 
       await expect(
-        pCvx.initiateRedemption(invalidLockIndex, f, assets, receiver)
+        pCvx.initiateRedemptions(invalidLockIndexes, f, assets, receiver)
+      ).to.be.revertedWith('EmptyArray()');
+    });
+
+    it('Should revert if lockIndexes is out of bounds', async function () {
+      const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
+      const invalidLockIndexes = [lockData.length + 1];
+      const f = futuresEnum.reward;
+      const assets = [toBN(1e18)];
+      const receiver = admin.address;
+
+      await expect(
+        pCvx.initiateRedemptions(invalidLockIndexes, f, assets, receiver)
       ).to.be.revertedWith(
         'reverted with panic code 0x32 (Array accessed at an out-of-bounds or negative index)'
       );
     });
 
     it('Should revert if futures enum is out of range', async function () {
-      const lockIndex = 0;
+      const lockIndexes = [0];
       const to = admin.address;
-      const assets = toBN(1e18);
+      const assets = [toBN(1e18)];
       const invalidF = futuresEnum.reward + 1;
 
       await expect(
-        pCvx.initiateRedemption(lockIndex, invalidF, assets, to)
+        pCvx.initiateRedemptions(lockIndexes, invalidF, assets, to)
       ).to.be.revertedWith(
         'Transaction reverted: function was called with incorrect parameters'
       );
     });
 
-    it('Should revert if assets is zero', async function () {
-      const lockIndex = 0;
+    it('Should revert if assets element is zero', async function () {
+      const lockIndexes = [0];
       const f = futuresEnum.reward;
-      const invalidAssets = toBN(0);
+      const invalidAssets = [toBN(0)];
       const receiver = admin.address;
 
       await expect(
-        pCvx.initiateRedemption(lockIndex, f, invalidAssets, receiver)
+        pCvx.initiateRedemptions(lockIndexes, f, invalidAssets, receiver)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
     it('Should revert if receiver is zero address', async function () {
-      const lockIndex = 0;
+      const lockIndexes = [0];
       const f = futuresEnum.reward;
-      const assets = toBN(1);
+      const assets = [toBN(1)];
       const invalidReceiver = zeroAddress;
 
       await expect(
-        pCvx.initiateRedemption(lockIndex, f, assets, invalidReceiver)
+        pCvx.initiateRedemptions(lockIndexes, f, assets, invalidReceiver)
       ).to.be.revertedWith('ZeroAddress()');
     });
 
@@ -240,78 +258,348 @@ describe('PirexCvx-Main', function () {
       await pCvx.deposit(assets, admin.address, true);
 
       const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
-      const lockIndex = 1;
+      const lockIndexes = [1];
       const f = futuresEnum.reward;
-      const invalidAssets = lockData[lockIndex].amount.add(toBN(1e18));
+      const invalidAssets = [lockData[lockIndexes[0]].amount.add(assets)];
       const receiver = admin.address;
 
-      expect(lockData[lockIndex].amount.lt(invalidAssets)).is.true;
+      expect(lockData[lockIndexes[0]].amount.lt(invalidAssets[0])).is.true;
       await expect(
-        pCvx.initiateRedemption(lockIndex, f, invalidAssets, receiver)
+        pCvx.initiateRedemptions(lockIndexes, f, invalidAssets, receiver)
       ).to.be.revertedWith('InsufficientRedemptionAllowance()');
     });
 
     it('Should revert if pCvx balance is insufficient', async function () {
       const pCvxBalance = await pCvx.balanceOf(notAdmin.address);
-      const lockIndex = 0;
+      const lockIndexes = [0];
       const f = futuresEnum.reward;
-      const invalidAssets = pCvxBalance.add(1);
+      const invalidAssets = [pCvxBalance.add(1)];
       const receiver = admin.address;
 
-      expect(pCvxBalance.lt(invalidAssets)).to.equal(true);
+      expect(pCvxBalance.lt(invalidAssets[0])).to.equal(true);
       await expect(
         pCvx
           .connect(notAdmin)
-          .initiateRedemption(lockIndex, f, invalidAssets, receiver)
+          .initiateRedemptions(lockIndexes, f, invalidAssets, receiver)
       ).to.be.revertedWith('ERC20: burn amount exceeds balance');
     });
 
     it('should revert if the contract is paused', async function () {
-      const pCvxBalance = await pCvx.balanceOf(notAdmin.address);
-      const lockIndex = 0;
+      const lockIndexes = [0];
       const f = futuresEnum.reward;
+      const assets = [await pCvx.balanceOf(notAdmin.address)];
       const receiver = admin.address;
 
       await pCvx.setPauseState(true);
 
       await expect(
-        pCvx.initiateRedemption(lockIndex, f, pCvxBalance, receiver)
+        pCvx.initiateRedemptions(lockIndexes, f, assets, receiver)
       ).to.be.revertedWith('Pausable: paused');
 
       await pCvx.setPauseState(false);
     });
 
-    it('Should initiate a redemption', async function () {
+    it('Should initiate multiple redemptions', async function () {
       const { timestamp } = await ethers.provider.getBlock('latest');
       const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
-      const lockIndex = 0;
-      const { unlockTime } = lockData[lockIndex];
+      const lockIndexes = [0, 1];
+      const { unlockTime: unlockTime1 } = lockData[lockIndexes[0]];
+      const { unlockTime: unlockTime2 } = lockData[lockIndexes[1]];
 
-      redemptionUnlockTime = unlockTime;
+      redemptionUnlockTime1 = toBN(unlockTime1);
+      redemptionUnlockTime2 = toBN(unlockTime2);
 
-      // Increase timestamp between now and unlock time to test futures notes correctness
-      await increaseBlockTimestamp(
-        randomNumberBetweenRange(0, Number(toBN(unlockTime).sub(timestamp)))
-      );
-
-      const { timestamp: timestampAfter } = await ethers.provider.getBlock(
-        'latest'
-      );
       const upCvx = await this.getUpCvx(await pCvx.upCvx());
       const currentEpoch = await pCvx.getCurrentEpoch();
       const pCvxBalanceBefore = await unionPirex.balanceOf(admin.address);
       const outstandingRedemptionsBefore = await pCvx.outstandingRedemptions();
-      const upCvxBalanceBefore = await upCvx.balanceOf(
+      const upCvxBalanceBefore1 = await upCvx.balanceOf(
         admin.address,
-        unlockTime
+        unlockTime1
+      );
+      const upCvxBalanceBefore2 = await upCvx.balanceOf(
+        admin.address,
+        unlockTime2
       );
       const msgSender = admin.address;
-      const assets = toBN(1e18);
+      const assets = [toBN(1e18), toBN(1e18)];
       const receiver = admin.address;
 
-      await unionPirex.redeem(assets, msgSender, msgSender);
+      await unionPirex.redeem(assets[0].add(assets[1]), msgSender, msgSender);
 
       const f = futuresEnum.reward;
+      const events = await callAndReturnEvents(pCvx.initiateRedemptions, [
+        lockIndexes,
+        f,
+        assets,
+        receiver,
+      ]);
+      const burnEvent1 = events[0];
+      const approvalEvent1 = events[1];
+      const initiateEvent1 = events[2];
+      const treasuryFeeTransferEvent1 = events[5];
+      const contributorsFeeTransferEvent1 = events[7];
+      const mintFuturesEvent1 = events[9];
+      const burnEvent2 = events[17];
+      const approvalEvent2 = events[18];
+      const initiateEvent2 = events[19];
+      const treasuryFeeTransferEvent2 = events[22];
+      const contributorsFeeTransferEvent2 = events[24];
+      const mintFuturesEvent2 = events[26];
+      const pCvxBalanceAfter = await unionPirex.balanceOf(admin.address);
+      const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
+      const upCvxBalanceAfter1 = await upCvx.balanceOf(
+        admin.address,
+        unlockTime1
+      );
+      const upCvxBalanceAfter2 = await upCvx.balanceOf(
+        admin.address,
+        unlockTime2
+      );
+      const remainingTime1 = toBN(unlockTime1).sub(timestamp);
+      const remainingTime2 = toBN(unlockTime2).sub(timestamp);
+      const feeMin = toBN(await pCvx.fees(feesEnum.redemptionMin));
+      const feeMax = toBN(await pCvx.fees(feesEnum.redemptionMax));
+      const maxRedemptionTime = await pCvx.MAX_REDEMPTION_TIME();
+      const feeDenominator = await pCvx.FEE_DENOMINATOR();
+      const feePercent1 = feeMax.sub(
+        feeMax.sub(feeMin).mul(remainingTime1).div(maxRedemptionTime)
+      );
+      const feePercent2 = feeMax.sub(
+        feeMax.sub(feeMin).mul(remainingTime2).div(maxRedemptionTime)
+      );
+      const feeAmount1 = assets[0].mul(feePercent1).div(feeDenominator);
+      const postFeeAmount1 = assets[0].sub(feeAmount1);
+      const feeAmount2 = assets[1].mul(feePercent2).div(feeDenominator);
+      const postFeeAmount2 = assets[1].sub(feeAmount2);
+      const expectedRewardsRounds1 = remainingTime1.div(epochDuration);
+      const expectedRewardsRounds2 = remainingTime2.div(epochDuration);
+      const rpCvxBalances1 = await this.getFuturesCvxBalances(
+        Number(expectedRewardsRounds1),
+        futuresEnum.reward,
+        currentEpoch
+      );
+      const rpCvxBalances2 = await this.getFuturesCvxBalances(
+        Number(expectedRewardsRounds2),
+        futuresEnum.reward,
+        currentEpoch
+      );
+      const totalAssets = assets[0].add(assets[1]);
+      const totalFees = postFeeAmount1.add(postFeeAmount2);
+
+      expect(pCvxBalanceAfter).to.equal(pCvxBalanceBefore.sub(totalAssets));
+      expect(outstandingRedemptionsAfter).to.equal(
+        outstandingRedemptionsBefore.add(totalFees)
+      );
+      expect(upCvxBalanceAfter1).to.equal(
+        upCvxBalanceBefore1.add(postFeeAmount1)
+      );
+      expect(upCvxBalanceAfter2).to.equal(
+        upCvxBalanceBefore2.add(postFeeAmount2)
+      );
+      validateEvent(burnEvent1, 'Transfer(address,address,uint256)', {
+        from: msgSender,
+        to: zeroAddress,
+        value: postFeeAmount1,
+      });
+      expect(burnEvent1.args.from).to.not.equal(zeroAddress);
+      validateEvent(approvalEvent1, 'Approval(address,address,uint256)', {
+        owner: msgSender,
+        spender: pirexFees.address,
+        value: feeAmount1,
+      });
+      expect(approvalEvent1.args.owner).to.not.equal(zeroAddress);
+      expect(approvalEvent1.args.spender).to.not.equal(zeroAddress);
+      expect(approvalEvent1.args.value).to.not.equal(0);
+      validateEvent(
+        treasuryFeeTransferEvent1,
+        'Transfer(address,address,uint256)',
+        {
+          from: msgSender,
+          to: await pirexFees.treasury(),
+          value: feeAmount1
+            .mul(await pirexFees.treasuryPercent())
+            .div(await pirexFees.PERCENT_DENOMINATOR()),
+        }
+      );
+      validateEvent(
+        contributorsFeeTransferEvent1,
+        'Transfer(address,address,uint256)',
+        {
+          from: msgSender,
+          to: await pirexFees.contributors(),
+          value: feeAmount1
+            .mul(await pirexFees.contributorsPercent())
+            .div(await pirexFees.PERCENT_DENOMINATOR()),
+        }
+      );
+      validateEvent(
+        initiateEvent1,
+        'InitiateRedemption(address,uint256,address,uint256,uint256,uint256)',
+        {
+          sender: admin.address,
+          assets: assets[0],
+          receiver,
+          unlockTime: unlockTime1,
+          postFeeAmount: postFeeAmount1,
+          feeAmount: feeAmount1,
+        }
+      );
+      expect(initiateEvent1.args.to).to.not.equal(zeroAddress);
+      validateEvent(
+        mintFuturesEvent1,
+        'MintFutures(uint8,uint8,uint256,address)',
+        {
+          rounds: expectedRewardsRounds1,
+          f,
+          assets: assets[0],
+          receiver,
+        }
+      );
+      validateEvent(burnEvent2, 'Transfer(address,address,uint256)', {
+        from: msgSender,
+        to: zeroAddress,
+        value: postFeeAmount2,
+      });
+      expect(burnEvent2.args.from).to.not.equal(zeroAddress);
+      validateEvent(approvalEvent2, 'Approval(address,address,uint256)', {
+        owner: msgSender,
+        spender: pirexFees.address,
+        value: feeAmount2,
+      });
+      expect(approvalEvent2.args.owner).to.not.equal(zeroAddress);
+      expect(approvalEvent2.args.spender).to.not.equal(zeroAddress);
+      expect(approvalEvent2.args.value).to.not.equal(0);
+      validateEvent(
+        treasuryFeeTransferEvent2,
+        'Transfer(address,address,uint256)',
+        {
+          from: msgSender,
+          to: await pirexFees.treasury(),
+          value: feeAmount2
+            .mul(await pirexFees.treasuryPercent())
+            .div(await pirexFees.PERCENT_DENOMINATOR()),
+        }
+      );
+      validateEvent(
+        contributorsFeeTransferEvent2,
+        'Transfer(address,address,uint256)',
+        {
+          from: msgSender,
+          to: await pirexFees.contributors(),
+          value: feeAmount2
+            .mul(await pirexFees.contributorsPercent())
+            .div(await pirexFees.PERCENT_DENOMINATOR()),
+        }
+      );
+      validateEvent(
+        initiateEvent2,
+        'InitiateRedemption(address,uint256,address,uint256,uint256,uint256)',
+        {
+          sender: admin.address,
+          assets: assets[0],
+          receiver,
+          unlockTime: unlockTime2,
+          postFeeAmount: postFeeAmount2,
+          feeAmount: feeAmount2,
+        }
+      );
+      expect(initiateEvent2.args.to).to.not.equal(zeroAddress);
+      validateEvent(
+        mintFuturesEvent2,
+        'MintFutures(uint8,uint8,uint256,address)',
+        {
+          rounds: expectedRewardsRounds2,
+          f,
+          assets: assets[0],
+          receiver,
+        }
+      );
+      expect(
+        every(rpCvxBalances1, (v, i) => {
+          let bal = toBN(0);
+
+          if (expectedRewardsRounds1.gte(i + 1)) {
+            bal = bal.add(assets[0]);
+          }
+
+          if (expectedRewardsRounds2.gte(i + 1)) {
+            bal = bal.add(assets[1]);
+          }
+
+          return v.eq(bal);
+        })
+      ).to.equal(true);
+      expect(
+        every(rpCvxBalances2, (v, i) => {
+          let bal = toBN(0);
+
+          if (expectedRewardsRounds1.gte(i + 1)) {
+            bal = bal.add(assets[0]);
+          }
+
+          if (expectedRewardsRounds2.gte(i + 1)) {
+            bal = bal.add(assets[1]);
+          }
+
+          return v.eq(bal);
+        })
+      ).to.equal(true);
+    });
+
+    it('Should revert if insufficient redemption allowance', async function () {
+      const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
+      const lockIndexes = [1];
+      const { unlockTime } = lockData[lockIndexes[0]];
+      const redemptions = await pCvx.redemptions(unlockTime);
+      const f = futuresEnum.reward;
+      const invalidAssets = [
+        lockData[lockIndexes[0]].amount
+          .sub(redemptions)
+          .add(1)
+          .mul(105)
+          .div(100),
+      ];
+      const receiver = admin.address;
+
+      await expect(
+        pCvx.initiateRedemptions(lockIndexes, f, invalidAssets, receiver)
+      ).to.be.revertedWith('InsufficientRedemptionAllowance()');
+    });
+  });
+
+  describe('initiateRedemption', function () {
+    before(async () => {
+      const amount = toBN(1e18);
+
+      await cvx.approve(pCvx.address, amount);
+      await pCvx.deposit(amount, admin.address, false);
+    });
+
+    it('Should revert if receiver is zero address', async function () {
+      const lockIndex = 0;
+      const f = futuresEnum.reward;
+      const assets = toBN(1e18);
+      const invalidReceiver = zeroAddress;
+
+      await expect(
+        pCvx.initiateRedemption(lockIndex, f, assets, invalidReceiver)
+      ).to.be.revertedWith('ZeroAddress()');
+    });
+
+    it('Should initiate a single redemption', async function () {
+      const { timestamp } = await ethers.provider.getBlock('latest');
+      const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
+      const lockIndex = 0;
+      const f = futuresEnum.reward;
+      const assets = toBN(1e18);
+      const receiver = admin.address;
+      const msgSender = admin.address;
+      const pCvxBalanceBefore = await pCvx.balanceOf(msgSender);
+      const { unlockTime } = lockData[lockIndex];
+
+      await pCvx.increaseAllowance(pCvx.address, assets);
+
       const events = await callAndReturnEvents(pCvx.initiateRedemption, [
         lockIndex,
         f,
@@ -324,13 +612,8 @@ describe('PirexCvx-Main', function () {
       const treasuryFeeTransferEvent = events[5];
       const contributorsFeeTransferEvent = events[7];
       const mintFuturesEvent = events[9];
-      const pCvxBalanceAfter = await unionPirex.balanceOf(admin.address);
-      const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
-      const upCvxBalanceAfter = await upCvx.balanceOf(
-        admin.address,
-        unlockTime
-      );
-      const remainingTime = toBN(unlockTime).sub(timestampAfter);
+      const pCvxBalanceAfter = await pCvx.balanceOf(msgSender);
+      const remainingTime = toBN(unlockTime).sub(timestamp);
       const feeMin = toBN(await pCvx.fees(feesEnum.redemptionMin));
       const feeMax = toBN(await pCvx.fees(feesEnum.redemptionMax));
       const maxRedemptionTime = await pCvx.MAX_REDEMPTION_TIME();
@@ -340,27 +623,9 @@ describe('PirexCvx-Main', function () {
       );
       const feeAmount = assets.mul(feePercent).div(feeDenominator);
       const postFeeAmount = assets.sub(feeAmount);
-      let expectedRewardsRounds = remainingTime.div(epochDuration);
-
-      if (
-        !toBN(unlockTime).mod(epochDuration).isZero() &&
-        remainingTime.lt(epochDuration) &&
-        remainingTime.gt(epochDuration.div(2))
-      ) {
-        expectedRewardsRounds = expectedRewardsRounds.add(1);
-      }
-
-      const rpCvxBalances = await this.getFuturesCvxBalances(
-        Number(expectedRewardsRounds),
-        futuresEnum.reward,
-        currentEpoch
-      );
+      const expectedRewardsRounds = remainingTime.div(epochDuration);
 
       expect(pCvxBalanceAfter).to.equal(pCvxBalanceBefore.sub(assets));
-      expect(outstandingRedemptionsAfter).to.equal(
-        outstandingRedemptionsBefore.add(postFeeAmount)
-      );
-      expect(upCvxBalanceAfter).to.equal(upCvxBalanceBefore.add(postFeeAmount));
       validateEvent(burnEvent, 'Transfer(address,address,uint256)', {
         from: msgSender,
         to: zeroAddress,
@@ -386,9 +651,6 @@ describe('PirexCvx-Main', function () {
             .div(await pirexFees.PERCENT_DENOMINATOR()),
         }
       );
-      expect(approvalEvent.args.from).to.not.equal(zeroAddress);
-      expect(approvalEvent.args.to).to.not.equal(zeroAddress);
-      expect(approvalEvent.args.value).to.not.equal(0);
       validateEvent(
         contributorsFeeTransferEvent,
         'Transfer(address,address,uint256)',
@@ -400,9 +662,6 @@ describe('PirexCvx-Main', function () {
             .div(await pirexFees.PERCENT_DENOMINATOR()),
         }
       );
-      expect(approvalEvent.args.from).to.not.equal(zeroAddress);
-      expect(approvalEvent.args.to).to.not.equal(zeroAddress);
-      expect(approvalEvent.args.value).to.not.equal(0);
       validateEvent(
         initiateEvent,
         'InitiateRedemption(address,uint256,address,uint256,uint256,uint256)',
@@ -426,31 +685,12 @@ describe('PirexCvx-Main', function () {
           receiver,
         }
       );
-      expect(every(rpCvxBalances, (v) => v.eq(assets))).to.equal(true);
-    });
-
-    it('Should revert if insufficient redemption allowance', async function () {
-      const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
-      const lockIndex = 1;
-      const { unlockTime } = lockData[lockIndex];
-      const redemptions = await pCvx.redemptions(unlockTime);
-      const f = futuresEnum.reward;
-      const invalidAssets = lockData[lockIndex].amount
-        .sub(redemptions)
-        .add(1)
-        .mul(105)
-        .div(100);
-      const receiver = admin.address;
-
-      await expect(
-        pCvx.initiateRedemption(lockIndex, f, invalidAssets, receiver)
-      ).to.be.revertedWith('InsufficientRedemptionAllowance()');
     });
   });
 
   describe('redeem', function () {
     it('Should revert if before lock expiry', async function () {
-      const invalidUnlockTime = redemptionUnlockTime;
+      const invalidUnlockTime = redemptionUnlockTime1;
       const receiver = admin.address;
       const assets = toBN(1e18);
 
@@ -481,7 +721,7 @@ describe('PirexCvx-Main', function () {
 
     it('Should revert if insufficient upCVX balance for epoch', async function () {
       // Does not exist, should not have a valid token balance
-      const invalidUnlockTime = toBN(redemptionUnlockTime).add(1);
+      const invalidUnlockTime = redemptionUnlockTime1.add(1);
       const assets = toBN(1e18);
       const receiver = admin.address;
       const upCvx = await this.getUpCvx(await pCvx.upCvx());
@@ -510,7 +750,7 @@ describe('PirexCvx-Main', function () {
       await pCvx.setPauseState(true);
 
       await expect(
-        pCvx.redeem(redemptionUnlockTime, assets, receiver)
+        pCvx.redeem(redemptionUnlockTime1, assets, receiver)
       ).to.be.revertedWith('Pausable: paused');
 
       await pCvx.setPauseState(false);
@@ -520,13 +760,13 @@ describe('PirexCvx-Main', function () {
       const upCvx = await this.getUpCvx(await pCvx.upCvx());
       const upCvxBalanceBefore = await upCvx.balanceOf(
         admin.address,
-        redemptionUnlockTime
+        redemptionUnlockTime1
       );
       const { unlockable: unlockableBefore, locked: lockedBefore } =
         await cvxLocker.lockedBalances(pCvx.address);
       const outstandingRedemptionsBefore = await pCvx.outstandingRedemptions();
       const upCvxTotalSupplyBefore = await upCvx.totalSupply(
-        redemptionUnlockTime
+        redemptionUnlockTime1
       );
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const assets = upCvxBalanceBefore.div(2);
@@ -548,7 +788,7 @@ describe('PirexCvx-Main', function () {
       const expectedCvxBalance = cvxBalanceBefore.add(assets);
 
       const events = await callAndReturnEvents(pCvx.redeem, [
-        redemptionUnlockTime,
+        redemptionUnlockTime1,
         assets,
         receiver,
       ]);
@@ -556,14 +796,14 @@ describe('PirexCvx-Main', function () {
       const cvxTransferEvent = events[events.length - 1];
       const upCvxBalanceAfter = await upCvx.balanceOf(
         admin.address,
-        redemptionUnlockTime
+        redemptionUnlockTime1
       );
       const { locked: lockedAfter } = await cvxLocker.lockedBalances(
         pCvx.address
       );
       const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
       const upCvxTotalSupplyAfter = await upCvx.totalSupply(
-        redemptionUnlockTime
+        redemptionUnlockTime1
       );
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const pirexCvxBalanceAfter = await cvx.balanceOf(pCvx.address);
@@ -582,7 +822,7 @@ describe('PirexCvx-Main', function () {
       expect(expectedCvxBalance).to.equal(cvxBalanceAfter);
       expect(expectedCvxBalance).to.not.equal(0);
       validateEvent(redeemEvent, 'Redeem(uint256,uint256,address)', {
-        epoch: redemptionUnlockTime,
+        unlockTime: redemptionUnlockTime1,
         assets,
         receiver,
       });
@@ -590,6 +830,92 @@ describe('PirexCvx-Main', function () {
         from: pCvx.address,
         to: receiver,
         value: assets,
+      });
+    });
+  });
+
+  describe('redeemMulti', function () {
+    let upCvxBalance1: BigNumber;
+    let upCvxBalance2: BigNumber;
+
+    before(async function () {
+      const upCvx = await this.getUpCvx(await pCvx.upCvx());
+
+      upCvxBalance1 = await upCvx.balanceOf(
+        admin.address,
+        redemptionUnlockTime1
+      );
+      upCvxBalance2 = await upCvx.balanceOf(
+        admin.address,
+        redemptionUnlockTime2
+      );
+    });
+
+    it('Should revert if unlockTimes is an empty array', async function () {
+      const invalidUnlockTimes: any = [];
+      const assets = [toBN(1e18)];
+      const receiver = admin.address;
+
+      await expect(
+        pCvx.redeemMulti(invalidUnlockTimes, assets, receiver)
+      ).to.be.revertedWith('EmptyArray()');
+    });
+
+    it('Should revert if unlockTimes and assets have mismatched lengths', async function () {
+      const unlockTimes = [redemptionUnlockTime1, redemptionUnlockTime2];
+      const assets = [upCvxBalance1];
+      const receiver = admin.address;
+
+      await expect(
+        pCvx.redeemMulti(unlockTimes, assets, receiver)
+      ).to.be.revertedWith('MismatchedArrayLengths()');
+    });
+
+    it('Should make multiple redemptions', async function () {
+      const { timestamp } = await ethers.provider.getBlock('latest');
+      const unlockTimes = [redemptionUnlockTime1, redemptionUnlockTime2];
+      const assets = [upCvxBalance1, upCvxBalance2];
+      const receiver = admin.address;
+      const outstandingRedemptionsBefore = await pCvx.outstandingRedemptions();
+
+      await increaseBlockTimestamp(
+        Number(redemptionUnlockTime2.sub(timestamp).add(1))
+      );
+
+      const events = await callAndReturnEvents(pCvx.redeemMulti, [
+        unlockTimes,
+        assets,
+        receiver,
+      ]);
+      const redeemEvent1 = events[0];
+      const cvxTransferEvent1 = events[14];
+      const redeemEvent2 = events[15];
+      const cvxTransferEvent2 = events[17];
+      const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
+      const totalAssets = assets.reduce((acc, val) => acc.add(val), toBN(0));
+
+      expect(outstandingRedemptionsAfter).to.equal(
+        outstandingRedemptionsBefore.sub(totalAssets)
+      );
+      validateEvent(redeemEvent1, 'Redeem(uint256,uint256,address)', {
+        unlockTime: redemptionUnlockTime1,
+        assets: assets[0],
+        receiver,
+      });
+      validateEvent(cvxTransferEvent1, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: receiver,
+        value: assets[0],
+      });
+      validateEvent(redeemEvent2, 'Redeem(uint256,uint256,address)', {
+        unlockTime: redemptionUnlockTime2,
+        assets: assets[1],
+        receiver,
+      });
+      validateEvent(cvxTransferEvent2, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: receiver,
+        value: assets[1],
       });
     });
   });
@@ -670,9 +996,9 @@ describe('PirexCvx-Main', function () {
 
       await pCvx.setPauseState(true);
 
-      await expect(
-        pCvx.stake(rounds, f, assets, receiver)
-      ).to.be.revertedWith('Pausable: paused');
+      await expect(pCvx.stake(rounds, f, assets, receiver)).to.be.revertedWith(
+        'Pausable: paused'
+      );
 
       await pCvx.setPauseState(false);
     });
@@ -833,9 +1159,9 @@ describe('PirexCvx-Main', function () {
 
       await pCvx.setPauseState(true);
 
-      await expect(
-        pCvx.unstake(id, spCvxBalance, receiver)
-      ).to.be.revertedWith('Pausable: paused');
+      await expect(pCvx.unstake(id, spCvxBalance, receiver)).to.be.revertedWith(
+        'Pausable: paused'
+      );
 
       await pCvx.setPauseState(false);
     });
