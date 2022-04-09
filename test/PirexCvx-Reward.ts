@@ -39,6 +39,7 @@ describe('PirexCvx-Reward', function () {
 
   let futuresEnum: any;
   let feesEnum: any;
+  let snapshotRedeemEpoch: BigNumber;
 
   before(async function () {
     ({
@@ -203,7 +204,8 @@ describe('PirexCvx-Reward', function () {
         cvxTree.getProof(indexes[0], pCvx.address, amounts[0]),
         crvTree.getProof(indexes[1], pCvx.address, amounts[1]),
       ];
-      const currentEpoch = await pCvx.getCurrentEpoch();
+      snapshotRedeemEpoch = await pCvx.getCurrentEpoch();
+      const currentEpoch = snapshotRedeemEpoch;
       const epochRpCvxSupply = await (
         await this.getRpCvx(await pCvx.rpCvx())
       ).totalSupply(currentEpoch);
@@ -527,7 +529,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('Should revert if receiver is zero address', async function () {
-      const epoch = await pCvx.getCurrentEpoch();
+      const epoch = snapshotRedeemEpoch;
       const rewardIndex = 0;
       const invalidReceiver = zeroAddress;
 
@@ -537,7 +539,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('Should revert if rewardIndex is not associated with a reward', async function () {
-      const epoch = await pCvx.getCurrentEpoch();
+      const epoch = snapshotRedeemEpoch;
       const invalidRewardIndex = 5;
       const receiver = admin.address;
 
@@ -549,7 +551,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('Should revert if msg.sender has an insufficient balance', async function () {
-      const epoch = await pCvx.getCurrentEpoch();
+      const epoch = snapshotRedeemEpoch;
       const rewardIndex = 0;
       const receiver = admin.address;
 
@@ -561,7 +563,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('should revert if the contract is paused', async function () {
-      const epoch = await pCvx.getCurrentEpoch();
+      const epoch = snapshotRedeemEpoch;
       const rewardIndex = 0;
       const receiver = admin.address;
 
@@ -576,7 +578,7 @@ describe('PirexCvx-Reward', function () {
 
     it('Should redeem a single snapshot reward', async function () {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
-      const currentEpoch = await pCvx.getCurrentEpoch();
+      const currentEpoch = snapshotRedeemEpoch;
       const { snapshotId, snapshotRewards } = await pCvx.getEpoch(currentEpoch);
       const snapshotBalance = await pCvx.balanceOfAt(admin.address, snapshotId);
       const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
@@ -610,7 +612,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('Should revert if msg.sender has already redeemed', async function () {
-      const epoch = await pCvx.getCurrentEpoch();
+      const epoch = snapshotRedeemEpoch;
       const rewardIndex = 0;
       const receiver = admin.address;
 
@@ -671,7 +673,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('Should revert if rewardIndexes is an empty array', async function () {
-      const epoch = await pCvx.getCurrentEpoch();
+      const epoch = snapshotRedeemEpoch;
       const invalidRewardIndexes: any = [];
       const receiver = admin.address;
 
@@ -681,7 +683,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('Should redeem multiple snapshot rewards', async function () {
-      const epoch = await pCvx.getCurrentEpoch();
+      const epoch = snapshotRedeemEpoch;
       const rewardIndexes = [1, 2, 3];
       const receiver = admin.address;
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
@@ -700,7 +702,7 @@ describe('PirexCvx-Reward', function () {
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const crvBalanceAfter = await crv.balanceOf(admin.address);
       const { snapshotId, snapshotRewards } = await pCvx.getEpoch(
-        await pCvx.getCurrentEpoch()
+        snapshotRedeemEpoch
       );
       const snapshotBalance = await pCvx.balanceOfAt(admin.address, snapshotId);
       const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
@@ -778,6 +780,16 @@ describe('PirexCvx-Reward', function () {
         value: expectedSnapshotCrvRewards[1],
       });
     });
+
+    it('Should revert if msg.sender has already redeemed', async function () {
+      const epoch = snapshotRedeemEpoch;
+      const rewardIndexes = [2];
+      const receiver = admin.address;
+
+      await expect(
+        pCvx.redeemSnapshotRewards(epoch, rewardIndexes, receiver)
+      ).to.be.revertedWith('AlreadyRedeemed()');
+    });
   });
 
   describe('redeemFuturesRewards', function () {
@@ -791,7 +803,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('Should revert if epoch is greater than the current epoch', async function () {
-      const invalidEpoch = (await pCvx.getCurrentEpoch()).add(1);
+      const invalidEpoch = snapshotRedeemEpoch.add(1);
       const receiver = admin.address;
 
       await expect(
@@ -800,7 +812,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('Should revert if receiver is zero address', async function () {
-      const epoch = await pCvx.getCurrentEpoch();
+      const epoch = snapshotRedeemEpoch;
       const invalidReceiver = zeroAddress;
       const rpCvx = await this.getRpCvx(await pCvx.rpCvx());
 
@@ -812,7 +824,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('Should revert if sender has an insufficient balance', async function () {
-      const epoch = await pCvx.getCurrentEpoch();
+      const epoch = snapshotRedeemEpoch;
       const to = admin.address;
 
       await expect(
@@ -821,7 +833,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('should revert if the contract is paused', async function () {
-      const epoch = await pCvx.getCurrentEpoch();
+      const epoch = snapshotRedeemEpoch;
       const to = admin.address;
 
       await pCvx.setPauseState(true);
@@ -836,7 +848,7 @@ describe('PirexCvx-Reward', function () {
     it('Should redeem futures reward', async function () {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const crvBalanceBefore = await crv.balanceOf(admin.address);
-      const epoch = await pCvx.getCurrentEpoch();
+      const epoch = snapshotRedeemEpoch;
       const receiver = admin.address;
       const rpCvx = await this.getRpCvx(await pCvx.rpCvx());
 
@@ -902,7 +914,7 @@ describe('PirexCvx-Reward', function () {
 
   describe('exchangeFutures', function () {
     it('Should revert if epoch is current', async function () {
-      const invalidEpoch1 = await pCvx.getCurrentEpoch();
+      const invalidEpoch1 = snapshotRedeemEpoch;
       const invalidEpoch2 = invalidEpoch1.sub(epochDuration);
       const amount = toBN(1e18);
       const receiver = admin.address;
@@ -917,7 +929,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('Should revert if amount is zero', async function () {
-      const epoch = (await pCvx.getCurrentEpoch()).add(epochDuration);
+      const epoch = snapshotRedeemEpoch.add(epochDuration);
       const invalidAmount = 0;
       const receiver = admin.address;
       const f = futuresEnum.reward;
@@ -928,7 +940,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('Should revert if receiver is zero address', async function () {
-      const epoch = (await pCvx.getCurrentEpoch()).add(epochDuration);
+      const epoch = snapshotRedeemEpoch.add(epochDuration);
       const amount = toBN(1);
       const invalidReceiver = zeroAddress;
       const f = futuresEnum.reward;
@@ -939,7 +951,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('Should revert if sender balance is insufficient', async function () {
-      const epoch = (await pCvx.getCurrentEpoch()).add(epochDuration);
+      const epoch = snapshotRedeemEpoch.add(epochDuration);
       const rpCvx = await this.getRpCvx(await pCvx.rpCvx());
       const sender = notAdmin.address;
       const rpCvxBalance = await rpCvx.balanceOf(sender, epoch);
@@ -956,7 +968,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('should revert if the contract is paused', async function () {
-      const epoch = (await pCvx.getCurrentEpoch()).add(epochDuration);
+      const epoch = snapshotRedeemEpoch.add(epochDuration);
       const amount = toBN(1);
       const receiver = admin.address;
       const f = futuresEnum.reward;
@@ -971,7 +983,7 @@ describe('PirexCvx-Reward', function () {
     });
 
     it('Should exchange rewards futures for vote futures', async function () {
-      const epoch = (await pCvx.getCurrentEpoch()).add(epochDuration);
+      const epoch = snapshotRedeemEpoch.add(epochDuration);
       const rpCvx = await this.getRpCvx(await pCvx.rpCvx());
       const vpCvx = await this.getVpCvx(await pCvx.vpCvx());
       const sender = admin.address;
