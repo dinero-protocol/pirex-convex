@@ -820,16 +820,13 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     function _redeemSnapshotReward(
         uint256 epoch,
         uint256 snapshotId,
+        uint256 snapshotBalance,
         uint256 redeemed,
         address reward,
         uint256 snapshotReward,
         uint8 rewardIndex,
         address receiver
     ) internal {
-        // Check whether msg.sender maintained a positive balance before the snapshot
-        uint256 snapshotBalance = balanceOfAt(msg.sender, snapshotId);
-        if (snapshotBalance == 0) revert InsufficientBalance();
-
         // Check whether msg.sender has already redeemed this reward
         bool isClaimed = (redeemed & (1 << rewardIndex)) != 0;
         if (isClaimed) revert AlreadyRedeemed();
@@ -866,9 +863,14 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         Epoch storage e = epochs[epoch];
 
+        // Check whether msg.sender maintained a positive balance before the snapshot
+        uint256 snapshotBalance = balanceOfAt(msg.sender, e.snapshotId);
+        if (snapshotBalance == 0) revert InsufficientBalance();
+
         _redeemSnapshotReward(
             epoch,
             e.snapshotId,
+            snapshotBalance,
             e.redeemedSnapshotRewards[msg.sender],
             e.rewards[rewardIndex],
             e.snapshotRewards[rewardIndex],
@@ -897,6 +899,11 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (rewardLen == 0) revert EmptyArray();
 
         Epoch storage e = epochs[epoch];
+
+        // Check whether msg.sender maintained a positive balance before the snapshot
+        uint256 snapshotBalance = balanceOfAt(msg.sender, e.snapshotId);
+        if (snapshotBalance == 0) revert InsufficientBalance();
+
         // Used to update the redeemed flag locally before updating to the storage all at once for gas efficiency
         uint256 redeemed = e.redeemedSnapshotRewards[msg.sender];
 
@@ -906,6 +913,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             _redeemSnapshotReward(
                 epoch,
                 e.snapshotId,
+                snapshotBalance,
                 redeemed,
                 e.rewards[index],
                 e.snapshotRewards[index],
