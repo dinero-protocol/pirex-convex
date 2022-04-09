@@ -832,8 +832,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (isClaimed) revert AlreadyRedeemed();
 
         // Proportionate to the % of pCVX owned out of total supply for the snapshot
-        uint256 redeemAmount = (snapshotReward *
-            snapshotBalance) / totalSupplyAt(snapshotId);
+        uint256 redeemAmount = (snapshotReward * snapshotBalance) /
+            totalSupplyAt(snapshotId);
 
         emit RedeemSnapshotReward(
             epoch,
