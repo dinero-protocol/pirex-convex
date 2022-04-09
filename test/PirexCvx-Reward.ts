@@ -517,108 +517,6 @@ describe('PirexCvx-Reward', function () {
     });
   });
 
-  describe('redeemSnapshotReward', function () {
-    it('Should revert if epoch is zero', async function () {
-      const invalidEpoch = 0;
-      const rewardIndex = 0;
-      const receiver = admin.address;
-
-      await expect(
-        pCvx.redeemSnapshotReward(invalidEpoch, rewardIndex, receiver)
-      ).to.be.revertedWith('InvalidEpoch()');
-    });
-
-    it('Should revert if receiver is zero address', async function () {
-      const epoch = snapshotRedeemEpoch;
-      const rewardIndex = 0;
-      const invalidReceiver = zeroAddress;
-
-      await expect(
-        pCvx.redeemSnapshotReward(epoch, rewardIndex, invalidReceiver)
-      ).to.be.revertedWith('ZeroAddress()');
-    });
-
-    it('Should revert if rewardIndex is not associated with a reward', async function () {
-      const epoch = snapshotRedeemEpoch;
-      const invalidRewardIndex = 5;
-      const receiver = admin.address;
-
-      await expect(
-        pCvx.redeemSnapshotReward(epoch, invalidRewardIndex, receiver)
-      ).to.be.revertedWith(
-        'VM Exception while processing transaction: reverted with panic code 0x32 (Array accessed at an out-of-bounds or negative index)'
-      );
-    });
-
-    it('Should revert if msg.sender has an insufficient balance', async function () {
-      const epoch = snapshotRedeemEpoch;
-      const rewardIndex = 0;
-      const receiver = admin.address;
-
-      await expect(
-        pCvx
-          .connect(notAdmin)
-          .redeemSnapshotReward(epoch, rewardIndex, receiver)
-      ).to.be.revertedWith('InsufficientBalance()');
-    });
-
-    it('should revert if the contract is paused', async function () {
-      const epoch = snapshotRedeemEpoch;
-      const rewardIndex = 0;
-      const receiver = admin.address;
-
-      await pCvx.setPauseState(true);
-
-      await expect(
-        pCvx.redeemSnapshotReward(epoch, rewardIndex, receiver)
-      ).to.be.revertedWith('Pausable: paused');
-
-      await pCvx.setPauseState(false);
-    });
-
-    it('Should redeem a single snapshot reward', async function () {
-      const cvxBalanceBefore = await cvx.balanceOf(admin.address);
-      const currentEpoch = snapshotRedeemEpoch;
-      const { snapshotId, snapshotRewards } = await pCvx.getEpoch(currentEpoch);
-      const snapshotBalance = await pCvx.balanceOfAt(admin.address, snapshotId);
-      const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
-      const receiver = admin.address;
-      const [cvxEvent] = await callAndReturnEvents(pCvx.redeemSnapshotReward, [
-        currentEpoch,
-        0,
-        receiver,
-      ]);
-      const cvxBalanceAfter = await cvx.balanceOf(admin.address);
-      const expectedCvxRewards = snapshotRewards[0]
-        .mul(snapshotBalance)
-        .div(snapshotSupply);
-
-      expect(cvxBalanceAfter).to.not.equal(cvxBalanceBefore);
-      expect(cvxBalanceAfter).to.equal(
-        cvxBalanceBefore.add(expectedCvxRewards)
-      );
-      validateEvent(
-        cvxEvent,
-        'RedeemSnapshotReward(uint256,uint256,address)',
-        {
-          epoch: currentEpoch,
-          rewardIndex: 0,
-          receiver
-        }
-      );
-    });
-
-    it('Should revert if msg.sender has already redeemed', async function () {
-      const epoch = snapshotRedeemEpoch;
-      const rewardIndex = 0;
-      const receiver = admin.address;
-
-      await expect(
-        pCvx.redeemSnapshotReward(epoch, rewardIndex, receiver)
-      ).to.be.revertedWith('AlreadyRedeemed()');
-    });
-  });
-
   describe('redeemSnapshotRewards', function () {
     before(async function () {
       const cvxRewardDistribution = [
@@ -677,6 +575,41 @@ describe('PirexCvx-Reward', function () {
       await expect(
         pCvx.redeemSnapshotRewards(epoch, invalidRewardIndexes, receiver)
       ).to.be.revertedWith('EmptyArray()');
+    });
+
+    it('Should redeem a single snapshot reward', async function () {
+      const cvxBalanceBefore = await cvx.balanceOf(admin.address);
+      const currentEpoch = snapshotRedeemEpoch;
+      const { snapshotId, snapshotRewards } = await pCvx.getEpoch(currentEpoch);
+      const snapshotBalance = await pCvx.balanceOfAt(admin.address, snapshotId);
+      const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
+      const rewardIndexes = [0]
+      const receiver = admin.address;
+      const [redeemEvent] = await callAndReturnEvents(pCvx.redeemSnapshotRewards, [
+        currentEpoch,
+        rewardIndexes,
+        receiver,
+      ]);
+      const cvxBalanceAfter = await cvx.balanceOf(admin.address);
+      const expectedCvxRewards = snapshotRewards[rewardIndexes[0]]
+        .mul(snapshotBalance)
+        .div(snapshotSupply);
+
+      expect(cvxBalanceAfter).to.not.equal(cvxBalanceBefore);
+      expect(cvxBalanceAfter).to.equal(
+        cvxBalanceBefore.add(expectedCvxRewards)
+      );
+      validateEvent(
+        redeemEvent,
+        'RedeemSnapshotRewards(uint256,uint256[],address,uint256,uint256)',
+        {
+          epoch: currentEpoch,
+          rewardIndexes: rewardIndexes.map(b => toBN(b)),
+          receiver,
+          snapshotBalance,
+          snapshotSupply,
+        }
+      );
     });
 
     it('Should redeem multiple snapshot rewards', async function () {

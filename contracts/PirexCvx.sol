@@ -136,11 +136,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 index,
         uint256 amount
     );
-    event RedeemSnapshotReward(
-        uint256 indexed epoch,
-        uint256 indexed rewardIndex,
-        address indexed receiver
-    );
     event RedeemSnapshotRewards(
         uint256 indexed epoch,
         uint256[] rewardIndexes,
@@ -812,38 +807,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /**
-        @notice Redeem a Snapshot reward as a pCVX holder
-        @param  epoch        uint256  Epoch
-        @param  rewardIndex  uint8    Reward token index
-        @param  receiver     address  Receives snapshot rewards
-    */
-    function redeemSnapshotReward(
-        uint256 epoch,
-        uint8 rewardIndex,
-        address receiver
-    ) external whenNotPaused nonReentrant {
-        if (epoch == 0) revert InvalidEpoch();
-        if (receiver == address(0)) revert ZeroAddress();
-
-        Epoch storage e = epochs[epoch];
-
-        // Check whether msg.sender maintained a positive balance before the snapshot
-        uint256 snapshotId = e.snapshotId;
-        uint256 snapshotReward = (e.snapshotRewards[rewardIndex] *
-            balanceOfAt(msg.sender, snapshotId)) / totalSupplyAt(snapshotId);
-        if (snapshotReward == 0) revert InsufficientBalance();
-
-        // Check whether user has claimed rewards and update to prevent double claiming
-        if ((e.redeemedSnapshotRewards[msg.sender] & (1 << rewardIndex)) != 0)
-            revert AlreadyRedeemed();
-        e.redeemedSnapshotRewards[msg.sender] |= (1 << rewardIndex);
-
-        emit RedeemSnapshotReward(epoch, rewardIndex, receiver);
-
-        ERC20(e.rewards[rewardIndex]).safeTransfer(receiver, snapshotReward);
-    }
-
-    /**
         @notice Redeem multiple Snapshot rewards as a pCVX holder
         @param  epoch          uint256    Epoch
         @param  rewardIndexes  uint256[]  Reward token indexes
@@ -880,8 +843,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         for (uint256 i; i < rewardLen; ++i) {
             uint256 index = rewardIndexes[i];
-            if ((redeemed & (1 << index)) != 0) revert AlreadyRedeemed();
-            redeemed |= (1 << index);
+            uint256 indexRedeemed = (1 << index);
+            if ((redeemed & indexRedeemed) != 0) revert AlreadyRedeemed();
+            redeemed |= indexRedeemed;
 
             ERC20(e.rewards[index]).safeTransfer(
                 receiver,
