@@ -599,14 +599,11 @@ describe('PirexCvx-Reward', function () {
       );
       validateEvent(
         cvxEvent,
-        'RedeemSnapshotReward(uint256,uint256,address,uint256,uint256,uint256)',
+        'RedeemSnapshotReward(uint256,uint256,address)',
         {
           epoch: currentEpoch,
           rewardIndex: 0,
-          receiver,
-          snapshotId,
-          snapshotBalance,
-          redeemAmount: expectedCvxRewards,
+          receiver
         }
       );
     });
@@ -693,12 +690,10 @@ describe('PirexCvx-Reward', function () {
         rewardIndexes,
         receiver,
       ]);
-      const redeemEvent1 = events[0];
+      const redeemEvent = events[0];
       const transferEvent1 = events[1];
-      const redeemEvent2 = events[2];
-      const transferEvent2 = events[3];
-      const redeemEvent3 = events[4];
-      const transferEvent3 = events[5];
+      const transferEvent2 = events[2];
+      const transferEvent3 = events[3];
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const crvBalanceAfter = await crv.balanceOf(admin.address);
       const { snapshotId, snapshotRewards } = await pCvx.getEpoch(
@@ -729,39 +724,14 @@ describe('PirexCvx-Reward', function () {
         crvBalanceBefore.add(totalExpectedSnapshotCrvRewards)
       );
       validateEvent(
-        redeemEvent1,
-        'RedeemSnapshotReward(uint256,uint256,address,uint256,uint256,uint256)',
+        redeemEvent,
+        'RedeemSnapshotRewards(uint256,uint256[],address,uint256,uint256)',
         {
           epoch,
-          rewardIndex: rewardIndexes[0],
+          rewardIndexes: rewardIndexes.map(b => toBN(b)),
           receiver,
-          snapshotId,
           snapshotBalance,
-          redeemAmount: expectedSnapshotCrvRewards[0],
-        }
-      );
-      validateEvent(
-        redeemEvent2,
-        'RedeemSnapshotReward(uint256,uint256,address,uint256,uint256,uint256)',
-        {
-          epoch,
-          rewardIndex: rewardIndexes[1],
-          receiver,
-          snapshotId,
-          snapshotBalance,
-          redeemAmount: expectedSnapshotCvxRewards,
-        }
-      );
-      validateEvent(
-        redeemEvent3,
-        'RedeemSnapshotReward(uint256,uint256,address,uint256,uint256,uint256)',
-        {
-          epoch,
-          rewardIndex: rewardIndexes[2],
-          receiver,
-          snapshotId,
-          snapshotBalance,
-          redeemAmount: expectedSnapshotCrvRewards[1],
+          snapshotSupply,
         }
       );
       validateEvent(transferEvent1, 'Transfer(address,address,uint256)', {

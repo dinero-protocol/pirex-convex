@@ -138,11 +138,15 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     );
     event RedeemSnapshotReward(
         uint256 indexed epoch,
-        uint256 rewardIndex,
-        address receiver,
-        uint256 indexed snapshotId,
+        uint256 indexed rewardIndex,
+        address indexed receiver
+    );
+    event RedeemSnapshotRewards(
+        uint256 indexed epoch,
+        uint256[] rewardIndexes,
+        address indexed receiver,
         uint256 snapshotBalance,
-        uint256 redeemAmount
+        uint256 snapshotSupply
     );
     event RedeemFuturesRewards(
         uint256 indexed epoch,
@@ -809,46 +813,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Redeem a Snapshot reward as a pCVX holder
-        @param  epoch           uint256  Epoch
-        @param  snapshotId      uint256  Snapshot id
-        @param  redeemed        uint256  Redeemed flag
-        @param  reward          address  Reward token address
-        @param  snapshotReward  uint256  Reward token amount
-        @param  rewardIndex     uint8    Reward token index
-        @param  receiver        address  Receives snapshot rewards
-    */
-    function _redeemSnapshotReward(
-        uint256 epoch,
-        uint256 snapshotId,
-        uint256 snapshotBalance,
-        uint256 redeemed,
-        address reward,
-        uint256 snapshotReward,
-        uint8 rewardIndex,
-        address receiver
-    ) internal {
-        // Check whether msg.sender has already redeemed this reward
-        bool isClaimed = (redeemed & (1 << rewardIndex)) != 0;
-        if (isClaimed) revert AlreadyRedeemed();
-
-        // Proportionate to the % of pCVX owned out of total supply for the snapshot
-        uint256 redeemAmount = (snapshotReward * snapshotBalance) /
-            totalSupplyAt(snapshotId);
-
-        emit RedeemSnapshotReward(
-            epoch,
-            rewardIndex,
-            receiver,
-            snapshotId,
-            snapshotBalance,
-            redeemAmount
-        );
-
-        ERC20(reward).safeTransfer(receiver, redeemAmount);
-    }
-
-    /**
-        @notice Redeem a Snapshot reward as a pCVX holder
         @param  epoch        uint256  Epoch
         @param  rewardIndex  uint8    Reward token index
         @param  receiver     address  Receives snapshot rewards
@@ -864,64 +828,65 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         Epoch storage e = epochs[epoch];
 
         // Check whether msg.sender maintained a positive balance before the snapshot
-        uint256 snapshotBalance = balanceOfAt(msg.sender, e.snapshotId);
-        if (snapshotBalance == 0) revert InsufficientBalance();
+        uint256 snapshotId = e.snapshotId;
+        uint256 snapshotReward = (e.snapshotRewards[rewardIndex] *
+            balanceOfAt(msg.sender, snapshotId)) / totalSupplyAt(snapshotId);
+        if (snapshotReward == 0) revert InsufficientBalance();
 
-        _redeemSnapshotReward(
-            epoch,
-            e.snapshotId,
-            snapshotBalance,
-            e.redeemedSnapshotRewards[msg.sender],
-            e.rewards[rewardIndex],
-            e.snapshotRewards[rewardIndex],
-            rewardIndex,
-            receiver
-        );
-
-        // Update the redeemed rewards flag in storage to prevent double claimings
+        // Check whether user has claimed rewards and update to prevent double claiming
+        if ((e.redeemedSnapshotRewards[msg.sender] & (1 << rewardIndex)) != 0)
+            revert AlreadyRedeemed();
         e.redeemedSnapshotRewards[msg.sender] |= (1 << rewardIndex);
+
+        emit RedeemSnapshotReward(epoch, rewardIndex, receiver);
+
+        ERC20(e.rewards[rewardIndex]).safeTransfer(receiver, snapshotReward);
     }
 
     /**
         @notice Redeem multiple Snapshot rewards as a pCVX holder
-        @param  epoch          uint256  Epoch
-        @param  rewardIndexes  uint8[]  Reward token indexes
-        @param  receiver       address  Receives snapshot rewards
+        @param  epoch          uint256    Epoch
+        @param  rewardIndexes  uint256[]  Reward token indexes
+        @param  receiver       address    Receives snapshot rewards
     */
     function redeemSnapshotRewards(
         uint256 epoch,
-        uint8[] calldata rewardIndexes,
+        uint256[] calldata rewardIndexes,
         address receiver
     ) external whenNotPaused nonReentrant {
         if (epoch == 0) revert InvalidEpoch();
         if (receiver == address(0)) revert ZeroAddress();
-        uint8 rewardLen = uint8(rewardIndexes.length);
+        uint256 rewardLen = rewardIndexes.length;
         if (rewardLen == 0) revert EmptyArray();
 
         Epoch storage e = epochs[epoch];
 
         // Check whether msg.sender maintained a positive balance before the snapshot
-        uint256 snapshotBalance = balanceOfAt(msg.sender, e.snapshotId);
+        uint256 snapshotId = e.snapshotId;
+        uint256 snapshotBalance = balanceOfAt(msg.sender, snapshotId);
+        uint256 snapshotSupply = totalSupplyAt(snapshotId);
         if (snapshotBalance == 0) revert InsufficientBalance();
 
         // Used to update the redeemed flag locally before updating to the storage all at once for gas efficiency
         uint256 redeemed = e.redeemedSnapshotRewards[msg.sender];
 
-        for (uint8 i; i < rewardLen; ++i) {
-            uint8 index = rewardIndexes[i];
+        emit RedeemSnapshotRewards(
+            epoch,
+            rewardIndexes,
+            receiver,
+            snapshotBalance,
+            snapshotSupply
+        );
 
-            _redeemSnapshotReward(
-                epoch,
-                e.snapshotId,
-                snapshotBalance,
-                redeemed,
-                e.rewards[index],
-                e.snapshotRewards[index],
-                index,
-                receiver
-            );
-
+        for (uint256 i; i < rewardLen; ++i) {
+            uint256 index = rewardIndexes[i];
+            if ((redeemed & (1 << index)) != 0) revert AlreadyRedeemed();
             redeemed |= (1 << index);
+
+            ERC20(e.rewards[index]).safeTransfer(
+                receiver,
+                (e.snapshotRewards[index] * snapshotBalance) / snapshotSupply
+            );
         }
 
         // Update the redeemed rewards flag in storage to prevent double claimings
