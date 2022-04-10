@@ -28,7 +28,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address[] rewards;
         uint256[] snapshotRewards;
         uint256[] futuresRewards;
-        mapping(address => mapping(uint8 => uint256)) redeemedSnapshotRewards;
+        mapping(address => uint256) redeemedSnapshotRewards;
     }
 
     /**
@@ -136,13 +136,12 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 index,
         uint256 amount
     );
-    event RedeemSnapshotReward(
+    event RedeemSnapshotRewards(
         uint256 indexed epoch,
-        uint256 rewardIndex,
-        address receiver,
-        uint256 indexed snapshotId,
+        uint256[] rewardIndexes,
+        address indexed receiver,
         uint256 snapshotBalance,
-        uint256 redeemAmount
+        uint256 snapshotSupply
     );
     event RedeemFuturesRewards(
         uint256 indexed epoch,
@@ -808,80 +807,54 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /**
-        @notice Redeem a Snapshot reward as a pCVX holder
-        @param  epoch        uint256  Epoch
-        @param  rewardIndex  uint8    Reward token index
-        @param  receiver     address  Receives snapshot rewards
+        @notice Redeem multiple Snapshot rewards as a pCVX holder
+        @param  epoch          uint256    Epoch
+        @param  rewardIndexes  uint256[]  Reward token indexes
+        @param  receiver       address    Receives snapshot rewards
     */
-    function _redeemSnapshotReward(
+    function redeemSnapshotRewards(
         uint256 epoch,
-        uint8 rewardIndex,
+        uint256[] calldata rewardIndexes,
         address receiver
-    ) internal {
+    ) external whenNotPaused nonReentrant {
         if (epoch == 0) revert InvalidEpoch();
         if (receiver == address(0)) revert ZeroAddress();
+        uint256 rewardLen = rewardIndexes.length;
+        if (rewardLen == 0) revert EmptyArray();
 
         Epoch storage e = epochs[epoch];
 
         // Check whether msg.sender maintained a positive balance before the snapshot
         uint256 snapshotId = e.snapshotId;
         uint256 snapshotBalance = balanceOfAt(msg.sender, snapshotId);
+        uint256 snapshotSupply = totalSupplyAt(snapshotId);
         if (snapshotBalance == 0) revert InsufficientBalance();
 
-        // Check whether msg.sender has already redeemed this reward
-        if (e.redeemedSnapshotRewards[msg.sender][rewardIndex] != 0)
-            revert AlreadyRedeemed();
+        // Used to update the redeemed flag locally before updating to the storage all at once for gas efficiency
+        uint256 redeemed = e.redeemedSnapshotRewards[msg.sender];
 
-        // Proportionate to the % of pCVX owned out of total supply for the snapshot
-        uint256 redeemAmount = (e.snapshotRewards[rewardIndex] *
-            snapshotBalance) / totalSupplyAt(snapshotId);
-
-        // Set redeem amount to prevent double redemptions
-        e.redeemedSnapshotRewards[msg.sender][rewardIndex] = redeemAmount;
-
-        emit RedeemSnapshotReward(
+        emit RedeemSnapshotRewards(
             epoch,
-            rewardIndex,
+            rewardIndexes,
             receiver,
-            snapshotId,
             snapshotBalance,
-            redeemAmount
+            snapshotSupply
         );
 
-        ERC20(e.rewards[rewardIndex]).safeTransfer(receiver, redeemAmount);
-    }
+        for (uint256 i; i < rewardLen; ++i) {
+            uint256 index = rewardIndexes[i];
+            uint256 indexRedeemed = (1 << index);
+            if ((redeemed & indexRedeemed) != 0) revert AlreadyRedeemed();
+            redeemed |= indexRedeemed;
 
-    /**
-        @notice Redeem a Snapshot reward as a pCVX holder
-        @param  epoch        uint256  Epoch
-        @param  rewardIndex  uint8    Reward token index
-        @param  receiver     address  Receives snapshot rewards
-    */
-    function redeemSnapshotReward(
-        uint256 epoch,
-        uint8 rewardIndex,
-        address receiver
-    ) external whenNotPaused nonReentrant {
-        _redeemSnapshotReward(epoch, rewardIndex, receiver);
-    }
-
-    /**
-        @notice Redeem multiple Snapshot rewards as a pCVX holder
-        @param  epoch          uint256  Epoch
-        @param  rewardIndexes  uint8[]  Reward token indexes
-        @param  receiver       address  Receives snapshot rewards
-    */
-    function redeemSnapshotRewards(
-        uint256 epoch,
-        uint8[] calldata rewardIndexes,
-        address receiver
-    ) external whenNotPaused nonReentrant {
-        uint8 rewardLen = uint8(rewardIndexes.length);
-        if (rewardLen == 0) revert EmptyArray();
-
-        for (uint8 i; i < rewardLen; ++i) {
-            _redeemSnapshotReward(epoch, rewardIndexes[i], receiver);
+            ERC20(e.rewards[index]).safeTransfer(
+                receiver,
+                (e.snapshotRewards[index] * snapshotBalance) / snapshotSupply
+            );
         }
+
+        // Update the redeemed rewards flag in storage to prevent double claimings
+        e.redeemedSnapshotRewards[msg.sender] = redeemed;
     }
 
     /**
