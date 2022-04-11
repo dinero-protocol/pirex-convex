@@ -336,11 +336,11 @@ describe('PirexCvx-Main', function () {
       ]);
       const initiateEvent = events[0];
       const mintFuturesEvent1 = events[2];
-      const mintFuturesEvent2 = events[11];
-      const burnEvent = events[20];
-      const pirexFeesApprovalEvent = events[21];
-      const treasuryFeeTransferEvent = events[24];
-      const contributorsFeeTransferEvent = events[26];
+      const mintFuturesEvent2 = events[5];
+      const burnEvent = events[7];
+      const pirexFeesApprovalEvent = events[8];
+      const treasuryFeeTransferEvent = events[11];
+      const contributorsFeeTransferEvent = events[13];
       const pCvxBalanceAfter = await unionPirex.balanceOf(admin.address);
       const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
       const upCvxBalanceAfter1 = await upCvx.balanceOf(

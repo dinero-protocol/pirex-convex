@@ -339,17 +339,17 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     ) internal {
         emit MintFutures(rounds, f, assets, receiver);
 
-        uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
         ERC1155PresetMinterSupply token = f == Futures.Vote ? vpCvx : rpCvx;
+        uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
+        uint256[] memory tokenIds = new uint256[](rounds);
+        uint256[] memory amounts = new uint256[](rounds);
 
         for (uint256 i; i < rounds; ++i) {
-            token.mint(
-                receiver,
-                startingEpoch + i * EPOCH_DURATION,
-                assets,
-                UNUSED_1155_DATA
-            );
+            tokenIds[i] = startingEpoch + i * EPOCH_DURATION;
+            amounts[i] = assets;
         }
+
+        token.mintBatch(receiver, tokenIds, amounts, UNUSED_1155_DATA);
     }
 
     /**
