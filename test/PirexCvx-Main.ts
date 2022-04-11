@@ -11,7 +11,7 @@ import {
 } from './helpers';
 import {
   ConvexToken,
-  CvxLocker,
+  CvxLockerV2,
   PirexCvx,
   PirexFees,
   UnionPirexVault,
@@ -25,7 +25,7 @@ describe('PirexCvx-Main', function () {
   let pirexFees: PirexFees;
   let unionPirex: UnionPirexVault;
   let cvx: ConvexToken;
-  let cvxLocker: CvxLocker;
+  let cvxLocker: CvxLockerV2;
 
   let zeroAddress: string;
   let redemptionUnlockTime1: BigNumber;

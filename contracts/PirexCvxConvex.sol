@@ -146,8 +146,7 @@ contract PirexCvxConvex is Ownable, Pausable {
     function _unlock() internal {
         (, uint256 unlockable, , ) = cvxLocker.lockedBalances(address(this));
 
-        if (unlockable != 0)
-            cvxLocker.processExpiredLocks(false, 0, address(this));
+        if (unlockable != 0) cvxLocker.processExpiredLocks(false);
     }
 
     /**

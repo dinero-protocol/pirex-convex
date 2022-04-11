@@ -1,17 +1,10 @@
 /**
- *Submitted for verification at Etherscan.io on 2021-09-03
+ *Submitted for verification at Etherscan.io on 2022-03-04
  */
 
-// https://etherscan.io/address/0xD18140b4B819b895A3dba5442F959fA44994AF50#code
-
-/**
- * PIREX CHANGES:
- * - Remove constant modifier from stakingToken
- * - Add _stakingToken in constructor and set stakingToken
- */
+// File: contracts\interfaces\MathUtil.sol
 
 // SPDX-License-Identifier: MIT
-// File: contracts\interfaces\MathUtil.sol
 pragma solidity 0.6.12;
 
 /**
@@ -306,7 +299,8 @@ interface IERC20 {
     );
 }
 
-// File: node_modules\@openzeppelin\contracts\math\SafeMath.sol
+// File: @openzeppelin\contracts\math\SafeMath.sol
+
 pragma solidity >=0.6.0 <0.8.0;
 
 /**
@@ -552,8 +546,7 @@ library SafeMath {
     }
 }
 
-// File: node_modules\@openzeppelin\contracts\utils\Address.sol
-
+// File: @openzeppelin\contracts\utils\Address.sol
 pragma solidity >=0.6.2 <0.8.0;
 
 /**
@@ -807,7 +800,6 @@ library Address {
 }
 
 // File: @openzeppelin\contracts\token\ERC20\SafeERC20.sol
-
 pragma solidity >=0.6.0 <0.8.0;
 
 /**
@@ -967,8 +959,7 @@ library Math {
     }
 }
 
-// File: node_modules\@openzeppelin\contracts\utils\Context.sol
-
+// File: @openzeppelin\contracts\utils\Context.sol
 pragma solidity >=0.6.0 <0.8.0;
 
 /*
@@ -1067,6 +1058,7 @@ abstract contract Ownable is Context {
 }
 
 // File: @openzeppelin\contracts\utils\ReentrancyGuard.sol
+
 pragma solidity >=0.6.0 <0.8.0;
 
 /**
@@ -1128,16 +1120,26 @@ abstract contract ReentrancyGuard {
     }
 }
 
-// File: contracts\CvxLocker.sol
+// File: contracts\CvxLockerV2.sol
 
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-// CVX Locking contract for https://www.convexfinance.com/
-// CVX locked in this contract will be entitled to voting rights for the Convex Finance platform
-// Based on EPS Staking contract for http://ellipsis.finance/
-// Based on SNX MultiRewards by iamdefinitelyahuman - https://github.com/iamdefinitelyahuman/multi-rewards
-contract CvxLocker is ReentrancyGuard, Ownable {
+/*
+CVX Locking contract for https://www.convexfinance.com/
+CVX locked in this contract will be entitled to voting rights for the Convex Finance platform
+Based on EPS Staking contract for http://ellipsis.finance/
+Based on SNX MultiRewards by iamdefinitelyahuman - https://github.com/iamdefinitelyahuman/multi-rewards
+
+V2:
+- change locking mechanism to lock to a future epoch instead of current
+- pending lock getter
+- relocking allocates weight to the current epoch instead of future,
+    thus allows keeping voting weight in the same epoch a lock expires by relocking before a vote begins
+- balanceAtEpoch and supplyAtEpoch return proper values for future epochs
+- do not allow relocking directly to a new address
+*/
+contract CvxLockerV2 is ReentrancyGuard, Ownable {
     using BoringMath for uint256;
     using BoringMath224 for uint224;
     using BoringMath112 for uint112;
@@ -1173,11 +1175,8 @@ contract CvxLocker is ReentrancyGuard, Ownable {
     }
 
     //token constants
-    IERC20 public stakingToken; //cvx
-
-    address public cvxCrv;
-    // address public constant cvxCrv =
-    //     address(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7);
+    IERC20 public immutable stakingToken; // = IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B); //cvx
+    address public immutable cvxCrv; // = address(0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7);
 
     //rewards
     address[] public rewardTokens;
@@ -1187,7 +1186,7 @@ contract CvxLocker is ReentrancyGuard, Ownable {
     uint256 public constant rewardsDuration = 86400 * 7;
 
     // Duration of lock/earned penalty period
-    uint256 public constant lockDuration = rewardsDuration * 17;
+    uint256 public constant lockDuration = rewardsDuration * 16;
 
     // reward token -> distributor -> is approved to add rewards
     mapping(address => mapping(address => bool)) public rewardDistributors;
@@ -1219,10 +1218,7 @@ contract CvxLocker is ReentrancyGuard, Ownable {
     uint256 public minimumStake = 10000;
     uint256 public maximumStake = 10000;
     address public stakingProxy;
-
-    address public cvxcrvStaking;
-    // address public constant cvxcrvStaking =
-    //     address(0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e);
+    address public immutable cvxcrvStaking; // = address(0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e);
     uint256 public constant stakeOffsetOnLock = 500; //allow broader range for staking when depositing
 
     //management
@@ -1240,10 +1236,14 @@ contract CvxLocker is ReentrancyGuard, Ownable {
     /* ========== CONSTRUCTOR ========== */
 
     constructor(
-        address _stakingToken,
+        address _cvx,
         address _cvxCrv,
         address _cvxcrvStaking
     ) public Ownable() {
+        stakingToken = IERC20(_cvx);
+        cvxCrv = _cvxCrv;
+        cvxcrvStaking = _cvxcrvStaking;
+
         _name = "Vote Locked Convex Token";
         _symbol = "vlCVX";
         _decimals = 18;
@@ -1252,15 +1252,6 @@ contract CvxLocker is ReentrancyGuard, Ownable {
             rewardsDuration
         );
         epochs.push(Epoch({supply: 0, date: uint32(currentEpoch)}));
-
-        require(_stakingToken != address(0), "Invalid _stakingToken");
-        stakingToken = IERC20(_stakingToken);
-
-        require(_cvxCrv != address(0), "Invalid _cvxCrv");
-        cvxCrv = _cvxCrv;
-
-        require(_cvxcrvStaking != address(0), "Invalid _cvxcrvStaking");
-        cvxcrvStaking = _cvxcrvStaking;
     }
 
     function decimals() public view returns (uint8) {
@@ -1273,6 +1264,10 @@ contract CvxLocker is ReentrancyGuard, Ownable {
 
     function symbol() public view returns (string memory) {
         return _symbol;
+    }
+
+    function version() public view returns (uint256) {
+        return 2;
     }
 
     /* ========== ADMIN CONFIGURATION ========== */
@@ -1302,13 +1297,9 @@ contract CvxLocker is ReentrancyGuard, Ownable {
         rewardDistributors[_rewardsToken][_distributor] = _approved;
     }
 
-    //Set the staking contract for the underlying cvx. only allow change if nothing is currently staked
+    //Set the staking contract for the underlying cvx
     function setStakingContract(address _staking) external onlyOwner {
-        require(
-            stakingProxy == address(0) ||
-                (minimumStake == 0 && maximumStake == 0),
-            "!assign"
-        );
+        require(stakingProxy == address(0), "!assign");
 
         stakingProxy = _staking;
     }
@@ -1320,6 +1311,7 @@ contract CvxLocker is ReentrancyGuard, Ownable {
     {
         require(_minimum <= denominator, "min range");
         require(_maximum <= denominator, "max range");
+        require(_minimum <= _maximum, "min range");
         minimumStake = _minimum;
         maximumStake = _maximum;
         updateStakeRatio(0);
@@ -1331,8 +1323,8 @@ contract CvxLocker is ReentrancyGuard, Ownable {
         uint256 _rate,
         address _receivingAddress
     ) external onlyOwner {
-        require(maximumBoostPayment < 1500, "over max payment"); //max 15%
-        require(boostRate < 30000, "over max rate"); //max 3x
+        require(_max < 1500, "over max payment"); //max 15%
+        require(_rate < 30000, "over max rate"); //max 3x
         require(_receivingAddress != address(0), "invalid address"); //must point somewhere valid
         nextMaximumBoostPayment = _max;
         nextBoostRate = _rate;
@@ -1503,13 +1495,13 @@ contract CvxLocker is ReentrancyGuard, Ownable {
             }
         }
 
-        //also remove amount in the current epoch
+        //also remove amount locked in the next epoch
         uint256 currentEpoch = block.timestamp.div(rewardsDuration).mul(
             rewardsDuration
         );
         if (
             locksLength > 0 &&
-            uint256(locks[locksLength - 1].unlockTime).sub(lockDuration) ==
+            uint256(locks[locksLength - 1].unlockTime).sub(lockDuration) >
             currentEpoch
         ) {
             amount = amount.sub(locks[locksLength - 1].boosted);
@@ -1531,18 +1523,12 @@ contract CvxLocker is ReentrancyGuard, Ownable {
         //get timestamp of first non-inclusive epoch
         uint256 cutoffEpoch = epochTime.sub(lockDuration);
 
-        //current epoch is not counted
-        uint256 currentEpoch = block.timestamp.div(rewardsDuration).mul(
-            rewardsDuration
-        );
-
         //need to add up since the range could be in the middle somewhere
         //traverse inversely to make more current queries more gas efficient
         for (uint256 i = locks.length - 1; i + 1 != 0; i--) {
             uint256 lockEpoch = uint256(locks[i].unlockTime).sub(lockDuration);
             //lock epoch must be less or equal to the epoch we're basing from.
-            //also not include the current epoch
-            if (lockEpoch <= epochTime && lockEpoch < currentEpoch) {
+            if (lockEpoch <= epochTime) {
                 if (lockEpoch > cutoffEpoch) {
                     amount = amount.add(locks[i].boosted);
                 } else {
@@ -1555,6 +1541,57 @@ contract CvxLocker is ReentrancyGuard, Ownable {
         return amount;
     }
 
+    //return currently locked but not active balance
+    function pendingLockOf(address _user)
+        external
+        view
+        returns (uint256 amount)
+    {
+        LockedBalance[] storage locks = userLocks[_user];
+
+        uint256 locksLength = locks.length;
+
+        //return amount if latest lock is in the future
+        uint256 currentEpoch = block.timestamp.div(rewardsDuration).mul(
+            rewardsDuration
+        );
+        if (
+            locksLength > 0 &&
+            uint256(locks[locksLength - 1].unlockTime).sub(lockDuration) >
+            currentEpoch
+        ) {
+            return locks[locksLength - 1].boosted;
+        }
+
+        return 0;
+    }
+
+    function pendingLockAtEpochOf(uint256 _epoch, address _user)
+        external
+        view
+        returns (uint256 amount)
+    {
+        LockedBalance[] storage locks = userLocks[_user];
+
+        //get next epoch from the given epoch index
+        uint256 nextEpoch = uint256(epochs[_epoch].date).add(rewardsDuration);
+
+        //traverse inversely to make more current queries more gas efficient
+        for (uint256 i = locks.length - 1; i + 1 != 0; i--) {
+            uint256 lockEpoch = uint256(locks[i].unlockTime).sub(lockDuration);
+
+            //return the next epoch balance
+            if (lockEpoch == nextEpoch) {
+                return locks[i].boosted;
+            } else if (lockEpoch < nextEpoch) {
+                //no need to check anymore
+                break;
+            }
+        }
+
+        return 0;
+    }
+
     //supply of all properly locked BOOSTED balances at most recent eligible epoch
     function totalSupply() external view returns (uint256 supply) {
         uint256 currentEpoch = block.timestamp.div(rewardsDuration).mul(
@@ -1563,8 +1600,8 @@ contract CvxLocker is ReentrancyGuard, Ownable {
         uint256 cutoffEpoch = currentEpoch.sub(lockDuration);
         uint256 epochindex = epochs.length;
 
-        //do not include current epoch's supply
-        if (uint256(epochs[epochindex - 1].date) == currentEpoch) {
+        //do not include next epoch's supply
+        if (uint256(epochs[epochindex - 1].date) > currentEpoch) {
             epochindex--;
         }
 
@@ -1590,14 +1627,6 @@ contract CvxLocker is ReentrancyGuard, Ownable {
             .div(rewardsDuration)
             .mul(rewardsDuration);
         uint256 cutoffEpoch = epochStart.sub(lockDuration);
-        uint256 currentEpoch = block.timestamp.div(rewardsDuration).mul(
-            rewardsDuration
-        );
-
-        //do not include current epoch's supply
-        if (uint256(epochs[_epoch].date) == currentEpoch) {
-            _epoch--;
-        }
 
         //traverse inversely to make more current queries more gas efficient
         for (uint256 i = _epoch; i + 1 != 0; i--) {
@@ -1679,17 +1708,20 @@ contract CvxLocker is ReentrancyGuard, Ownable {
 
     //insert a new epoch if needed. fill in any gaps
     function _checkpointEpoch() internal {
-        uint256 currentEpoch = block.timestamp.div(rewardsDuration).mul(
-            rewardsDuration
-        );
+        //create new epoch in the future where new non-active locks will lock to
+        uint256 nextEpoch = block
+            .timestamp
+            .div(rewardsDuration)
+            .mul(rewardsDuration)
+            .add(rewardsDuration);
         uint256 epochindex = epochs.length;
 
         //first epoch add in constructor, no need to check 0 length
 
         //check to add
-        if (epochs[epochindex - 1].date < currentEpoch) {
+        if (epochs[epochindex - 1].date < nextEpoch) {
             //fill any epoch gaps
-            while (epochs[epochs.length - 1].date != currentEpoch) {
+            while (epochs[epochs.length - 1].date != nextEpoch) {
                 uint256 nextEpochDate = uint256(epochs[epochs.length - 1].date)
                     .add(rewardsDuration);
                 epochs.push(Epoch({supply: 0, date: uint32(nextEpochDate)}));
@@ -1715,14 +1747,15 @@ contract CvxLocker is ReentrancyGuard, Ownable {
         stakingToken.safeTransferFrom(msg.sender, address(this), _amount);
 
         //lock
-        _lock(_account, _amount, _spendRatio);
+        _lock(_account, _amount, _spendRatio, false);
     }
 
     //lock tokens
     function _lock(
         address _account,
         uint256 _amount,
-        uint256 _spendRatio
+        uint256 _spendRatio,
+        bool _isRelock
     ) internal {
         require(_amount > 0, "Cannot stake 0");
         require(_spendRatio <= maximumBoostPayment, "over max spend");
@@ -1752,11 +1785,17 @@ contract CvxLocker is ReentrancyGuard, Ownable {
         boostedSupply = boostedSupply.add(boostedAmount);
 
         //add user lock records or add to current
-        uint256 currentEpoch = block.timestamp.div(rewardsDuration).mul(
+        uint256 lockEpoch = block.timestamp.div(rewardsDuration).mul(
             rewardsDuration
         );
-        uint256 unlockTime = currentEpoch.add(lockDuration);
+        //if a fresh lock, add on an extra duration period
+        if (!_isRelock) {
+            lockEpoch = lockEpoch.add(rewardsDuration);
+        }
+        uint256 unlockTime = lockEpoch.add(lockDuration);
         uint256 idx = userLocks[_account].length;
+
+        //if the latest user lock is smaller than this lock, always just add new entry to the end of the list
         if (idx == 0 || userLocks[_account][idx - 1].unlockTime < unlockTime) {
             userLocks[_account].push(
                 LockedBalance({
@@ -1766,13 +1805,58 @@ contract CvxLocker is ReentrancyGuard, Ownable {
                 })
             );
         } else {
-            LockedBalance storage userL = userLocks[_account][idx - 1];
-            userL.amount = userL.amount.add(lockAmount);
-            userL.boosted = userL.boosted.add(boostedAmount);
+            //else add to a current lock
+
+            //if latest lock is further in the future, lower index
+            //this can only happen if relocking an expired lock after creating a new lock
+            if (userLocks[_account][idx - 1].unlockTime > unlockTime) {
+                idx--;
+            }
+
+            //if idx points to the epoch when same unlock time, update
+            //(this is always true with a normal lock but maybe not with relock)
+            if (userLocks[_account][idx - 1].unlockTime == unlockTime) {
+                LockedBalance storage userL = userLocks[_account][idx - 1];
+                userL.amount = userL.amount.add(lockAmount);
+                userL.boosted = userL.boosted.add(boostedAmount);
+            } else {
+                //can only enter here if a relock is made after a lock and there's no lock entry
+                //for the current epoch.
+                //ex a list of locks such as "[...][older][current*][next]" but without a "current" lock
+                //length - 1 is the next epoch
+                //length - 2 is a past epoch
+                //thus need to insert an entry for current epoch at the 2nd to last entry
+                //we will copy and insert the tail entry(next) and then overwrite length-2 entry
+
+                //reset idx
+                idx = userLocks[_account].length;
+
+                //get current last item
+                LockedBalance storage userL = userLocks[_account][idx - 1];
+
+                //add a copy to end of list
+                userLocks[_account].push(
+                    LockedBalance({
+                        amount: userL.amount,
+                        boosted: userL.boosted,
+                        unlockTime: userL.unlockTime
+                    })
+                );
+
+                //insert current epoch lock entry by overwriting the entry at length-2
+                userL.amount = lockAmount;
+                userL.boosted = boostedAmount;
+                userL.unlockTime = uint32(unlockTime);
+            }
         }
 
         //update epoch supply, epoch checkpointed above so safe to add to latest
-        Epoch storage e = epochs[epochs.length - 1];
+        uint256 eIndex = epochs.length - 1;
+        //if relock, epoch should be current and not next, thus need to decrease index to length-2
+        if (_isRelock) {
+            eIndex--;
+        }
+        Epoch storage e = epochs[eIndex];
         e.supply = e.supply.add(uint224(boostedAmount));
 
         //send boost payment
@@ -1783,7 +1867,7 @@ contract CvxLocker is ReentrancyGuard, Ownable {
         //update staking, allow a bit of leeway for smaller deposits to reduce gas
         updateStakeRatio(stakeOffsetOnLock);
 
-        emit Staked(_account, _amount, lockAmount, boostedAmount);
+        emit Staked(_account, lockEpoch, _amount, lockAmount, boostedAmount);
     }
 
     // Withdraw all currently locked tokens where the unlock time has passed
@@ -1904,26 +1988,15 @@ contract CvxLocker is ReentrancyGuard, Ownable {
 
         //relock or return to user
         if (_relock) {
-            _lock(_withdrawTo, locked, _spendRatio);
+            _lock(_withdrawTo, locked, _spendRatio, true);
         } else {
             transferCVX(_withdrawTo, locked, true);
         }
     }
 
-    // Withdraw/relock all currently locked tokens where the unlock time has passed
-    function processExpiredLocks(
-        bool _relock,
-        uint256 _spendRatio,
-        address _withdrawTo
-    ) external nonReentrant {
-        _processExpiredLocks(
-            msg.sender,
-            _relock,
-            _spendRatio,
-            _withdrawTo,
-            msg.sender,
-            0
-        );
+    // withdraw expired locks to a different address
+    function withdrawExpiredLocksTo(address _withdrawTo) external nonReentrant {
+        _processExpiredLocks(msg.sender, false, 0, _withdrawTo, msg.sender, 0);
     }
 
     // Withdraw/relock all currently locked tokens where the unlock time has passed
@@ -2122,6 +2195,7 @@ contract CvxLocker is ReentrancyGuard, Ownable {
     event RewardAdded(address indexed _token, uint256 _reward);
     event Staked(
         address indexed _user,
+        uint256 indexed _epoch,
         uint256 _paidAmount,
         uint256 _lockedAmount,
         uint256 _boostedAmount
