@@ -498,17 +498,21 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Initiate CVX redemption
-        @param  lockData  ICvxLocker.LockedBalance    Locked balance index
-        @param  f          enum     Futures enum
-        @param  assets     uint256  pCVX amount
-        @param  receiver   address  Receives upCVX
-        @return feeAmount  uint256  Fee amount
+        @param  lockData   ICvxLocker.LockedBalance  Locked balance index
+        @param  f          enum                      Futures enum
+        @param  assets     uint256                   pCVX amount
+        @param  receiver   address                   Receives upCVX
+        @param  feeMin     uint32                    Initiate redemption fee min
+        @param  feeMax     uint32                    Initiate redemption fee max
+        @return feeAmount  uint256                   Fee amount
      */
     function _initiateRedemption(
         ICvxLocker.LockedBalance memory lockData,
         Futures f,
         uint256 assets,
-        address receiver
+        address receiver,
+        uint32 feeMin,
+        uint32 feeMax
     ) internal returns (uint256 feeAmount) {
         if (assets == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
@@ -518,11 +522,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         // Calculate the fee based on the duration a user has to wait before redeeming CVX
         uint192 waitTime = uint192(unlockTime - block.timestamp);
-        uint32 feeMax = fees[Fees.RedemptionMax];
         uint32 feePercent = uint32(
-            feeMax -
-                (((feeMax - fees[Fees.RedemptionMin]) * waitTime) /
-                    MAX_REDEMPTION_TIME)
+            feeMax - (((feeMax - feeMin) * waitTime) / MAX_REDEMPTION_TIME)
         );
 
         feeAmount = (assets * feePercent) / FEE_DENOMINATOR;
@@ -585,23 +586,22 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (lockLen == 0) revert EmptyArray();
         if (lockLen != assets.length) revert MismatchedArrayLengths();
 
-        emit InitiateRedemptions(
-            lockIndexes,
-            f,
-            assets,
-            receiver
-        );
+        emit InitiateRedemptions(lockIndexes, f, assets, receiver);
 
         (, , , ICvxLocker.LockedBalance[] memory lockData) = cvxLocker
             .lockedBalances(address(this));
         uint256 feeAmount;
+        uint32 feeMin = fees[Fees.RedemptionMin];
+        uint32 feeMax = fees[Fees.RedemptionMax];
 
         for (uint8 i; i < lockLen; ++i) {
             feeAmount += _initiateRedemption(
                 lockData[lockIndexes[i]],
                 f,
                 assets[i],
-                receiver
+                receiver,
+                feeMin,
+                feeMax
             );
         }
 
