@@ -504,13 +504,14 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         @param  f          enum     Futures enum
         @param  assets     uint256  pCVX amount
         @param  receiver   address  Receives upCVX
+        @return feeAmount  uint256  Fee amount
      */
     function _initiateRedemption(
         ICvxLocker.LockedBalance memory lockData,
         Futures f,
         uint256 assets,
         address receiver
-    ) internal {
+    ) internal returns (uint256 feeAmount) {
         if (assets == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
@@ -525,7 +526,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
                 (((feeMax - fees[Fees.RedemptionMin]) * waitTime) /
                     MAX_REDEMPTION_TIME)
         );
-        uint256 feeAmount = (assets * feePercent) / FEE_DENOMINATOR;
+
+        feeAmount = (assets * feePercent) / FEE_DENOMINATOR;
+
         uint256 postFeeAmount = assets - feeAmount;
 
         // Increment redemptions for this unlockTime to prevent over-redeeming
@@ -538,9 +541,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Burn pCVX - reverts if sender balance is insufficient
         _burn(msg.sender, postFeeAmount);
 
-        // Allow PirexFees to distribute fees directly from sender
-        _approve(msg.sender, address(pirexFees), feeAmount);
-
         // Track assets that needs to remain unlocked for redemptions
         outstandingRedemptions += postFeeAmount;
 
@@ -552,9 +552,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             postFeeAmount,
             feeAmount
         );
-
-        // Distribute fees
-        pirexFees.distributeFees(msg.sender, address(this), feeAmount);
 
         // Mint upCVX with unlockTime as the id - validates `to`
         upCvx.mint(receiver, unlockTime, postFeeAmount, UNUSED_1155_DATA);
@@ -578,6 +575,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         // Mint vpCVX or rpCVX (using assets as we do not take a fee from this)
         _mintFutures(rounds, f, assets, receiver);
+
+        return feeAmount;
     }
 
     /**
@@ -599,15 +598,22 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         (, , , ICvxLocker.LockedBalance[] memory lockData) = cvxLocker
             .lockedBalances(address(this));
+        uint256 feeAmount;
 
         for (uint8 i; i < lockLen; ++i) {
-            _initiateRedemption(
+            feeAmount += _initiateRedemption(
                 lockData[lockIndexes[i]],
                 f,
                 assets[i],
                 receiver
             );
         }
+
+        // Allow PirexFees to distribute fees directly from sender
+        _approve(msg.sender, address(pirexFees), feeAmount);
+
+        // Distribute fees
+        pirexFees.distributeFees(msg.sender, address(this), feeAmount);
     }
 
     /**
