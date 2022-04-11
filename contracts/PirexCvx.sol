@@ -118,8 +118,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address indexed receiver
     );
     event Redeem(
-        uint256 indexed unlockTime,
-        uint256 assets,
+        uint256[] unlockTimes,
+        uint256[] assets,
         address indexed receiver
     );
     event Stake(
@@ -629,8 +629,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (assets == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
-        emit Redeem(unlockTime, assets, receiver);
-
         // Unlock and relock if balance is greater than outstandingRedemptions
         _relock();
 
@@ -645,26 +643,12 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /**
-        @notice Redeem CVX
-        @param  unlockTime  uint256  CVX unlock timestamp
-        @param  assets      uint256  upCVX amount
-        @param  receiver    address  Receives CVX
-     */
-    function redeem(
-        uint256 unlockTime,
-        uint256 assets,
-        address receiver
-    ) external whenNotPaused nonReentrant {
-        _redeem(unlockTime, assets, receiver);
-    }
-
-    /**
-        @notice Redeem CVX for multiple unlock times
+        @notice Redeem CVX for specified unlock times
         @param  unlockTimes  uint256[]  CVX unlock timestamps
         @param  assets       uint256[]  upCVX amounts
         @param  receiver     address    Receives CVX
      */
-    function redeemMulti(
+    function redeem(
         uint256[] calldata unlockTimes,
         uint256[] calldata assets,
         address receiver
@@ -672,6 +656,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 unlockLen = unlockTimes.length;
         if (unlockLen == 0) revert EmptyArray();
         if (unlockLen != assets.length) revert MismatchedArrayLengths();
+
+        emit Redeem(unlockTimes, assets, receiver);
 
         for (uint256 i; i < unlockLen; ++i) {
             _redeem(unlockTimes[i], assets[i], receiver);
