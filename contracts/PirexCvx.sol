@@ -614,35 +614,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /**
-        @notice Redeem CVX
-        @param  unlockTime  uint256  CVX unlock timestamp
-        @param  assets      uint256  upCVX amount
-        @param  receiver    address  Receives CVX
-     */
-    function _redeem(
-        uint256 unlockTime,
-        uint256 assets,
-        address receiver
-    ) internal {
-        // Revert if CVX has not been unlocked and cannot be redeemed yet
-        if (unlockTime > block.timestamp) revert BeforeUnlock();
-        if (assets == 0) revert ZeroAmount();
-        if (receiver == address(0)) revert ZeroAddress();
-
-        // Unlock and relock if balance is greater than outstandingRedemptions
-        _relock();
-
-        // Subtract redemption amount from outstanding CVX amount
-        outstandingRedemptions -= assets;
-
-        // Reverts if sender has an insufficient amount of upCVX with unlockTime id
-        upCvx.burn(msg.sender, unlockTime, assets);
-
-        // Validates `to`
-        CVX.safeTransfer(receiver, assets);
-    }
-
-    /**
         @notice Redeem CVX for specified unlock times
         @param  unlockTimes  uint256[]  CVX unlock timestamps
         @param  assets       uint256[]  upCVX amounts
@@ -656,12 +627,32 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 unlockLen = unlockTimes.length;
         if (unlockLen == 0) revert EmptyArray();
         if (unlockLen != assets.length) revert MismatchedArrayLengths();
+        if (receiver == address(0)) revert ZeroAddress();
 
         emit Redeem(unlockTimes, assets, receiver);
 
+        uint256 totalAssets;
+
         for (uint256 i; i < unlockLen; ++i) {
-            _redeem(unlockTimes[i], assets[i], receiver);
+            uint256 asset = assets[i];
+
+            if (unlockTimes[i] > block.timestamp) revert BeforeUnlock();
+            if (asset == 0) revert ZeroAmount();
+
+            totalAssets += asset;
         }
+
+        // Unlock and relock if balance is greater than outstandingRedemptions
+        _relock();
+
+        // Subtract redemption amount from outstanding CVX amount
+        outstandingRedemptions -= totalAssets;
+
+        // Reverts if sender has an insufficient amount of upCVX with unlockTime id
+        upCvx.burnBatch(msg.sender, unlockTimes, assets);
+
+        // Validates `to`
+        CVX.safeTransfer(receiver, totalAssets);
     }
 
     /**

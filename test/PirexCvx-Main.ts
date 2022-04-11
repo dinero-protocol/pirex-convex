@@ -553,7 +553,7 @@ describe('PirexCvx-Main', function () {
     it('Should make multiple redemptions', async function () {
       const { timestamp } = await ethers.provider.getBlock('latest');
       const unlockTimes = [redemptionUnlockTime1, redemptionUnlockTime2];
-      const assets = [upCvxBalance1, upCvxBalance2];
+      const assets = [upCvxBalance1.div(2), upCvxBalance2.div(2)];
       const receiver = admin.address;
       const outstandingRedemptionsBefore = await pCvx.outstandingRedemptions();
       const upCvx = await this.getUpCvx(await pCvx.upCvx());
@@ -564,17 +564,25 @@ describe('PirexCvx-Main', function () {
 
       await upCvx.setApprovalForAll(pCvx.address, true);
 
+      const upCvxBalanceBefore1 = await upCvx.balanceOf(admin.address, unlockTimes[0]);
+      const upCvxBalanceBefore2 = await upCvx.balanceOf(admin.address, unlockTimes[1]);
+      const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const events = await callAndReturnEvents(pCvx.redeem, [
         unlockTimes,
         assets,
         receiver,
       ]);
       const redeemEvent = events[0];
-      const cvxTransferEvent1 = events[14];
-      const cvxTransferEvent2 = events[16];
+      const cvxTransferEvent = events[14];
       const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
-      const totalAssets = assets.reduce((acc, val) => acc.add(val), toBN(0));
+      const totalAssets = assets[0].add(assets[1]);
+      const upCvxBalanceAfter1 = await upCvx.balanceOf(admin.address, unlockTimes[0]);
+      const upCvxBalanceAfter2 = await upCvx.balanceOf(admin.address, unlockTimes[1]);
+      const cvxBalanceAfter = await cvx.balanceOf(admin.address);
 
+      expect(upCvxBalanceAfter1).to.equal(upCvxBalanceBefore1.sub(assets[0]));
+      expect(upCvxBalanceAfter2).to.equal(upCvxBalanceBefore2.sub(assets[1]));
+      expect(cvxBalanceAfter).to.equal(cvxBalanceBefore.add(totalAssets));
       expect(outstandingRedemptionsAfter).to.equal(
         outstandingRedemptionsBefore.sub(totalAssets)
       );
@@ -583,16 +591,13 @@ describe('PirexCvx-Main', function () {
         assets,
         receiver,
       });
-      validateEvent(cvxTransferEvent1, 'Transfer(address,address,uint256)', {
+      validateEvent(cvxTransferEvent, 'Transfer(address,address,uint256)', {
         from: pCvx.address,
         to: receiver,
-        value: assets[0],
+        value: totalAssets,
       });
-      validateEvent(cvxTransferEvent2, 'Transfer(address,address,uint256)', {
-        from: pCvx.address,
-        to: receiver,
-        value: assets[1],
-      });
+
+      await pCvx.redeem(unlockTimes, [toBN(1), toBN(1)], admin.address);
     });
   });
 
