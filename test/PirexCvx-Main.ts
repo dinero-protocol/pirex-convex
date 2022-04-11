@@ -412,7 +412,7 @@ describe('PirexCvx-Main', function () {
       expect(initiateEvent.args.to).to.not.equal(zeroAddress);
       validateEvent(
         mintFuturesEvent1,
-        'MintFutures(uint8,uint8,uint256,address)',
+        'MintFutures(uint256,uint8,uint256,address)',
         {
           rounds: expectedRewardsRounds1,
           f,
@@ -422,7 +422,7 @@ describe('PirexCvx-Main', function () {
       );
       validateEvent(
         mintFuturesEvent2,
-        'MintFutures(uint8,uint8,uint256,address)',
+        'MintFutures(uint256,uint8,uint256,address)',
         {
           rounds: expectedRewardsRounds2,
           f,
@@ -882,7 +882,7 @@ describe('PirexCvx-Main', function () {
         to: zeroAddress,
         value: assets,
       });
-      validateEvent(stakeEvent, 'Stake(uint8,uint8,uint256,address)', {
+      validateEvent(stakeEvent, 'Stake(uint256,uint8,uint256,address)', {
         rounds,
         f,
         assets,
@@ -890,7 +890,7 @@ describe('PirexCvx-Main', function () {
       });
       validateEvent(
         mintFuturesEvent,
-        'MintFutures(uint8,uint8,uint256,address)',
+        'MintFutures(uint256,uint8,uint256,address)',
         {
           rounds,
           f,

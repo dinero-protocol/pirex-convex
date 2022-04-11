@@ -101,7 +101,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     event QueueFee(Fees indexed f, uint32 newFee, uint224 effectiveAfter);
     event SetFee(Fees indexed f, uint32 fee);
     event MintFutures(
-        uint8 rounds,
+        uint256 rounds,
         Futures indexed f,
         uint256 assets,
         address indexed receiver
@@ -123,7 +123,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address indexed receiver
     );
     event Stake(
-        uint8 rounds,
+        uint256 rounds,
         Futures indexed f,
         uint256 assets,
         address indexed receiver
@@ -326,13 +326,13 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Mint futures tokens
-        @param  rounds    uint8    Rounds (i.e. Convex voting rounds)
+        @param  rounds    uint256    Rounds (i.e. Convex voting rounds)
         @param  f         enum     Futures enum
         @param  assets    uint256  Futures amount
         @param  receiver  address  Receives futures
     */
     function _mintFutures(
-        uint8 rounds,
+        uint256 rounds,
         Futures f,
         uint256 assets,
         address receiver
@@ -342,7 +342,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
         ERC1155PresetMinterSupply token = f == Futures.Vote ? vpCvx : rpCvx;
 
-        for (uint8 i; i < rounds; ++i) {
+        for (uint256 i; i < rounds; ++i) {
             token.mint(
                 receiver,
                 startingEpoch + i * EPOCH_DURATION,
@@ -544,7 +544,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         // Determine how many futures notes rounds to mint
         // TODO: Replace uint8 with uint256 in next PR for mintFutures
-        uint8 rounds = uint8(waitTime / EPOCH_DURATION);
+        uint256 rounds = waitTime / EPOCH_DURATION;
 
         // Check if the lock was in the first week/half of an epoch
         // Handle case where remaining time is between 1 and 2 weeks
@@ -681,13 +681,13 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Stake pCVX
-        @param  rounds    uint8    Rounds (i.e. Convex voting rounds)
+        @param  rounds    uint256    Rounds (i.e. Convex voting rounds)
         @param  f         enum     Futures enum
         @param  assets    uint256  pCVX amount
         @param  receiver  address  Receives spCVX
     */
     function stake(
-        uint8 rounds,
+        uint256 rounds,
         Futures f,
         uint256 assets,
         address receiver
