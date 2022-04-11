@@ -133,14 +133,6 @@ contract PirexCvxConvex is Ownable, Pausable {
     }
 
     /**
-        @notice Lock CVX
-        @param  amount  uint256  CVX amount
-     */
-    function _lock(uint256 amount) internal {
-        cvxLocker.lock(address(this), amount, 0);
-    }
-
-    /**
         @notice Unlock CVX
      */
     function _unlock() internal {
@@ -160,7 +152,11 @@ contract PirexCvxConvex is Ownable, Pausable {
 
         if (balance > outstandingRedemptions) {
             unchecked {
-                _lock(balance - outstandingRedemptions);
+                cvxLocker.lock(
+                    address(this),
+                    balance - outstandingRedemptions,
+                    0
+                );
             }
         }
     }

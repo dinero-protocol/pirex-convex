@@ -474,7 +474,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (assets == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
-        // Perform epoch maintenance if necessary
+        // Take snapshot if necessary
         takeEpochSnapshot();
 
         // Mint pCVX - recipient depends on whether or not to compound
@@ -485,15 +485,15 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (shouldCompound) {
             _approve(address(this), address(unionPirex), assets);
 
-            // Deposit pCVX into pounder vault - user receives shares
+            // Deposit pCVX into Union vault - user receives shares
             unionPirex.deposit(assets, receiver);
         }
 
-        // Transfer CVX to self and approve for locking
+        // Transfer CVX to self in prepartion for lock
         CVX.safeTransferFrom(msg.sender, address(this), assets);
 
         // Lock CVX
-        _lock(assets);
+        cvxLocker.lock(address(this), assets, 0);
     }
 
     /**
