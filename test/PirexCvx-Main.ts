@@ -402,9 +402,9 @@ describe('PirexCvx-Main', function () {
       expect(burnEvent1.args.from).to.not.equal(zeroAddress);
       validateEvent(
         initiateEvent,
-        'InitiateRedemptions(uint8[],uint8,uint256[],address)',
+        'InitiateRedemptions(uint256[],uint8,uint256[],address)',
         {
-          lockIndexes,
+          lockIndexes: lockIndexes.map(l => toBN(l)),
           f,
           assets,
           receiver,
