@@ -82,7 +82,7 @@ describe('PirexCvx-Main', function () {
 
       await expect(
         pCvx.deposit(invalidAssets, receiver, shouldCompound)
-      ).to.be.revertedWith('ERC20: transfer amount exceeds balance');
+      ).to.be.revertedWith("VM Exception while processing transaction: reverted with reason string 'TRANSFER_FROM_FAILED'");
     });
 
     it('should revert if the contract is paused', async function () {
@@ -135,7 +135,7 @@ describe('PirexCvx-Main', function () {
       validateEvent(pCvxMintEvent, 'Transfer(address,address,uint256)', {
         from: zeroAddress,
         to: pCvx.address,
-        value: assets,
+        amount: assets,
       });
 
       validateEvent(depositEvent, 'Deposit(uint256,address,bool)', {
@@ -146,19 +146,19 @@ describe('PirexCvx-Main', function () {
       validateEvent(pCvxTransferEvent, 'Transfer(address,address,uint256)', {
         from: pCvx.address,
         to: unionPirex.address,
-        value: assets,
+        amount: assets,
       });
 
       validateEvent(vaultMintEvent, 'Transfer(address,address,uint256)', {
         from: zeroAddress,
         to: admin.address,
-        value: assets,
+        amount: assets,
       });
 
       validateEvent(cvxTransferEvent, 'Transfer(address,address,uint256)', {
         from: admin.address,
         to: pCvx.address,
-        value: assets,
+        amount: assets,
       });
     });
   });
@@ -263,7 +263,7 @@ describe('PirexCvx-Main', function () {
         pCvx
           .connect(notAdmin)
           .initiateRedemptions(lockIndexes, f, invalidAssets, receiver)
-      ).to.be.revertedWith('ERC20: burn amount exceeds balance');
+      ).to.be.revertedWith('VM Exception while processing transaction: reverted with panic code 0x11 (Arithmetic operation underflowed or overflowed outside of an unchecked block');
     });
 
     it('should revert if the contract is paused', async function () {
@@ -321,8 +321,8 @@ describe('PirexCvx-Main', function () {
       const mintFuturesEvent2 = events[5];
       const burnEvent = events[7];
       const pirexFeesApprovalEvent = events[8];
-      const treasuryFeeTransferEvent = events[11];
-      const contributorsFeeTransferEvent = events[13];
+      const treasuryFeeTransferEvent = events[10];
+      const contributorsFeeTransferEvent = events[11];
       const pCvxBalanceAfter = await unionPirex.balanceOf(admin.address);
       const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
       const upCvxBalanceAfter1 = await upCvx.balanceOf(
@@ -378,7 +378,7 @@ describe('PirexCvx-Main', function () {
       validateEvent(burnEvent, 'Transfer(address,address,uint256)', {
         from: msgSender,
         to: zeroAddress,
-        value: totalPostFeeAmounts,
+        amount: totalPostFeeAmounts,
       });
       expect(burnEvent.args.from).to.not.equal(zeroAddress);
       validateEvent(
@@ -415,7 +415,7 @@ describe('PirexCvx-Main', function () {
       validateEvent(pirexFeesApprovalEvent, 'Approval(address,address,uint256)', {
         owner: msgSender,
         spender: pirexFees.address,
-        value: totalFeeAmounts,
+        amount: totalFeeAmounts,
       });
       expect(pirexFeesApprovalEvent.args.owner).to.not.equal(zeroAddress);
       expect(pirexFeesApprovalEvent.args.spender).to.not.equal(zeroAddress);
@@ -426,7 +426,7 @@ describe('PirexCvx-Main', function () {
         {
           from: msgSender,
           to: await pirexFees.treasury(),
-          value: totalFeeAmounts
+          amount: totalFeeAmounts
             .mul(await pirexFees.treasuryPercent())
             .div(await pirexFees.PERCENT_DENOMINATOR()),
         }
@@ -437,7 +437,7 @@ describe('PirexCvx-Main', function () {
         {
           from: msgSender,
           to: await pirexFees.contributors(),
-          value: totalFeeAmounts
+          amount: totalFeeAmounts
             .mul(await pirexFees.contributorsPercent())
             .div(await pirexFees.PERCENT_DENOMINATOR()),
         }
@@ -576,7 +576,7 @@ describe('PirexCvx-Main', function () {
       validateEvent(cvxTransferEvent, 'Transfer(address,address,uint256)', {
         from: pCvx.address,
         to: receiver,
-        value: totalAssets,
+        amount: totalAssets,
       });
 
       await pCvx.redeem(unlockTimes, [toBN(1), toBN(1)], admin.address);
@@ -642,7 +642,7 @@ describe('PirexCvx-Main', function () {
       );
 
       await expect(pCvx.stake(rounds, f, assets, receiver)).to.be.revertedWith(
-        'ERC20: burn amount exceeds balance'
+        'VM Exception while processing transaction: reverted with panic code 0x11 (Arithmetic operation underflowed or overflowed outside of an unchecked block)'
       );
 
       // Transfer funds back
@@ -692,8 +692,6 @@ describe('PirexCvx-Main', function () {
         receiver,
         expectedStakeExpiry
       );
-
-      console.log('spCvxBalanceBefore',)
       const events = await callAndReturnEvents(pCvx.stake, [
         rounds,
         f,
@@ -720,7 +718,7 @@ describe('PirexCvx-Main', function () {
       validateEvent(burnEvent, 'Transfer(address,address,uint256)', {
         from: admin.address,
         to: zeroAddress,
-        value: assets,
+        amount: assets,
       });
       validateEvent(stakeEvent, 'Stake(uint256,uint8,uint256,address)', {
         rounds,
@@ -863,7 +861,7 @@ describe('PirexCvx-Main', function () {
       validateEvent(mintEvent, 'Transfer(address,address,uint256)', {
         from: zeroAddress,
         to: receiver,
-        value: assets,
+        amount: assets,
       });
       validateEvent(unstakeEvent, 'Unstake(uint256,uint256,address)', {
         id,

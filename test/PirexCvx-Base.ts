@@ -262,7 +262,7 @@ describe('PirexCvx-Base', function () {
       validateEvent(approvalEvent, 'Approval(address,address,uint256)', {
         owner: pCvx.address,
         spender: contractAddress,
-        value: uint256Max,
+        amount: uint256Max,
       });
     });
 
@@ -298,12 +298,12 @@ describe('PirexCvx-Base', function () {
       validateEvent(approvalEvent1, 'Approval(address,address,uint256)', {
         owner: pCvx.address,
         spender: unionPirex.address,
-        value: 0,
+        amount: 0,
       });
       validateEvent(approvalEvent2, 'Approval(address,address,uint256)', {
         owner: pCvx.address,
         spender: contractAddress,
-        value: uint256Max,
+        amount: uint256Max,
       });
 
       // Re-set to unionPirex.address to resume normal testing flow

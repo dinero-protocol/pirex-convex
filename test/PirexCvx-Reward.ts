@@ -338,7 +338,7 @@ describe('PirexCvx-Reward', function () {
         {
           from: votium,
           to: pCvx.address,
-          value: amounts[0],
+          amount: amounts[0],
         }
       );
       validateEvent(
@@ -347,7 +347,7 @@ describe('PirexCvx-Reward', function () {
         {
           from: pCvx.address,
           to: treasury.address,
-          value: treasuryCvxBalanceAfter.sub(treasuryCvxBalanceBefore),
+          amount: treasuryCvxBalanceAfter.sub(treasuryCvxBalanceBefore),
         }
       );
       validateEvent(
@@ -356,7 +356,7 @@ describe('PirexCvx-Reward', function () {
         {
           from: pCvx.address,
           to: contributors.address,
-          value: contributorsCvxBalanceAfter.sub(contributorsCvxBalanceBefore),
+          amount: contributorsCvxBalanceAfter.sub(contributorsCvxBalanceBefore),
         }
       );
       validateEvent(
@@ -365,7 +365,7 @@ describe('PirexCvx-Reward', function () {
         {
           from: votium,
           to: pCvx.address,
-          value: amounts[1],
+          amount: amounts[1],
         }
       );
       validateEvent(
@@ -374,7 +374,7 @@ describe('PirexCvx-Reward', function () {
         {
           from: pCvx.address,
           to: treasury.address,
-          value: treasuryCrvBalanceAfter.sub(treasuryCrvBalanceBefore),
+          amount: treasuryCrvBalanceAfter.sub(treasuryCrvBalanceBefore),
         }
       );
       validateEvent(
@@ -383,7 +383,7 @@ describe('PirexCvx-Reward', function () {
         {
           from: pCvx.address,
           to: contributors.address,
-          value: contributorsCrvBalanceAfter.sub(contributorsCrvBalanceBefore),
+          amount: contributorsCrvBalanceAfter.sub(contributorsCrvBalanceBefore),
         }
       );
     });
@@ -670,17 +670,17 @@ describe('PirexCvx-Reward', function () {
       validateEvent(transferEvent1, 'Transfer(address,address,uint256)', {
         from: pCvx.address,
         to: receiver,
-        value: expectedSnapshotCrvRewards[0],
+        amount: expectedSnapshotCrvRewards[0],
       });
       validateEvent(transferEvent2, 'Transfer(address,address,uint256)', {
         from: pCvx.address,
         to: receiver,
-        value: expectedSnapshotCvxRewards,
+        amount: expectedSnapshotCvxRewards,
       });
       validateEvent(transferEvent3, 'Transfer(address,address,uint256)', {
         from: pCvx.address,
         to: receiver,
-        value: expectedSnapshotCrvRewards[1],
+        amount: expectedSnapshotCrvRewards[1],
       });
     });
 
