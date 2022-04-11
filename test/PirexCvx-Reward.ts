@@ -284,9 +284,13 @@ describe('PirexCvx-Reward', function () {
       const expectedContributorsCrvFees = crvFee
         .mul(contributorsPercent)
         .div(feePercentDenominator);
+      const parsedRewards = rewards.map((r) => r.slice(0, 42));
 
-      expect(rewards.includes(tokens[0])).to.equal(true);
-      expect(rewards.includes(tokens[1])).to.equal(true);
+      console.log(parsedRewards);
+      console.log(tokens[0]);
+
+      expect(parsedRewards.includes(tokens[0].toLowerCase())).to.equal(true);
+      expect(parsedRewards.includes(tokens[1].toLowerCase())).to.equal(true);
       expect(votiumSnapshotRewards).to.deep.equal(
         expectedVotiumSnapshotRewards.amounts
       );
@@ -805,7 +809,7 @@ describe('PirexCvx-Reward', function () {
       );
       validateEvent(
         redeemEvent,
-        'RedeemFuturesRewards(uint256,address,address[])',
+        'RedeemFuturesRewards(uint256,address,bytes32[])',
         {
           epoch,
           receiver,

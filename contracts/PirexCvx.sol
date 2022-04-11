@@ -2,9 +2,10 @@
 pragma solidity 0.8.12;
 
 import {ReentrancyGuard} from "@rari-capital/solmate/src/utils/ReentrancyGuard.sol";
-import {ERC20SnapshotSolmate} from "./ERC20SnapshotSolmate.sol";
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
+import {Bytes32AddressLib} from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
+import {ERC20SnapshotSolmate} from "./ERC20SnapshotSolmate.sol";
 import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
 import {ERC1155Solmate} from "./ERC1155Solmate.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
@@ -19,19 +20,20 @@ contract PirexCvx is
     PirexCvxConvex
 {
     using SafeTransferLib for ERC20;
+    using Bytes32AddressLib for address;
 
     /**
         @notice Epoch details
         @notice Reward/snapshotRewards/futuresRewards indexes are associated with 1 reward
         @param  snapshotId               uint256    Snapshot id
-        @param  rewards                  address[]  Rewards
+        @param  rewards                  bytes32[]  Rewards
         @param  snapshotRewards          uint256[]  Snapshot reward amounts
         @param  futuresRewards           uint256[]  Futures reward amounts
         @param  redeemedSnapshotRewards  mapping    Redeemed snapshot rewards
      */
     struct Epoch {
         uint256 snapshotId;
-        address[] rewards;
+        bytes32[] rewards;
         uint256[] snapshotRewards;
         uint256[] futuresRewards;
         mapping(address => uint256) redeemedSnapshotRewards;
@@ -150,7 +152,7 @@ contract PirexCvx is
     event RedeemFuturesRewards(
         uint256 indexed epoch,
         address indexed receiver,
-        address[] rewards
+        bytes32[] rewards
     );
     event ExchangeFutures(
         uint256 indexed epoch,
@@ -322,7 +324,7 @@ contract PirexCvx is
         view
         returns (
             uint256 snapshotId,
-            address[] memory rewards,
+            bytes32[] memory rewards,
             uint256[] memory snapshotRewards,
             uint256[] memory futuresRewards
         )
@@ -447,7 +449,7 @@ contract PirexCvx is
             );
 
         // Add reward token address and snapshot/futuresRewards amounts (same index for all)
-        e.rewards.push(token);
+        e.rewards.push(token.fillLast12Bytes());
         e.snapshotRewards.push(snapshotRewards);
         e.futuresRewards.push(futuresRewards);
 
@@ -826,7 +828,7 @@ contract PirexCvx is
             if ((redeemed & indexRedeemed) != 0) revert AlreadyRedeemed();
             redeemed |= indexRedeemed;
 
-            ERC20(e.rewards[index]).safeTransfer(
+            ERC20(address(uint160(bytes20(e.rewards[index])))).safeTransfer(
                 receiver,
                 (e.snapshotRewards[index] * snapshotBalance) / snapshotSupply
             );
@@ -851,7 +853,7 @@ contract PirexCvx is
         if (receiver == address(0)) revert ZeroAddress();
 
         // Prevent users from burning their futures notes before rewards are claimed
-        address[] memory r = epochs[epoch].rewards;
+        bytes32[] memory r = epochs[epoch].rewards;
         if (r.length == 0) revert NoRewards();
 
         emit RedeemFuturesRewards(epoch, receiver, r);
@@ -872,7 +874,7 @@ contract PirexCvx is
         // Loop over rewards and transfer the amount entitled to the rpCVX token holder
         for (uint256 i; i < rLen; ++i) {
             // Proportionate to the % of rpCVX owned out of the rpCVX total supply
-            ERC20(r[i]).safeTransfer(
+            ERC20(address(uint160(bytes20(r[i])))).safeTransfer(
                 receiver,
                 (f[i] * rpCvxBalance) / rpCvxTotalSupply
             );
