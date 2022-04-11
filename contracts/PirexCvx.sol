@@ -111,13 +111,11 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address indexed receiver,
         bool indexed shouldCompound
     );
-    event InitiateRedemption(
-        address indexed sender,
-        uint256 assets,
-        address indexed receiver,
-        uint256 unlockTime,
-        uint256 postFeeAmount,
-        uint256 feeAmount
+    event InitiateRedemptions(
+        uint8[] lockIndexes,
+        Futures indexed f,
+        uint256[] assets,
+        address indexed receiver
     );
     event Redeem(
         uint256 indexed unlockTime,
@@ -544,15 +542,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Track assets that needs to remain unlocked for redemptions
         outstandingRedemptions += postFeeAmount;
 
-        emit InitiateRedemption(
-            msg.sender,
-            assets,
-            receiver,
-            unlockTime,
-            postFeeAmount,
-            feeAmount
-        );
-
         // Mint upCVX with unlockTime as the id - validates `to`
         upCvx.mint(receiver, unlockTime, postFeeAmount, UNUSED_1155_DATA);
 
@@ -595,6 +584,13 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         uint8 lockLen = uint8(lockIndexes.length);
         if (lockLen == 0) revert EmptyArray();
         if (lockLen != assets.length) revert MismatchedArrayLengths();
+
+        emit InitiateRedemptions(
+            lockIndexes,
+            f,
+            assets,
+            receiver
+        );
 
         (, , , ICvxLocker.LockedBalance[] memory lockData) = cvxLocker
             .lockedBalances(address(this));

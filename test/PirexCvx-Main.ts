@@ -334,15 +334,14 @@ describe('PirexCvx-Main', function () {
         assets,
         receiver,
       ]);
-      const burnEvent1 = events[0];
-      const initiateEvent1 = events[1];
+      const initiateEvent = events[0];
+      const burnEvent1 = events[1];
       const mintFuturesEvent1 = events[3];
       const burnEvent2 = events[11];
-      const initiateEvent2 = events[12];
-      const mintFuturesEvent2 = events[14];
-      const pirexFeesApprovalEvent = events[23];
-      const treasuryFeeTransferEvent = events[26];
-      const contributorsFeeTransferEvent = events[28];
+      const mintFuturesEvent2 = events[13];
+      const pirexFeesApprovalEvent = events[22];
+      const treasuryFeeTransferEvent = events[25];
+      const contributorsFeeTransferEvent = events[27];
       const pCvxBalanceAfter = await unionPirex.balanceOf(admin.address);
       const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
       const upCvxBalanceAfter1 = await upCvx.balanceOf(
@@ -402,18 +401,16 @@ describe('PirexCvx-Main', function () {
       });
       expect(burnEvent1.args.from).to.not.equal(zeroAddress);
       validateEvent(
-        initiateEvent1,
-        'InitiateRedemption(address,uint256,address,uint256,uint256,uint256)',
+        initiateEvent,
+        'InitiateRedemptions(uint8[],uint8,uint256[],address)',
         {
-          sender: admin.address,
-          assets: assets[0],
+          lockIndexes,
+          f,
+          assets,
           receiver,
-          unlockTime: unlockTime1,
-          postFeeAmount: postFeeAmount1,
-          feeAmount: feeAmount1,
         }
       );
-      expect(initiateEvent1.args.to).to.not.equal(zeroAddress);
+      expect(initiateEvent.args.to).to.not.equal(zeroAddress);
       validateEvent(
         mintFuturesEvent1,
         'MintFutures(uint8,uint8,uint256,address)',
@@ -430,19 +427,6 @@ describe('PirexCvx-Main', function () {
         value: postFeeAmount2,
       });
       expect(burnEvent2.args.from).to.not.equal(zeroAddress);
-      validateEvent(
-        initiateEvent2,
-        'InitiateRedemption(address,uint256,address,uint256,uint256,uint256)',
-        {
-          sender: admin.address,
-          assets: assets[0],
-          receiver,
-          unlockTime: unlockTime2,
-          postFeeAmount: postFeeAmount2,
-          feeAmount: feeAmount2,
-        }
-      );
-      expect(initiateEvent2.args.to).to.not.equal(zeroAddress);
       validateEvent(
         mintFuturesEvent2,
         'MintFutures(uint8,uint8,uint256,address)',
