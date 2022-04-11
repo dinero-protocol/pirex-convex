@@ -6,6 +6,7 @@ import {ERC20Snapshot} from "@openzeppelin/contracts/token/ERC20/extensions/ERC2
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
+import {ERC1155Solmate} from "./ERC1155Solmate.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 import {PirexCvxConvex} from "./PirexCvxConvex.sol";
 import {PirexFees} from "./PirexFees.sol";
@@ -52,9 +53,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     enum Contract {
         PirexFees,
         UpCvx,
+        SpCvx,
         VpCvx,
         RpCvx,
-        SpCvx,
         UnionPirexVault
     }
 
@@ -79,10 +80,10 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     PirexFees public pirexFees;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
-    ERC1155PresetMinterSupply public upCvx;
+    ERC1155Solmate public upCvx;
+    ERC1155Solmate public spCvx;
     ERC1155PresetMinterSupply public vpCvx;
     ERC1155PresetMinterSupply public rpCvx;
-    ERC1155PresetMinterSupply public spCvx;
     UnionPirexVault public unionPirex;
 
     // Epochs mapped to epoch details
@@ -206,10 +207,10 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             _votiumMultiMerkleStash
         );
 
-        upCvx = new ERC1155PresetMinterSupply("");
+        upCvx = new ERC1155Solmate();
+        spCvx = new ERC1155Solmate();
         vpCvx = new ERC1155PresetMinterSupply("");
         rpCvx = new ERC1155PresetMinterSupply("");
-        spCvx = new ERC1155PresetMinterSupply("");
     }
 
     /** 
@@ -231,7 +232,12 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         }
 
         if (c == Contract.UpCvx) {
-            upCvx = ERC1155PresetMinterSupply(contractAddress);
+            upCvx = ERC1155Solmate(contractAddress);
+            return;
+        }
+
+        if (c == Contract.SpCvx) {
+            spCvx = ERC1155Solmate(contractAddress);
             return;
         }
 
@@ -242,11 +248,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         if (c == Contract.RpCvx) {
             rpCvx = ERC1155PresetMinterSupply(contractAddress);
-            return;
-        }
-
-        if (c == Contract.SpCvx) {
-            spCvx = ERC1155PresetMinterSupply(contractAddress);
             return;
         }
 

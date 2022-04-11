@@ -180,6 +180,27 @@ describe('PirexCvx-Base', function () {
       });
     });
 
+    it('Should set spCvx', async function () {
+      const spCvxBefore = await pCvx.spCvx();
+      const c = contractEnum.spCvx;
+      const contractAddress = admin.address;
+      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+        c,
+        contractAddress,
+      ]);
+      const spCvxAfter = await pCvx.spCvx();
+
+      await pCvx.setContract(c, spCvxBefore);
+
+      expect(spCvxBefore).to.not.equal(spCvxAfter);
+      expect(spCvxAfter).to.equal(contractAddress);
+      validateEvent(setEvent, 'SetContract(uint8,address)', {
+        c,
+        contractAddress,
+      });
+      expect(spCvxBefore).to.equal(await pCvx.spCvx());
+    });
+
     it('Should set vpCvx', async function () {
       const vpCvxBefore = await pCvx.vpCvx();
       const c = contractEnum.vpCvx;
@@ -218,27 +239,6 @@ describe('PirexCvx-Base', function () {
         c,
         contractAddress,
       });
-    });
-
-    it('Should set spCvx', async function () {
-      const spCvxBefore = await pCvx.spCvx();
-      const c = contractEnum.spCvx;
-      const contractAddress = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setContract, [
-        c,
-        contractAddress,
-      ]);
-      const spCvxAfter = await pCvx.spCvx();
-
-      await pCvx.setContract(c, spCvxBefore);
-
-      expect(spCvxBefore).to.not.equal(spCvxAfter);
-      expect(spCvxAfter).to.equal(contractAddress);
-      validateEvent(setEvent, 'SetContract(uint8,address)', {
-        c,
-        contractAddress,
-      });
-      expect(spCvxBefore).to.equal(await pCvx.spCvx());
     });
 
     it('Should set unionPirex', async function () {

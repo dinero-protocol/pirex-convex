@@ -692,6 +692,8 @@ describe('PirexCvx-Main', function () {
         receiver,
         expectedStakeExpiry
       );
+
+      console.log('spCvxBalanceBefore',)
       const events = await callAndReturnEvents(pCvx.stake, [
         rounds,
         f,
@@ -800,7 +802,7 @@ describe('PirexCvx-Main', function () {
 
       await expect(
         pCvx.unstake(id, invalidAssets, receiver)
-      ).to.be.revertedWith('ERC1155: burn amount exceeds balance');
+      ).to.be.revertedWith('VM Exception while processing transaction: reverted with panic code 0x11 (Arithmetic operation underflowed or overflowed outside of an unchecked block)');
 
       // Transfer funds back
       await spCvx
