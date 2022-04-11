@@ -334,18 +334,14 @@ describe('PirexCvx-Main', function () {
         assets,
         receiver,
       ]);
-      const burnEvent1 = events[0];
-      const approvalEvent1 = events[1];
-      const initiateEvent1 = events[2];
-      const treasuryFeeTransferEvent1 = events[5];
-      const contributorsFeeTransferEvent1 = events[7];
-      const mintFuturesEvent1 = events[9];
-      const burnEvent2 = events[17];
-      const approvalEvent2 = events[18];
-      const initiateEvent2 = events[19];
-      const treasuryFeeTransferEvent2 = events[22];
-      const contributorsFeeTransferEvent2 = events[24];
-      const mintFuturesEvent2 = events[26];
+      const initiateEvent = events[0];
+      const burnEvent1 = events[1];
+      const mintFuturesEvent1 = events[3];
+      const burnEvent2 = events[11];
+      const mintFuturesEvent2 = events[13];
+      const pirexFeesApprovalEvent = events[22];
+      const treasuryFeeTransferEvent = events[25];
+      const contributorsFeeTransferEvent = events[27];
       const pCvxBalanceAfter = await unionPirex.balanceOf(admin.address);
       const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
       const upCvxBalanceAfter1 = await upCvx.balanceOf(
@@ -385,11 +381,12 @@ describe('PirexCvx-Main', function () {
         currentEpoch
       );
       const totalAssets = assets[0].add(assets[1]);
-      const totalFees = postFeeAmount1.add(postFeeAmount2);
+      const totalFeeAmounts = feeAmount1.add(feeAmount2);
+      const totalPostFeeAmounts = postFeeAmount1.add(postFeeAmount2);
 
       expect(pCvxBalanceAfter).to.equal(pCvxBalanceBefore.sub(totalAssets));
       expect(outstandingRedemptionsAfter).to.equal(
-        outstandingRedemptionsBefore.add(totalFees)
+        outstandingRedemptionsBefore.add(totalPostFeeAmounts)
       );
       expect(upCvxBalanceAfter1).to.equal(
         upCvxBalanceBefore1.add(postFeeAmount1)
@@ -403,49 +400,17 @@ describe('PirexCvx-Main', function () {
         value: postFeeAmount1,
       });
       expect(burnEvent1.args.from).to.not.equal(zeroAddress);
-      validateEvent(approvalEvent1, 'Approval(address,address,uint256)', {
-        owner: msgSender,
-        spender: pirexFees.address,
-        value: feeAmount1,
-      });
-      expect(approvalEvent1.args.owner).to.not.equal(zeroAddress);
-      expect(approvalEvent1.args.spender).to.not.equal(zeroAddress);
-      expect(approvalEvent1.args.value).to.not.equal(0);
       validateEvent(
-        treasuryFeeTransferEvent1,
-        'Transfer(address,address,uint256)',
+        initiateEvent,
+        'InitiateRedemptions(uint256[],uint8,uint256[],address)',
         {
-          from: msgSender,
-          to: await pirexFees.treasury(),
-          value: feeAmount1
-            .mul(await pirexFees.treasuryPercent())
-            .div(await pirexFees.PERCENT_DENOMINATOR()),
-        }
-      );
-      validateEvent(
-        contributorsFeeTransferEvent1,
-        'Transfer(address,address,uint256)',
-        {
-          from: msgSender,
-          to: await pirexFees.contributors(),
-          value: feeAmount1
-            .mul(await pirexFees.contributorsPercent())
-            .div(await pirexFees.PERCENT_DENOMINATOR()),
-        }
-      );
-      validateEvent(
-        initiateEvent1,
-        'InitiateRedemption(address,uint256,address,uint256,uint256,uint256)',
-        {
-          sender: admin.address,
-          assets: assets[0],
+          lockIndexes: lockIndexes.map(l => toBN(l)),
+          f,
+          assets,
           receiver,
-          unlockTime: unlockTime1,
-          postFeeAmount: postFeeAmount1,
-          feeAmount: feeAmount1,
         }
       );
-      expect(initiateEvent1.args.to).to.not.equal(zeroAddress);
+      expect(initiateEvent.args.to).to.not.equal(zeroAddress);
       validateEvent(
         mintFuturesEvent1,
         'MintFutures(uint8,uint8,uint256,address)',
@@ -462,49 +427,6 @@ describe('PirexCvx-Main', function () {
         value: postFeeAmount2,
       });
       expect(burnEvent2.args.from).to.not.equal(zeroAddress);
-      validateEvent(approvalEvent2, 'Approval(address,address,uint256)', {
-        owner: msgSender,
-        spender: pirexFees.address,
-        value: feeAmount2,
-      });
-      expect(approvalEvent2.args.owner).to.not.equal(zeroAddress);
-      expect(approvalEvent2.args.spender).to.not.equal(zeroAddress);
-      expect(approvalEvent2.args.value).to.not.equal(0);
-      validateEvent(
-        treasuryFeeTransferEvent2,
-        'Transfer(address,address,uint256)',
-        {
-          from: msgSender,
-          to: await pirexFees.treasury(),
-          value: feeAmount2
-            .mul(await pirexFees.treasuryPercent())
-            .div(await pirexFees.PERCENT_DENOMINATOR()),
-        }
-      );
-      validateEvent(
-        contributorsFeeTransferEvent2,
-        'Transfer(address,address,uint256)',
-        {
-          from: msgSender,
-          to: await pirexFees.contributors(),
-          value: feeAmount2
-            .mul(await pirexFees.contributorsPercent())
-            .div(await pirexFees.PERCENT_DENOMINATOR()),
-        }
-      );
-      validateEvent(
-        initiateEvent2,
-        'InitiateRedemption(address,uint256,address,uint256,uint256,uint256)',
-        {
-          sender: admin.address,
-          assets: assets[0],
-          receiver,
-          unlockTime: unlockTime2,
-          postFeeAmount: postFeeAmount2,
-          feeAmount: feeAmount2,
-        }
-      );
-      expect(initiateEvent2.args.to).to.not.equal(zeroAddress);
       validateEvent(
         mintFuturesEvent2,
         'MintFutures(uint8,uint8,uint256,address)',
@@ -513,6 +435,36 @@ describe('PirexCvx-Main', function () {
           f,
           assets: assets[0],
           receiver,
+        }
+      );
+      validateEvent(pirexFeesApprovalEvent, 'Approval(address,address,uint256)', {
+        owner: msgSender,
+        spender: pirexFees.address,
+        value: totalFeeAmounts,
+      });
+      expect(pirexFeesApprovalEvent.args.owner).to.not.equal(zeroAddress);
+      expect(pirexFeesApprovalEvent.args.spender).to.not.equal(zeroAddress);
+      expect(pirexFeesApprovalEvent.args.value).to.not.equal(0);
+      validateEvent(
+        treasuryFeeTransferEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: msgSender,
+          to: await pirexFees.treasury(),
+          value: totalFeeAmounts
+            .mul(await pirexFees.treasuryPercent())
+            .div(await pirexFees.PERCENT_DENOMINATOR()),
+        }
+      );
+      validateEvent(
+        contributorsFeeTransferEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: msgSender,
+          to: await pirexFees.contributors(),
+          value: totalFeeAmounts
+            .mul(await pirexFees.contributorsPercent())
+            .div(await pirexFees.PERCENT_DENOMINATOR()),
         }
       );
       expect(
@@ -565,126 +517,6 @@ describe('PirexCvx-Main', function () {
       await expect(
         pCvx.initiateRedemptions(lockIndexes, f, invalidAssets, receiver)
       ).to.be.revertedWith('InsufficientRedemptionAllowance()');
-    });
-  });
-
-  describe('initiateRedemption', function () {
-    before(async () => {
-      const amount = toBN(1e18);
-
-      await cvx.approve(pCvx.address, amount);
-      await pCvx.deposit(amount, admin.address, false);
-    });
-
-    it('Should revert if receiver is zero address', async function () {
-      const lockIndex = 0;
-      const f = futuresEnum.reward;
-      const assets = toBN(1e18);
-      const invalidReceiver = zeroAddress;
-
-      await expect(
-        pCvx.initiateRedemption(lockIndex, f, assets, invalidReceiver)
-      ).to.be.revertedWith('ZeroAddress()');
-    });
-
-    it('Should initiate a single redemption', async function () {
-      const { timestamp } = await ethers.provider.getBlock('latest');
-      const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
-      const lockIndex = 0;
-      const f = futuresEnum.reward;
-      const assets = toBN(1e18);
-      const receiver = admin.address;
-      const msgSender = admin.address;
-      const pCvxBalanceBefore = await pCvx.balanceOf(msgSender);
-      const { unlockTime } = lockData[lockIndex];
-
-      await pCvx.increaseAllowance(pCvx.address, assets);
-
-      const events = await callAndReturnEvents(pCvx.initiateRedemption, [
-        lockIndex,
-        f,
-        assets,
-        receiver,
-      ]);
-      const burnEvent = events[0];
-      const approvalEvent = events[1];
-      const initiateEvent = events[2];
-      const treasuryFeeTransferEvent = events[5];
-      const contributorsFeeTransferEvent = events[7];
-      const mintFuturesEvent = events[9];
-      const pCvxBalanceAfter = await pCvx.balanceOf(msgSender);
-      const remainingTime = toBN(unlockTime).sub(timestamp);
-      const feeMin = toBN(await pCvx.fees(feesEnum.redemptionMin));
-      const feeMax = toBN(await pCvx.fees(feesEnum.redemptionMax));
-      const maxRedemptionTime = await pCvx.MAX_REDEMPTION_TIME();
-      const feeDenominator = await pCvx.FEE_DENOMINATOR();
-      const feePercent = feeMax.sub(
-        feeMax.sub(feeMin).mul(remainingTime).div(maxRedemptionTime)
-      );
-      const feeAmount = assets.mul(feePercent).div(feeDenominator);
-      const postFeeAmount = assets.sub(feeAmount);
-      const expectedRewardsRounds = remainingTime.div(epochDuration);
-
-      expect(pCvxBalanceAfter).to.equal(pCvxBalanceBefore.sub(assets));
-      validateEvent(burnEvent, 'Transfer(address,address,uint256)', {
-        from: msgSender,
-        to: zeroAddress,
-        value: postFeeAmount,
-      });
-      expect(burnEvent.args.from).to.not.equal(zeroAddress);
-      validateEvent(approvalEvent, 'Approval(address,address,uint256)', {
-        owner: msgSender,
-        spender: pirexFees.address,
-        value: feeAmount,
-      });
-      expect(approvalEvent.args.owner).to.not.equal(zeroAddress);
-      expect(approvalEvent.args.spender).to.not.equal(zeroAddress);
-      expect(approvalEvent.args.value).to.not.equal(0);
-      validateEvent(
-        treasuryFeeTransferEvent,
-        'Transfer(address,address,uint256)',
-        {
-          from: msgSender,
-          to: await pirexFees.treasury(),
-          value: feeAmount
-            .mul(await pirexFees.treasuryPercent())
-            .div(await pirexFees.PERCENT_DENOMINATOR()),
-        }
-      );
-      validateEvent(
-        contributorsFeeTransferEvent,
-        'Transfer(address,address,uint256)',
-        {
-          from: msgSender,
-          to: await pirexFees.contributors(),
-          value: feeAmount
-            .mul(await pirexFees.contributorsPercent())
-            .div(await pirexFees.PERCENT_DENOMINATOR()),
-        }
-      );
-      validateEvent(
-        initiateEvent,
-        'InitiateRedemption(address,uint256,address,uint256,uint256,uint256)',
-        {
-          sender: admin.address,
-          assets,
-          receiver,
-          unlockTime,
-          postFeeAmount,
-          feeAmount,
-        }
-      );
-      expect(initiateEvent.args.to).to.not.equal(zeroAddress);
-      validateEvent(
-        mintFuturesEvent,
-        'MintFutures(uint8,uint8,uint256,address)',
-        {
-          rounds: expectedRewardsRounds,
-          f,
-          assets,
-          receiver,
-        }
-      );
     });
   });
 

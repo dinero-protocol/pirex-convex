@@ -10,6 +10,7 @@ import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol"
 import {PirexCvxConvex} from "./PirexCvxConvex.sol";
 import {PirexFees} from "./PirexFees.sol";
 import {UnionPirexVault} from "./UnionPirexVault.sol";
+import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 
 contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     using SafeERC20 for ERC20;
@@ -110,13 +111,11 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address indexed receiver,
         bool indexed shouldCompound
     );
-    event InitiateRedemption(
-        address indexed sender,
-        uint256 assets,
-        address indexed receiver,
-        uint256 unlockTime,
-        uint256 postFeeAmount,
-        uint256 feeAmount
+    event InitiateRedemptions(
+        uint256[] lockIndexes,
+        Futures indexed f,
+        uint256[] assets,
+        address indexed receiver
     );
     event Redeem(
         uint256 indexed unlockTime,
@@ -499,32 +498,34 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Initiate CVX redemption
-        @param  lockIndex  uint8    Locked balance index
-        @param  f          enum     Futures enum
-        @param  assets     uint256  pCVX amount
-        @param  receiver   address  Receives upCVX
+        @param  lockData   ICvxLocker.LockedBalance  Locked balance index
+        @param  f          enum                      Futures enum
+        @param  assets     uint256                   pCVX amount
+        @param  receiver   address                   Receives upCVX
+        @param  feeMin     uint256                   Initiate redemption fee min
+        @param  feeMax     uint256                   Initiate redemption fee max
+        @return feeAmount  uint256                   Fee amount
      */
     function _initiateRedemption(
-        uint8 lockIndex,
+        ICvxLocker.LockedBalance memory lockData,
         Futures f,
         uint256 assets,
-        address receiver
-    ) internal {
+        address receiver,
+        uint256 feeMin,
+        uint256 feeMax
+    ) internal returns (uint256 feeAmount) {
         if (assets == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
-        // Validates `lockIndex` is within bounds of the array - reverts otherwise
-        (uint256 lockAmount, uint256 unlockTime) = _getLockData(lockIndex);
+        uint256 unlockTime = lockData.unlockTime;
+        uint256 lockAmount = lockData.amount;
 
         // Calculate the fee based on the duration a user has to wait before redeeming CVX
-        uint192 waitTime = uint192(unlockTime - block.timestamp);
-        uint32 feeMax = fees[Fees.RedemptionMax];
-        uint32 feePercent = uint32(
-            feeMax -
-                (((feeMax - fees[Fees.RedemptionMin]) * waitTime) /
-                    MAX_REDEMPTION_TIME)
-        );
-        uint256 feeAmount = (assets * feePercent) / FEE_DENOMINATOR;
+        uint256 waitTime = unlockTime - block.timestamp;
+        uint256 feePercent = feeMax - (((feeMax - feeMin) * waitTime) / MAX_REDEMPTION_TIME);
+
+        feeAmount = (assets * feePercent) / FEE_DENOMINATOR;
+
         uint256 postFeeAmount = assets - feeAmount;
 
         // Increment redemptions for this unlockTime to prevent over-redeeming
@@ -537,28 +538,14 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Burn pCVX - reverts if sender balance is insufficient
         _burn(msg.sender, postFeeAmount);
 
-        // Allow PirexFees to distribute fees directly from sender
-        _approve(msg.sender, address(pirexFees), feeAmount);
-
         // Track assets that needs to remain unlocked for redemptions
         outstandingRedemptions += postFeeAmount;
-
-        emit InitiateRedemption(
-            msg.sender,
-            assets,
-            receiver,
-            unlockTime,
-            postFeeAmount,
-            feeAmount
-        );
-
-        // Distribute fees
-        pirexFees.distributeFees(msg.sender, address(this), feeAmount);
 
         // Mint upCVX with unlockTime as the id - validates `to`
         upCvx.mint(receiver, unlockTime, postFeeAmount, UNUSED_1155_DATA);
 
         // Determine how many futures notes rounds to mint
+        // TODO: Replace uint8 with uint256 in next PR for mintFutures
         uint8 rounds = uint8(waitTime / EPOCH_DURATION);
 
         // Check if the lock was in the first week/half of an epoch
@@ -577,22 +564,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         // Mint vpCVX or rpCVX (using assets as we do not take a fee from this)
         _mintFutures(rounds, f, assets, receiver);
-    }
 
-    /**
-        @notice Initiate CVX redemption
-        @param  lockIndex  uint8[]  Locked balance index
-        @param  f          enum     Futures enum
-        @param  assets     uint256  pCVX amounts
-        @param  receiver   address  Receives upCVX
-     */
-    function initiateRedemption(
-        uint8 lockIndex,
-        Futures f,
-        uint256 assets,
-        address receiver
-    ) external whenNotPaused nonReentrant {
-        _initiateRedemption(lockIndex, f, assets, receiver);
+        return feeAmount;
     }
 
     /**
@@ -603,18 +576,39 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         @param  receiver     address    Receives upCVX
      */
     function initiateRedemptions(
-        uint8[] calldata lockIndexes,
+        uint256[] calldata lockIndexes,
         Futures f,
         uint256[] calldata assets,
         address receiver
     ) external whenNotPaused nonReentrant {
-        uint8 lockLen = uint8(lockIndexes.length);
+        uint256 lockLen = lockIndexes.length;
         if (lockLen == 0) revert EmptyArray();
         if (lockLen != assets.length) revert MismatchedArrayLengths();
 
-        for (uint8 i; i < lockLen; ++i) {
-            _initiateRedemption(lockIndexes[i], f, assets[i], receiver);
+        emit InitiateRedemptions(lockIndexes, f, assets, receiver);
+
+        (, , , ICvxLocker.LockedBalance[] memory lockData) = cvxLocker
+            .lockedBalances(address(this));
+        uint256 feeAmount;
+        uint256 feeMin = fees[Fees.RedemptionMin];
+        uint256 feeMax = fees[Fees.RedemptionMax];
+
+        for (uint256 i; i < lockLen; ++i) {
+            feeAmount += _initiateRedemption(
+                lockData[lockIndexes[i]],
+                f,
+                assets[i],
+                receiver,
+                feeMin,
+                feeMax
+            );
         }
+
+        // Allow PirexFees to distribute fees directly from sender
+        _approve(msg.sender, address(pirexFees), feeAmount);
+
+        // Distribute fees
+        pirexFees.distributeFees(msg.sender, address(this), feeAmount);
     }
 
     /**
