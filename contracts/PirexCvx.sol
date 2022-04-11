@@ -522,7 +522,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         // Calculate the fee based on the duration a user has to wait before redeeming CVX
         uint256 waitTime = unlockTime - block.timestamp;
-        uint256 feePercent = feeMax - (((feeMax - feeMin) * waitTime) / MAX_REDEMPTION_TIME);
+        uint256 feePercent = feeMax -
+            (((feeMax - feeMin) * waitTime) / MAX_REDEMPTION_TIME);
 
         feeAmount = (assets * feePercent) / FEE_DENOMINATOR;
 
@@ -534,9 +535,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Check if there is any sufficient allowance after factoring in redemptions by others
         if (redemptions[unlockTime] > lockAmount)
             revert InsufficientRedemptionAllowance();
-
-        // Burn pCVX - reverts if sender balance is insufficient
-        _burn(msg.sender, postFeeAmount);
 
         // Track assets that needs to remain unlocked for redemptions
         outstandingRedemptions += postFeeAmount;
@@ -589,11 +587,13 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
         (, , , ICvxLocker.LockedBalance[] memory lockData) = cvxLocker
             .lockedBalances(address(this));
+        uint256 totalAssets;
         uint256 feeAmount;
         uint256 feeMin = fees[Fees.RedemptionMin];
         uint256 feeMax = fees[Fees.RedemptionMax];
 
         for (uint256 i; i < lockLen; ++i) {
+            totalAssets += assets[i];
             feeAmount += _initiateRedemption(
                 lockData[lockIndexes[i]],
                 f,
@@ -603,6 +603,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
                 feeMax
             );
         }
+
+        // Burn pCVX - reverts if sender balance is insufficient
+        _burn(msg.sender, totalAssets - feeAmount);
 
         // Allow PirexFees to distribute fees directly from sender
         _approve(msg.sender, address(pirexFees), feeAmount);

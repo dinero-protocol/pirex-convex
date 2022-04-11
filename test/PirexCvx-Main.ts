@@ -335,13 +335,12 @@ describe('PirexCvx-Main', function () {
         receiver,
       ]);
       const initiateEvent = events[0];
-      const burnEvent1 = events[1];
-      const mintFuturesEvent1 = events[3];
-      const burnEvent2 = events[11];
-      const mintFuturesEvent2 = events[13];
-      const pirexFeesApprovalEvent = events[22];
-      const treasuryFeeTransferEvent = events[25];
-      const contributorsFeeTransferEvent = events[27];
+      const mintFuturesEvent1 = events[2];
+      const mintFuturesEvent2 = events[11];
+      const burnEvent = events[20];
+      const pirexFeesApprovalEvent = events[21];
+      const treasuryFeeTransferEvent = events[24];
+      const contributorsFeeTransferEvent = events[26];
       const pCvxBalanceAfter = await unionPirex.balanceOf(admin.address);
       const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
       const upCvxBalanceAfter1 = await upCvx.balanceOf(
@@ -394,12 +393,12 @@ describe('PirexCvx-Main', function () {
       expect(upCvxBalanceAfter2).to.equal(
         upCvxBalanceBefore2.add(postFeeAmount2)
       );
-      validateEvent(burnEvent1, 'Transfer(address,address,uint256)', {
+      validateEvent(burnEvent, 'Transfer(address,address,uint256)', {
         from: msgSender,
         to: zeroAddress,
-        value: postFeeAmount1,
+        value: totalPostFeeAmounts,
       });
-      expect(burnEvent1.args.from).to.not.equal(zeroAddress);
+      expect(burnEvent.args.from).to.not.equal(zeroAddress);
       validateEvent(
         initiateEvent,
         'InitiateRedemptions(uint256[],uint8,uint256[],address)',
@@ -421,19 +420,13 @@ describe('PirexCvx-Main', function () {
           receiver,
         }
       );
-      validateEvent(burnEvent2, 'Transfer(address,address,uint256)', {
-        from: msgSender,
-        to: zeroAddress,
-        value: postFeeAmount2,
-      });
-      expect(burnEvent2.args.from).to.not.equal(zeroAddress);
       validateEvent(
         mintFuturesEvent2,
         'MintFutures(uint8,uint8,uint256,address)',
         {
           rounds: expectedRewardsRounds2,
           f,
-          assets: assets[0],
+          assets: assets[1],
           receiver,
         }
       );
