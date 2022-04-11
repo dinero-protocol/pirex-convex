@@ -10,6 +10,7 @@ import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol"
 import {PirexCvxConvex} from "./PirexCvxConvex.sol";
 import {PirexFees} from "./PirexFees.sol";
 import {UnionPirexVault} from "./UnionPirexVault.sol";
+import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 
 contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     using SafeERC20 for ERC20;
@@ -499,13 +500,13 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Initiate CVX redemption
-        @param  lockIndex  uint8    Locked balance index
+        @param  lockData  ICvxLocker.LockedBalance    Locked balance index
         @param  f          enum     Futures enum
         @param  assets     uint256  pCVX amount
         @param  receiver   address  Receives upCVX
      */
     function _initiateRedemption(
-        uint8 lockIndex,
+        ICvxLocker.LockedBalance memory lockData,
         Futures f,
         uint256 assets,
         address receiver
@@ -513,8 +514,8 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (assets == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
-        // Validates `lockIndex` is within bounds of the array - reverts otherwise
-        (uint256 lockAmount, uint256 unlockTime) = _getLockData(lockIndex);
+        uint256 unlockTime = lockData.unlockTime;
+        uint256 lockAmount = lockData.amount;
 
         // Calculate the fee based on the duration a user has to wait before redeeming CVX
         uint192 waitTime = uint192(unlockTime - block.timestamp);
@@ -580,22 +581,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /**
-        @notice Initiate CVX redemption
-        @param  lockIndex  uint8[]  Locked balance index
-        @param  f          enum     Futures enum
-        @param  assets     uint256  pCVX amounts
-        @param  receiver   address  Receives upCVX
-     */
-    function initiateRedemption(
-        uint8 lockIndex,
-        Futures f,
-        uint256 assets,
-        address receiver
-    ) external whenNotPaused nonReentrant {
-        _initiateRedemption(lockIndex, f, assets, receiver);
-    }
-
-    /**
         @notice Initiate CVX redemptions
         @param  lockIndexes  uint8[]    Locked balance index
         @param  f            enum       Futures enum
@@ -612,8 +597,16 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (lockLen == 0) revert EmptyArray();
         if (lockLen != assets.length) revert MismatchedArrayLengths();
 
+        (, , , ICvxLocker.LockedBalance[] memory lockData) = cvxLocker
+            .lockedBalances(address(this));
+
         for (uint8 i; i < lockLen; ++i) {
-            _initiateRedemption(lockIndexes[i], f, assets[i], receiver);
+            _initiateRedemption(
+                lockData[lockIndexes[i]],
+                f,
+                assets[i],
+                receiver
+            );
         }
     }
 

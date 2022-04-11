@@ -201,23 +201,6 @@ contract PirexCvxConvex is Ownable, Pausable {
     }
 
     /** 
-        @notice Get Convex lock data at a specific index
-        @param  lockIndex   uint256  Lock data index
-        @return amount      uint256  CVX amount
-        @return unlockTime  uint256  CVX unlock time
-     */
-    function _getLockData(uint256 lockIndex)
-        internal
-        view
-        returns (uint256 amount, uint256 unlockTime)
-    {
-        (, , , ICvxLocker.LockedBalance[] memory lockData) = cvxLocker
-            .lockedBalances(address(this));
-
-        return (lockData[lockIndex].amount, lockData[lockIndex].unlockTime);
-    }
-
-    /** 
         @notice Set delegationSpace
         @param  _delegationSpace  string  Convex Snapshot delegation space
      */
