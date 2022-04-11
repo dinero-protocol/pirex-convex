@@ -250,7 +250,10 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             return;
         }
 
+        if (address(unionPirex) != address(0))
+            _approve(address(this), address(unionPirex), 0);
         unionPirex = UnionPirexVault(contractAddress);
+        _approve(address(this), address(unionPirex), type(uint256).max);
     }
 
     /** 
@@ -483,8 +486,6 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         emit Deposit(assets, receiver, shouldCompound);
 
         if (shouldCompound) {
-            _approve(address(this), address(unionPirex), assets);
-
             // Deposit pCVX into Union vault - user receives shares
             unionPirex.deposit(assets, receiver);
         }

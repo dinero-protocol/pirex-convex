@@ -118,11 +118,9 @@ describe('PirexCvx-Main', function () {
       ]);
       const pCvxMintEvent = events[0];
       const depositEvent = events[1];
-      const approvalEvent = events[2];
-      const pCvxTransferApprovalEvent = events[3];
-      const pCvxTransferEvent = events[4];
-      const vaultMintEvent = events[5];
-      const cvxTransferEvent = events[7];
+      const pCvxTransferEvent = events[2];
+      const vaultMintEvent = events[3];
+      const cvxTransferEvent = events[5];
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const lockedBalanceAfter = await cvxLocker.lockedBalanceOf(pCvx.address);
       const unionTotalAssetsAfter = await unionPirex.totalAssets();
@@ -144,22 +142,6 @@ describe('PirexCvx-Main', function () {
         assets,
         receiver,
       });
-
-      validateEvent(approvalEvent, 'Approval(address,address,uint256)', {
-        owner: pCvx.address,
-        spender: unionPirex.address,
-        value: assets,
-      });
-
-      validateEvent(
-        pCvxTransferApprovalEvent,
-        'Approval(address,address,uint256)',
-        {
-          owner: pCvx.address,
-          spender: unionPirex.address,
-          value: 0,
-        }
-      );
 
       validateEvent(pCvxTransferEvent, 'Transfer(address,address,uint256)', {
         from: pCvx.address,
