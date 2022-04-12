@@ -286,9 +286,6 @@ describe('PirexCvx-Reward', function () {
         .div(feePercentDenominator);
       const parsedRewards = rewards.map((r) => r.slice(0, 42));
 
-      console.log(parsedRewards);
-      console.log(tokens[0]);
-
       expect(parsedRewards.includes(tokens[0].toLowerCase())).to.equal(true);
       expect(parsedRewards.includes(tokens[1].toLowerCase())).to.equal(true);
       expect(votiumSnapshotRewards).to.deep.equal(
