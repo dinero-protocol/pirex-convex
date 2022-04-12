@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { BigNumber } from 'ethers';
+import { BigNumber as BigNumber2 } from 'bignumber.js';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 
@@ -29,9 +30,15 @@ export function validateEvent(event: any, signature: string, args: any) {
   // For arrays, we perform deep equality check instead
   Object.keys(args).forEach((k) => {
     if (Array.isArray(event.args[k])) {
-      expect(event.args[k]).to.deep.equal(args[k], `at ${k} in ${event.eventSignature}`);
+      expect(event.args[k]).to.deep.equal(
+        args[k],
+        `at ${k} in ${event.eventSignature}`
+      );
     } else {
-      expect(event.args[k]).to.equal(args[k], `at ${k} in ${event.eventSignature}`);
+      expect(event.args[k]).to.equal(
+        args[k],
+        `at ${k} in ${event.eventSignature}`
+      );
     }
   });
 }
@@ -49,6 +56,11 @@ export function convertBigNumberToNumber(bigNumber: BigNumber): number {
 
 export function toBN(num: number): BigNumber {
   return ethers.BigNumber.from(`${num}`);
+}
+
+// For when toBN just doesn't cut it
+export function toBN2(num: number): BigNumber2 {
+  return new BigNumber2(num);
 }
 
 export const impersonateAddressAndReturnSigner = async (
