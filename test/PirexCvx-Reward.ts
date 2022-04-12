@@ -284,9 +284,10 @@ describe('PirexCvx-Reward', function () {
       const expectedContributorsCrvFees = crvFee
         .mul(contributorsPercent)
         .div(feePercentDenominator);
+      const parsedRewards = rewards.map((r) => r.slice(0, 42));
 
-      expect(rewards.includes(tokens[0])).to.equal(true);
-      expect(rewards.includes(tokens[1])).to.equal(true);
+      expect(parsedRewards.includes(tokens[0].toLowerCase())).to.equal(true);
+      expect(parsedRewards.includes(tokens[1].toLowerCase())).to.equal(true);
       expect(votiumSnapshotRewards).to.deep.equal(
         expectedVotiumSnapshotRewards.amounts
       );
@@ -338,7 +339,7 @@ describe('PirexCvx-Reward', function () {
         {
           from: votium,
           to: pCvx.address,
-          value: amounts[0],
+          amount: amounts[0],
         }
       );
       validateEvent(
@@ -347,7 +348,7 @@ describe('PirexCvx-Reward', function () {
         {
           from: pCvx.address,
           to: treasury.address,
-          value: treasuryCvxBalanceAfter.sub(treasuryCvxBalanceBefore),
+          amount: treasuryCvxBalanceAfter.sub(treasuryCvxBalanceBefore),
         }
       );
       validateEvent(
@@ -356,7 +357,7 @@ describe('PirexCvx-Reward', function () {
         {
           from: pCvx.address,
           to: contributors.address,
-          value: contributorsCvxBalanceAfter.sub(contributorsCvxBalanceBefore),
+          amount: contributorsCvxBalanceAfter.sub(contributorsCvxBalanceBefore),
         }
       );
       validateEvent(
@@ -365,7 +366,7 @@ describe('PirexCvx-Reward', function () {
         {
           from: votium,
           to: pCvx.address,
-          value: amounts[1],
+          amount: amounts[1],
         }
       );
       validateEvent(
@@ -374,7 +375,7 @@ describe('PirexCvx-Reward', function () {
         {
           from: pCvx.address,
           to: treasury.address,
-          value: treasuryCrvBalanceAfter.sub(treasuryCrvBalanceBefore),
+          amount: treasuryCrvBalanceAfter.sub(treasuryCrvBalanceBefore),
         }
       );
       validateEvent(
@@ -383,7 +384,7 @@ describe('PirexCvx-Reward', function () {
         {
           from: pCvx.address,
           to: contributors.address,
-          value: contributorsCrvBalanceAfter.sub(contributorsCrvBalanceBefore),
+          amount: contributorsCrvBalanceAfter.sub(contributorsCrvBalanceBefore),
         }
       );
     });
@@ -670,17 +671,17 @@ describe('PirexCvx-Reward', function () {
       validateEvent(transferEvent1, 'Transfer(address,address,uint256)', {
         from: pCvx.address,
         to: receiver,
-        value: expectedSnapshotCrvRewards[0],
+        amount: expectedSnapshotCrvRewards[0],
       });
       validateEvent(transferEvent2, 'Transfer(address,address,uint256)', {
         from: pCvx.address,
         to: receiver,
-        value: expectedSnapshotCvxRewards,
+        amount: expectedSnapshotCvxRewards,
       });
       validateEvent(transferEvent3, 'Transfer(address,address,uint256)', {
         from: pCvx.address,
         to: receiver,
-        value: expectedSnapshotCrvRewards[1],
+        amount: expectedSnapshotCrvRewards[1],
       });
     });
 
@@ -805,7 +806,7 @@ describe('PirexCvx-Reward', function () {
       );
       validateEvent(
         redeemEvent,
-        'RedeemFuturesRewards(uint256,address,address[])',
+        'RedeemFuturesRewards(uint256,address,bytes32[])',
         {
           epoch,
           receiver,

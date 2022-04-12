@@ -43,6 +43,8 @@ describe('PirexCvx-Base', function () {
   let convexContractEnum: any;
   let feesEnum: any;
 
+  const uint256Max = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+
   before(async function () {
     ({
       admin,
@@ -178,6 +180,27 @@ describe('PirexCvx-Base', function () {
       });
     });
 
+    it('Should set spCvx', async function () {
+      const spCvxBefore = await pCvx.spCvx();
+      const c = contractEnum.spCvx;
+      const contractAddress = admin.address;
+      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+        c,
+        contractAddress,
+      ]);
+      const spCvxAfter = await pCvx.spCvx();
+
+      await pCvx.setContract(c, spCvxBefore);
+
+      expect(spCvxBefore).to.not.equal(spCvxAfter);
+      expect(spCvxAfter).to.equal(contractAddress);
+      validateEvent(setEvent, 'SetContract(uint8,address)', {
+        c,
+        contractAddress,
+      });
+      expect(spCvxBefore).to.equal(await pCvx.spCvx());
+    });
+
     it('Should set vpCvx', async function () {
       const vpCvxBefore = await pCvx.vpCvx();
       const c = contractEnum.vpCvx;
@@ -218,43 +241,73 @@ describe('PirexCvx-Base', function () {
       });
     });
 
-    it('Should set spCvx', async function () {
-      const spCvxBefore = await pCvx.spCvx();
-      const c = contractEnum.spCvx;
-      const contractAddress = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setContract, [
-        c,
-        contractAddress,
-      ]);
-      const spCvxAfter = await pCvx.spCvx();
-
-      await pCvx.setContract(c, spCvxBefore);
-
-      expect(spCvxBefore).to.not.equal(spCvxAfter);
-      expect(spCvxAfter).to.equal(contractAddress);
-      validateEvent(setEvent, 'SetContract(uint8,address)', {
-        c,
-        contractAddress,
-      });
-      expect(spCvxBefore).to.equal(await pCvx.spCvx());
-    });
-
     it('Should set unionPirex', async function () {
       const unionPirexBefore = await pCvx.unionPirex();
       const c = contractEnum.unionPirex;
       const contractAddress = unionPirex.address;
-      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+      const events = await callAndReturnEvents(pCvx.setContract, [
         c,
         contractAddress,
       ]);
+      const setEvent = events[0];
+      const approvalEvent = events[1];
       const unionPirexAfter = await pCvx.unionPirex();
 
       expect(unionPirexBefore).to.not.equal(unionPirexAfter);
       expect(unionPirexAfter).to.equal(contractAddress);
       validateEvent(setEvent, 'SetContract(uint8,address)', {
         c,
-        contractAddress: contractAddress,
+        contractAddress,
       });
+      validateEvent(approvalEvent, 'Approval(address,address,uint256)', {
+        owner: pCvx.address,
+        spender: contractAddress,
+        amount: uint256Max,
+      });
+    });
+
+    it('Should replace unionPirex', async function () {
+      const unionPirexAllowanceBefore = await pCvx.allowance(pCvx.address, unionPirex.address);
+      const adminAllowanceBefore = await pCvx.allowance(pCvx.address, admin.address);
+      const unionPirexBefore = await pCvx.unionPirex();
+      const c = contractEnum.unionPirex;
+      const contractAddress = admin.address;
+      const events = await callAndReturnEvents(pCvx.setContract, [
+        c,
+        contractAddress,
+      ]);
+      const setEvent = events[0];
+      const approvalEvent1 = events[1];
+      const approvalEvent2 = events[2];
+      const unionPirexAfter = await pCvx.unionPirex();
+      const unionPirexAllowanceAfter = await pCvx.allowance(pCvx.address, unionPirex.address);
+      const adminAllowanceAfter = await pCvx.allowance(pCvx.address, admin.address);
+
+      expect(unionPirexBefore).to.not.equal(unionPirexAfter);
+      expect(unionPirexAfter).to.equal(contractAddress);
+      expect(unionPirexAllowanceBefore).to.not.equal(unionPirexAllowanceAfter);
+      expect(unionPirexAllowanceBefore).to.equal(uint256Max);
+      expect(unionPirexAllowanceAfter).to.equal(0);
+      expect(adminAllowanceBefore).to.not.equal(adminAllowanceAfter)
+      expect(adminAllowanceBefore).to.equal(0);
+      expect(adminAllowanceAfter).to.equal(uint256Max)
+      validateEvent(setEvent, 'SetContract(uint8,address)', {
+        c,
+        contractAddress,
+      });
+      validateEvent(approvalEvent1, 'Approval(address,address,uint256)', {
+        owner: pCvx.address,
+        spender: unionPirex.address,
+        amount: 0,
+      });
+      validateEvent(approvalEvent2, 'Approval(address,address,uint256)', {
+        owner: pCvx.address,
+        spender: contractAddress,
+        amount: uint256Max,
+      });
+
+      // Re-set to unionPirex.address to resume normal testing flow
+      await pCvx.setContract(c, unionPirex.address);
     });
   });
 

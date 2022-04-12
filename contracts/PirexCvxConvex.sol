@@ -3,14 +3,14 @@ pragma solidity 0.8.12;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
+import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
 import {ICvxRewardPool} from "./interfaces/ICvxRewardPool.sol";
 
 contract PirexCvxConvex is Ownable, Pausable {
-    using SafeERC20 for ERC20;
+    using SafeTransferLib for ERC20;
 
     /**
         @notice Convex reward details
@@ -83,7 +83,7 @@ contract PirexCvxConvex is Ownable, Pausable {
         cvxCRV = ERC20(_cvxCRV);
 
         // Max allowance for cvxLocker
-        CVX.safeIncreaseAllowance(address(cvxLocker), type(uint256).max);
+        CVX.safeApprove(address(cvxLocker), type(uint256).max);
     }
 
     /** 
@@ -115,7 +115,7 @@ contract PirexCvxConvex is Ownable, Pausable {
             // Revoke approval from the old locker and add allowances to the new locker
             CVX.safeApprove(address(cvxLocker), 0);
             cvxLocker = ICvxLocker(contractAddress);
-            CVX.safeIncreaseAllowance(contractAddress, type(uint256).max);
+            CVX.safeApprove(contractAddress, type(uint256).max);
             return;
         }
 
@@ -130,14 +130,6 @@ contract PirexCvxConvex is Ownable, Pausable {
         }
 
         cvxCRV = ERC20(contractAddress);
-    }
-
-    /**
-        @notice Lock CVX
-        @param  amount  uint256  CVX amount
-     */
-    function _lock(uint256 amount) internal {
-        cvxLocker.lock(address(this), amount, 0);
     }
 
     /**
@@ -159,7 +151,11 @@ contract PirexCvxConvex is Ownable, Pausable {
 
         if (balance > outstandingRedemptions) {
             unchecked {
-                _lock(balance - outstandingRedemptions);
+                cvxLocker.lock(
+                    address(this),
+                    balance - outstandingRedemptions,
+                    0
+                );
             }
         }
     }

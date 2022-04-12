@@ -1,32 +1,39 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import {ERC20Snapshot} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@rari-capital/solmate/src/utils/ReentrancyGuard.sol";
+import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
+import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
+import {Bytes32AddressLib} from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
+import {ERC20SnapshotSolmate} from "./ERC20SnapshotSolmate.sol";
 import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
+import {ERC1155Solmate} from "./ERC1155Solmate.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 import {PirexCvxConvex} from "./PirexCvxConvex.sol";
 import {PirexFees} from "./PirexFees.sol";
 import {UnionPirexVault} from "./UnionPirexVault.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 
-contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
-    using SafeERC20 for ERC20;
+contract PirexCvx is
+    ReentrancyGuard,
+    ERC20SnapshotSolmate,
+    PirexCvxConvex
+{
+    using SafeTransferLib for ERC20;
+    using Bytes32AddressLib for address;
 
     /**
         @notice Epoch details
         @notice Reward/snapshotRewards/futuresRewards indexes are associated with 1 reward
         @param  snapshotId               uint256    Snapshot id
-        @param  rewards                  address[]  Rewards
+        @param  rewards                  bytes32[]  Rewards
         @param  snapshotRewards          uint256[]  Snapshot reward amounts
         @param  futuresRewards           uint256[]  Futures reward amounts
         @param  redeemedSnapshotRewards  mapping    Redeemed snapshot rewards
      */
     struct Epoch {
         uint256 snapshotId;
-        address[] rewards;
+        bytes32[] rewards;
         uint256[] snapshotRewards;
         uint256[] futuresRewards;
         mapping(address => uint256) redeemedSnapshotRewards;
@@ -52,9 +59,9 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     enum Contract {
         PirexFees,
         UpCvx,
+        SpCvx,
         VpCvx,
         RpCvx,
-        SpCvx,
         UnionPirexVault
     }
 
@@ -79,10 +86,10 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     PirexFees public pirexFees;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
-    ERC1155PresetMinterSupply public upCvx;
+    ERC1155Solmate public upCvx;
+    ERC1155Solmate public spCvx;
     ERC1155PresetMinterSupply public vpCvx;
     ERC1155PresetMinterSupply public rpCvx;
-    ERC1155PresetMinterSupply public spCvx;
     UnionPirexVault public unionPirex;
 
     // Epochs mapped to epoch details
@@ -101,7 +108,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     event QueueFee(Fees indexed f, uint32 newFee, uint224 effectiveAfter);
     event SetFee(Fees indexed f, uint32 fee);
     event MintFutures(
-        uint8 rounds,
+        uint256 rounds,
         Futures indexed f,
         uint256 assets,
         address indexed receiver
@@ -118,12 +125,12 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address indexed receiver
     );
     event Redeem(
-        uint256 indexed unlockTime,
-        uint256 assets,
+        uint256[] unlockTimes,
+        uint256[] assets,
         address indexed receiver
     );
     event Stake(
-        uint8 rounds,
+        uint256 rounds,
         Futures indexed f,
         uint256 assets,
         address indexed receiver
@@ -145,7 +152,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     event RedeemFuturesRewards(
         uint256 indexed epoch,
         address indexed receiver,
-        address[] rewards
+        bytes32[] rewards
     );
     event ExchangeFutures(
         uint256 indexed epoch,
@@ -186,7 +193,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         address _pirexFees,
         address _votiumMultiMerkleStash
     )
-        ERC20("Pirex CVX", "pCVX")
+        ERC20SnapshotSolmate("Pirex CVX", "pCVX", 18)
         PirexCvxConvex(
             _CVX,
             _cvxLocker,
@@ -206,10 +213,10 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             _votiumMultiMerkleStash
         );
 
-        upCvx = new ERC1155PresetMinterSupply("");
+        upCvx = new ERC1155Solmate();
+        spCvx = new ERC1155Solmate();
         vpCvx = new ERC1155PresetMinterSupply("");
         rpCvx = new ERC1155PresetMinterSupply("");
-        spCvx = new ERC1155PresetMinterSupply("");
     }
 
     /** 
@@ -231,7 +238,12 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         }
 
         if (c == Contract.UpCvx) {
-            upCvx = ERC1155PresetMinterSupply(contractAddress);
+            upCvx = ERC1155Solmate(contractAddress);
+            return;
+        }
+
+        if (c == Contract.SpCvx) {
+            spCvx = ERC1155Solmate(contractAddress);
             return;
         }
 
@@ -245,12 +257,10 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             return;
         }
 
-        if (c == Contract.SpCvx) {
-            spCvx = ERC1155PresetMinterSupply(contractAddress);
-            return;
-        }
-
+        if (address(unionPirex) != address(0))
+            _approve(address(this), address(unionPirex), 0);
         unionPirex = UnionPirexVault(contractAddress);
+        _approve(address(this), address(unionPirex), type(uint256).max);
     }
 
     /** 
@@ -314,7 +324,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         view
         returns (
             uint256 snapshotId,
-            address[] memory rewards,
+            bytes32[] memory rewards,
             uint256[] memory snapshotRewards,
             uint256[] memory futuresRewards
         )
@@ -326,30 +336,30 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Mint futures tokens
-        @param  rounds    uint8    Rounds (i.e. Convex voting rounds)
+        @param  rounds    uint256    Rounds (i.e. Convex voting rounds)
         @param  f         enum     Futures enum
         @param  assets    uint256  Futures amount
         @param  receiver  address  Receives futures
     */
     function _mintFutures(
-        uint8 rounds,
+        uint256 rounds,
         Futures f,
         uint256 assets,
         address receiver
     ) internal {
         emit MintFutures(rounds, f, assets, receiver);
 
-        uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
         ERC1155PresetMinterSupply token = f == Futures.Vote ? vpCvx : rpCvx;
+        uint256 startingEpoch = getCurrentEpoch() + EPOCH_DURATION;
+        uint256[] memory tokenIds = new uint256[](rounds);
+        uint256[] memory amounts = new uint256[](rounds);
 
-        for (uint8 i; i < rounds; ++i) {
-            token.mint(
-                receiver,
-                startingEpoch + i * EPOCH_DURATION,
-                assets,
-                UNUSED_1155_DATA
-            );
+        for (uint256 i; i < rounds; ++i) {
+            tokenIds[i] = startingEpoch + i * EPOCH_DURATION;
+            amounts[i] = assets;
         }
+
+        token.mintBatch(receiver, tokenIds, amounts, UNUSED_1155_DATA);
     }
 
     /**
@@ -439,12 +449,12 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             );
 
         // Add reward token address and snapshot/futuresRewards amounts (same index for all)
-        e.rewards.push(token);
+        e.rewards.push(token.fillLast12Bytes());
         e.snapshotRewards.push(snapshotRewards);
         e.futuresRewards.push(futuresRewards);
 
         // Distribute fees
-        t.safeIncreaseAllowance(address(pirexFees), rewardFee);
+        t.safeApprove(address(pirexFees), rewardFee);
         pirexFees.distributeFees(address(this), token, rewardFee);
     }
 
@@ -474,7 +484,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (assets == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
-        // Perform epoch maintenance if necessary
+        // Take snapshot if necessary
         takeEpochSnapshot();
 
         // Mint pCVX - recipient depends on whether or not to compound
@@ -483,17 +493,15 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         emit Deposit(assets, receiver, shouldCompound);
 
         if (shouldCompound) {
-            _approve(address(this), address(unionPirex), assets);
-
-            // Deposit pCVX into pounder vault - user receives shares
+            // Deposit pCVX into Union vault - user receives shares
             unionPirex.deposit(assets, receiver);
         }
 
-        // Transfer CVX to self and approve for locking
+        // Transfer CVX to self in prepartion for lock
         CVX.safeTransferFrom(msg.sender, address(this), assets);
 
         // Lock CVX
-        _lock(assets);
+        cvxLocker.lock(address(this), assets, 0);
     }
 
     /**
@@ -543,8 +551,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         upCvx.mint(receiver, unlockTime, postFeeAmount, UNUSED_1155_DATA);
 
         // Determine how many futures notes rounds to mint
-        // TODO: Replace uint8 with uint256 in next PR for mintFutures
-        uint8 rounds = uint8(waitTime / EPOCH_DURATION);
+        uint256 rounds = waitTime / EPOCH_DURATION;
 
         // Check if the lock was in the first week/half of an epoch
         // Handle case where remaining time is between 1 and 2 weeks
@@ -568,7 +575,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
 
     /**
         @notice Initiate CVX redemptions
-        @param  lockIndexes  uint8[]    Locked balance index
+        @param  lockIndexes  uint256[]    Locked balance index
         @param  f            enum       Futures enum
         @param  assets       uint256[]  pCVX amounts
         @param  receiver     address    Receives upCVX
@@ -615,79 +622,56 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
     }
 
     /**
-        @notice Redeem CVX
-        @param  unlockTime  uint256  CVX unlock timestamp
-        @param  assets      uint256  upCVX amount
-        @param  receiver    address  Receives CVX
+        @notice Redeem CVX for specified unlock times
+        @param  unlockTimes  uint256[]  CVX unlock timestamps
+        @param  assets       uint256[]  upCVX amounts
+        @param  receiver     address    Receives CVX
      */
-    function _redeem(
-        uint256 unlockTime,
-        uint256 assets,
+    function redeem(
+        uint256[] calldata unlockTimes,
+        uint256[] calldata assets,
         address receiver
-    ) internal {
-        // Revert if CVX has not been unlocked and cannot be redeemed yet
-        if (unlockTime > block.timestamp) revert BeforeUnlock();
-        if (assets == 0) revert ZeroAmount();
+    ) external whenNotPaused nonReentrant {
+        uint256 unlockLen = unlockTimes.length;
+        if (unlockLen == 0) revert EmptyArray();
+        if (unlockLen != assets.length) revert MismatchedArrayLengths();
         if (receiver == address(0)) revert ZeroAddress();
 
-        emit Redeem(unlockTime, assets, receiver);
+        emit Redeem(unlockTimes, assets, receiver);
+
+        uint256 totalAssets;
+
+        for (uint256 i; i < unlockLen; ++i) {
+            uint256 asset = assets[i];
+
+            if (unlockTimes[i] > block.timestamp) revert BeforeUnlock();
+            if (asset == 0) revert ZeroAmount();
+
+            totalAssets += asset;
+        }
 
         // Unlock and relock if balance is greater than outstandingRedemptions
         _relock();
 
         // Subtract redemption amount from outstanding CVX amount
-        outstandingRedemptions -= assets;
+        outstandingRedemptions -= totalAssets;
 
         // Reverts if sender has an insufficient amount of upCVX with unlockTime id
-        upCvx.burn(msg.sender, unlockTime, assets);
+        upCvx.burnBatch(msg.sender, unlockTimes, assets);
 
         // Validates `to`
-        CVX.safeTransfer(receiver, assets);
-    }
-
-    /**
-        @notice Redeem CVX
-        @param  unlockTime  uint256  CVX unlock timestamp
-        @param  assets      uint256  upCVX amount
-        @param  receiver    address  Receives CVX
-     */
-    function redeem(
-        uint256 unlockTime,
-        uint256 assets,
-        address receiver
-    ) external whenNotPaused nonReentrant {
-        _redeem(unlockTime, assets, receiver);
-    }
-
-    /**
-        @notice Redeem CVX for multiple unlock times
-        @param  unlockTimes  uint256[]  CVX unlock timestamps
-        @param  assets       uint256[]  upCVX amounts
-        @param  receiver     address    Receives CVX
-     */
-    function redeemMulti(
-        uint256[] calldata unlockTimes,
-        uint256[] calldata assets,
-        address receiver
-    ) external whenNotPaused nonReentrant {
-        uint8 unlockLen = uint8(unlockTimes.length);
-        if (unlockLen == 0) revert EmptyArray();
-        if (unlockLen != assets.length) revert MismatchedArrayLengths();
-
-        for (uint8 i; i < unlockLen; ++i) {
-            _redeem(unlockTimes[i], assets[i], receiver);
-        }
+        CVX.safeTransfer(receiver, totalAssets);
     }
 
     /**
         @notice Stake pCVX
-        @param  rounds    uint8    Rounds (i.e. Convex voting rounds)
+        @param  rounds    uint256    Rounds (i.e. Convex voting rounds)
         @param  f         enum     Futures enum
         @param  assets    uint256  pCVX amount
         @param  receiver  address  Receives spCVX
     */
     function stake(
-        uint8 rounds,
+        uint256 rounds,
         Futures f,
         uint256 assets,
         address receiver
@@ -764,7 +748,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         Epoch storage e = epochs[currentEpoch];
         uint256 rpCvxSupply = rpCvx.totalSupply(currentEpoch);
 
-        for (uint8 i; i < tLen; ++i) {
+        for (uint256 i; i < tLen; ++i) {
             _claimVotiumReward(
                 e,
                 rpCvxSupply,
@@ -788,17 +772,17 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         // Claim rewards from Convex
         _getReward();
 
-        uint8 cLen = uint8(c.length);
+        uint256 cLen = c.length;
 
         // Iterate over rewards and distribute to stakeholders (rlBTRFLY, Redacted, and Pirex)
-        for (uint8 i; i < cLen; ++i) {
+        for (uint256 i; i < cLen; ++i) {
             if (c[i].amount == 0) continue;
 
             ERC20 t = ERC20(c[i].token);
             uint256 received = t.balanceOf(address(this)) - c[i].balance;
 
             // Distribute fees
-            t.safeIncreaseAllowance(address(pirexFees), received);
+            t.safeApprove(address(pirexFees), received);
             pirexFees.distributeFees(address(this), c[i].token, received);
         }
     }
@@ -844,7 +828,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
             if ((redeemed & indexRedeemed) != 0) revert AlreadyRedeemed();
             redeemed |= indexRedeemed;
 
-            ERC20(e.rewards[index]).safeTransfer(
+            ERC20(address(uint160(bytes20(e.rewards[index])))).safeTransfer(
                 receiver,
                 (e.snapshotRewards[index] * snapshotBalance) / snapshotSupply
             );
@@ -869,7 +853,7 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         if (receiver == address(0)) revert ZeroAddress();
 
         // Prevent users from burning their futures notes before rewards are claimed
-        address[] memory r = epochs[epoch].rewards;
+        bytes32[] memory r = epochs[epoch].rewards;
         if (r.length == 0) revert NoRewards();
 
         emit RedeemFuturesRewards(epoch, receiver, r);
@@ -885,12 +869,12 @@ contract PirexCvx is ReentrancyGuard, ERC20Snapshot, PirexCvxConvex {
         rpCvx.burn(msg.sender, epoch, rpCvxBalance);
 
         uint256[] memory f = epochs[epoch].futuresRewards;
-        uint8 rLen = uint8(r.length);
+        uint256 rLen = r.length;
 
         // Loop over rewards and transfer the amount entitled to the rpCVX token holder
-        for (uint8 i; i < rLen; ++i) {
+        for (uint256 i; i < rLen; ++i) {
             // Proportionate to the % of rpCVX owned out of the rpCVX total supply
-            ERC20(r[i]).safeTransfer(
+            ERC20(address(uint160(bytes20(r[i])))).safeTransfer(
                 receiver,
                 (f[i] * rpCvxBalance) / rpCvxTotalSupply
             );
