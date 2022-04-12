@@ -5,7 +5,7 @@ import { Promise } from 'bluebird';
 import { BigNumber } from 'ethers';
 import {
   ConvexToken,
-  CvxLocker,
+  CvxLockerV2,
   DelegateRegistry,
   PirexCvx,
   MultiMerkleStash,
@@ -26,8 +26,8 @@ let unionPirex: UnionPirexVault;
 let cvx: ConvexToken;
 let crv: Crv;
 let cvxCrvToken: any;
-let cvxLocker: CvxLocker;
-let cvxLockerNew: CvxLocker;
+let cvxLocker: CvxLockerV2;
+let cvxLockerNew: CvxLockerV2;
 let cvxDelegateRegistry: DelegateRegistry;
 let cvxRewardPool: CvxRewardPool;
 let votiumAddressRegistry: AddressRegistry;
@@ -66,10 +66,10 @@ before(async function () {
     rewardFactory.address
   );
   cvxLocker = await (
-    await ethers.getContractFactory('CvxLocker')
+    await ethers.getContractFactory('CvxLockerV2')
   ).deploy(cvx.address, cvxCrvToken.address, baseRewardPool.address);
   cvxLockerNew = await (
-    await ethers.getContractFactory('CvxLocker')
+    await ethers.getContractFactory('CvxLockerV2')
   ).deploy(cvx.address, cvxCrvToken.address, baseRewardPool.address);
   cvxRewardPool = await (
     await ethers.getContractFactory('CvxRewardPool')

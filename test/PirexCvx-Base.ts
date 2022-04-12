@@ -10,7 +10,7 @@ import {
 } from './helpers';
 import {
   ConvexToken,
-  CvxLocker,
+  CvxLockerV2,
   DelegateRegistry,
   PirexCvx,
   MultiMerkleStash,
@@ -29,7 +29,7 @@ describe('PirexCvx-Base', function () {
   let unionPirex: UnionPirexVault;
   let cvx: ConvexToken;
   let cvxCrvToken: any;
-  let cvxLocker: CvxLocker;
+  let cvxLocker: CvxLockerV2;
   let cvxDelegateRegistry: DelegateRegistry;
   let cvxRewardPool: CvxRewardPool;
   let votiumMultiMerkleStash: MultiMerkleStash;

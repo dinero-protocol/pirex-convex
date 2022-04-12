@@ -1,14 +1,14 @@
 import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { ConvexToken, CvxLocker, PirexCvx } from '../typechain-types';
+import { ConvexToken, CvxLockerV2, PirexCvx } from '../typechain-types';
 
-// Tests the emergency relock mechanism on CvxLocker shutdown
+// Tests the emergency relock mechanism on CvxLockerV2 shutdown
 describe('PirexCvx-Shutdown', function () {
   let notAdmin: SignerWithAddress;
   let pCvx: PirexCvx;
   let cvx: ConvexToken;
-  let cvxLocker: CvxLocker;
-  let cvxLockerNew: CvxLocker;
+  let cvxLocker: CvxLockerV2;
+  let cvxLockerNew: CvxLockerV2;
   let convexContractEnum: any;
 
   before(async function () {
@@ -38,7 +38,7 @@ describe('PirexCvx-Shutdown', function () {
       await expect(pCvx.unlock()).to.be.revertedWith('Pausable: not paused');
     });
 
-    it('Should relock any lockable CVX after the shutdown in CvxLocker', async function () {
+    it('Should relock any lockable CVX after the shutdown in CvxLockerV2', async function () {
       await pCvx.setPauseState(true);
 
       // Simulate shutdown in the old/current locker
