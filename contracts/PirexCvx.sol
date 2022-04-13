@@ -14,10 +14,7 @@ import {PirexFees} from "./PirexFees.sol";
 import {UnionPirexVault} from "./UnionPirexVault.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 
-contract PirexCvx is
-    ReentrancyGuard,
-    PirexCvxConvex
-{
+contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     using SafeTransferLib for ERC20;
     using Bytes32AddressLib for address;
 
@@ -629,7 +626,9 @@ contract PirexCvx is
         @param  votiumRewards  VotiumRewards[]  Votium rewards metadata
     */
     function claimVotiumRewards(VotiumReward[] calldata votiumRewards)
-        external whenNotPaused nonReentrant
+        external
+        whenNotPaused
+        nonReentrant
     {
         uint256 tLen = votiumRewards.length;
         if (tLen == 0) revert EmptyArray();
@@ -638,7 +637,7 @@ contract PirexCvx is
         pxCvx.takeEpochSnapshot();
 
         uint256 epoch = getCurrentEpoch();
-        (uint256 snapshotId, , ,) = pxCvx.getEpoch(epoch);
+        (uint256 snapshotId, , , ) = pxCvx.getEpoch(epoch);
         uint256 rpCvxSupply = rpCvx.totalSupply(epoch);
 
         for (uint256 i; i < tLen; ++i) {
@@ -687,7 +686,11 @@ contract PirexCvx is
 
             // Distribute fees
             t.safeApprove(address(pirexFees), rewardFee);
-            pirexFees.distributeFees(address(this), votiumReward.token, rewardFee);
+            pirexFees.distributeFees(
+                address(this),
+                votiumReward.token,
+                rewardFee
+            );
         }
     }
 
@@ -738,6 +741,7 @@ contract PirexCvx is
             uint256 snapshotId,
             bytes32[] memory rewards,
             uint256[] memory snapshotRewards,
+
         ) = pxCvx.getEpoch(epoch);
 
         // Used to update the redeemed flag locally before updating to the storage all at once for gas efficiency
@@ -790,12 +794,8 @@ contract PirexCvx is
         if (receiver == address(0)) revert ZeroAddress();
 
         // Prevent users from burning their futures notes before rewards are claimed
-        (
-            ,
-            bytes32[] memory rewards,
-            ,
-            uint256[] memory futuresRewards
-        ) = pxCvx.getEpoch(epoch);
+        (, bytes32[] memory rewards, , uint256[] memory futuresRewards) = pxCvx
+            .getEpoch(epoch);
 
         if (rewards.length == 0) revert NoRewards();
 

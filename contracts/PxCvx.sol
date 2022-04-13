@@ -131,9 +131,7 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
         bytes32 token,
         uint256 snapshotReward,
         uint256 futuresReward
-    )
-        external onlyOperator
-    {
+    ) external onlyOperator {
         Epoch storage e = epochs[epoch];
 
         e.rewards.push(token);
@@ -151,9 +149,7 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
         address account,
         uint256 epoch,
         uint256 redeemed
-    )
-        external onlyOperator
-    {
+    ) external onlyOperator {
         epochs[epoch].redeemedSnapshotRewards[account] = redeemed;
     }
 
