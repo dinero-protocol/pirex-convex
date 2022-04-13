@@ -27,9 +27,6 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
         mapping(address => uint256) redeemedSnapshotRewards;
     }
 
-    // Seconds between Convex voting rounds (2 weeks)
-    uint32 public constant EPOCH_DURATION = 1209600;
-
     // Address of currently assigned operator
     address public operator;
 
@@ -49,6 +46,7 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
     }
 
     modifier onlyOperatorOrNotPaused() {
+        // This contract shares the same pause state as the operator
         if (msg.sender != operator && Pausable(operator).paused()) revert Paused();
         _;
     }
