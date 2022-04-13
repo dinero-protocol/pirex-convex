@@ -62,6 +62,13 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
 
         emit SetOperator(_operator);
 
+        // If it's the first operator, also set up 1st epoch with snapshot id 1
+        // and prevent reward claims until subsequent epochs
+        if (operator == address(0)) {
+            uint256 currentEpoch = IPirexConvex(_operator).getCurrentEpoch();
+            epochs[currentEpoch].snapshotId = _snapshot();
+        }
+
         operator = _operator;
     }
 

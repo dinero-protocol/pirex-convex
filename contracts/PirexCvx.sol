@@ -173,6 +173,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
         @param  _cvxRewardPool           address  CvxRewardPool address
         @param  _cvxCRV                  address  CvxCrvToken address
+        @param  _pxCvx                   address  PxCvx address
         @param  _pirexFees               address  PirexFees address
         @param  _votiumMultiMerkleStash  address  VotiumMultiMerkleStash address
      */
@@ -207,11 +208,6 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         votiumMultiMerkleStash = IVotiumMultiMerkleStash(
             _votiumMultiMerkleStash
         );
-
-        upCvx = new ERC1155Solmate();
-        spCvx = new ERC1155Solmate();
-        vpCvx = new ERC1155PresetMinterSupply("");
-        rpCvx = new ERC1155PresetMinterSupply("");
     }
 
     /** 
@@ -229,9 +225,6 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
         if (c == Contract.PxCvx) {
             pxCvx = PxCvx(contractAddress);
-            // If it's the first take, it would also set up 1st epoch with snapshot id 1
-            // and prevent reward claims until subsequent epochs
-            pxCvx.takeEpochSnapshot();
             return;
         }
 

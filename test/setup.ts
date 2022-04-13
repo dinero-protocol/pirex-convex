@@ -174,6 +174,19 @@ before(async function () {
 
   await pxCvx.setOperator(this.pCvx.address);
 
+  const upCvx = await (
+    await ethers.getContractFactory('ERC1155Solmate')
+  ).deploy();
+  const spCvx = await (
+    await ethers.getContractFactory('ERC1155Solmate')
+  ).deploy();
+  const vpCvx = await (
+    await ethers.getContractFactory('ERC1155PresetMinterSupply')
+  ).deploy('');
+  const rpCvx = await (
+    await ethers.getContractFactory('ERC1155PresetMinterSupply')
+  ).deploy('');
+
   // Common constants
   this.feePercentDenominator = await pirexFees.PERCENT_DENOMINATOR();
   this.feeDenominator = await pCvx.FEE_DENOMINATOR();
@@ -207,6 +220,19 @@ before(async function () {
     redemptionMax: 1,
     redemptionMin: 2,
   };
+
+  // Setup ERC1155 base contracts for PirexCvx
+  await pCvx.setContract(this.contractEnum.upCvx, upCvx.address);
+  await pCvx.setContract(this.contractEnum.spCvx, spCvx.address);
+  await pCvx.setContract(this.contractEnum.vpCvx, vpCvx.address);
+  await pCvx.setContract(this.contractEnum.rpCvx, rpCvx.address);
+
+  // Enable minting rights for PirexCvx contract
+  await upCvx.transferOwnership(pCvx.address);
+  await spCvx.transferOwnership(pCvx.address);
+  const minterRole = await vpCvx.MINTER_ROLE();
+  await vpCvx.grantRole(minterRole, pCvx.address);
+  await rpCvx.grantRole(minterRole, pCvx.address);
 
   // Common helper methods
   this.getFuturesCvxBalances = async (
