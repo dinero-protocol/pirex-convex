@@ -229,6 +229,9 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
         if (c == Contract.PxCvx) {
             pxCvx = PxCvx(contractAddress);
+            // If it's the first take, it would also set up 1st epoch with snapshot id 1
+            // and prevent reward claims until subsequent epochs
+            pxCvx.takeEpochSnapshot();
             return;
         }
 

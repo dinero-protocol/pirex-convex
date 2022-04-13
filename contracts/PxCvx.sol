@@ -5,6 +5,10 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {ERC20SnapshotSolmate} from "./ERC20SnapshotSolmate.sol";
 
+interface IPirexConvex {
+    function getCurrentEpoch() external view returns (uint256);
+}
+
 contract PxCvx is ERC20SnapshotSolmate, Ownable {
     /**
         @notice Epoch details
@@ -44,15 +48,12 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
         _;
     }
 
-    modifier whenOperatorNotPaused() {
-        if (Pausable(operator).paused()) revert Paused();
+    modifier onlyOperatorOrNotPaused() {
+        if (msg.sender != operator && Pausable(operator).paused()) revert Paused();
         _;
     }
 
-    constructor() ERC20SnapshotSolmate("Pirex CVX", "pxCVX", 18) {
-        // Set up 1st epoch with snapshot id 1 and prevent reward claims until subsequent epochs
-        epochs[getCurrentEpoch()].snapshotId = _snapshot();
-    }
+    constructor() ERC20SnapshotSolmate("Pirex CVX", "pxCVX", 18) {}
 
     /** 
         @notice Set a new operator address
@@ -64,14 +65,6 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
         emit SetOperator(_operator);
 
         operator = _operator;
-    }
-
-    /**
-        @notice Get current epoch
-        @return uint256  Current  epoch
-     */
-    function getCurrentEpoch() public view returns (uint256) {
-        return (block.timestamp / EPOCH_DURATION) * EPOCH_DURATION;
     }
 
     /** 
@@ -197,8 +190,8 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
     /**
         @notice Snapshot token balances for the current epoch
      */
-    function takeEpochSnapshot() external whenOperatorNotPaused {
-        uint256 currentEpoch = getCurrentEpoch();
+    function takeEpochSnapshot() external onlyOperatorOrNotPaused {
+        uint256 currentEpoch = IPirexConvex(operator).getCurrentEpoch();
 
         // If snapshot has not been set for current epoch, take snapshot
         if (epochs[currentEpoch].snapshotId == 0) {

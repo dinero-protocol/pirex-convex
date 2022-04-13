@@ -170,8 +170,6 @@ before(async function () {
   this.pCvx = pCvx;
   this.unionPirex = unionPirex;
 
-  // Unpause only after initial setup is completed (setting all token contracts etc.)
-  await this.pCvx.setPauseState(false);
   await this.pirexFees.grantFeeDistributorRole(pCvx.address);
 
   await pxCvx.setOperator(this.pCvx.address);

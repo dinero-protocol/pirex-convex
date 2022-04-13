@@ -102,8 +102,9 @@ describe('PirexCvx-Base', function () {
       const spCvx = await pCvx.spCvx();
       const _name = await pxCvx.name();
       const _symbol = await pxCvx.symbol();
+      const paused = await pCvx.paused();
 
-      expect(snapshotId).to.equal(1);
+      expect(snapshotId).to.equal(0);
       expect(_CVX).to.equal(cvx.address);
       expect(_CVX).to.not.equal(zeroAddress);
       expect(_cvxLocker).to.equal(cvxLocker.address);
@@ -122,6 +123,7 @@ describe('PirexCvx-Base', function () {
       expect(spCvx).to.not.equal(zeroAddress);
       expect(_name).to.equal('Pirex CVX');
       expect(_symbol).to.equal('pxCVX');
+      expect(paused).to.be.true;
     });
   });
 
@@ -147,8 +149,15 @@ describe('PirexCvx-Base', function () {
     it('Should set pxCvx', async function () {
       const pxCvxBefore = await pCvx.pxCvx();
       const c = contractEnum.pxCvx;
-      const contractAddress = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+
+      // Deplyo a new temporary PxCvx contract for testing purposes
+      const newContract = await (
+        await ethers.getContractFactory('PxCvx')
+      ).deploy();
+      await newContract.setOperator(pCvx.address);
+      const contractAddress = newContract.address;
+
+      const [setEvent] = await callAndReturnEvents(pCvx.setContract, [
         c,
         contractAddress,
       ]);
@@ -516,6 +525,9 @@ describe('PirexCvx-Base', function () {
 
   describe('setFee', function () {
     after(async function () {
+      // Unpause only after initial setup is completed on previous steps (setting all token contracts etc.)
+      await this.pCvx.setPauseState(false);
+
       // Take a snapshot after setFee tests since we are forwarding an epoch below
       await pxCvx.takeEpochSnapshot();
     });
