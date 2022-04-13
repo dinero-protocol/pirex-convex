@@ -24,7 +24,7 @@ describe('PirexCvx-Shutdown', function () {
     });
 
     it('Should revert if not called by owner', async function () {
-      await expect(pCvx.connect(notAdmin).relock()).to.be.revertedWith(
+      await expect(pCvx.connect(notAdmin).pausedRelock()).to.be.revertedWith(
         'Ownable: caller is not the owner'
       );
 
@@ -44,7 +44,9 @@ describe('PirexCvx-Shutdown', function () {
     it('Should revert if not paused', async function () {
       await pCvx.setPauseState(false);
 
-      await expect(pCvx.relock()).to.be.revertedWith('Pausable: not paused');
+      await expect(pCvx.pausedRelock()).to.be.revertedWith(
+        'Pausable: not paused'
+      );
       await expect(pCvx.unlock()).to.be.revertedWith('Pausable: not paused');
       await expect(pCvx.setPirexCvxMigration(zeroAddress)).to.be.revertedWith(
         'Pausable: not paused'
@@ -102,7 +104,7 @@ describe('PirexCvx-Shutdown', function () {
       );
 
       // Attempt to relock with the new locker
-      await pCvxNew.relock();
+      await pCvxNew.pausedRelock();
 
       // Confirm that the correct amount of Cvx are relocked
       const lockedBalanceAfter = await cvxLockerNew.lockedBalanceOf(

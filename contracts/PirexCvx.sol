@@ -466,7 +466,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         CVX.safeTransferFrom(msg.sender, address(this), assets);
 
         // Lock CVX
-        cvxLocker.lock(address(this), assets, 0);
+        pendingLocks += assets;
     }
 
     /**
@@ -616,7 +616,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         }
 
         // Unlock and relock if balance is greater than outstandingRedemptions
-        _relock();
+        _lock();
 
         // Subtract redemption amount from outstanding CVX amount
         outstandingRedemptions -= totalAssets;
