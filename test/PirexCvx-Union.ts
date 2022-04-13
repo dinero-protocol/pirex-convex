@@ -1,8 +1,5 @@
 import { expect } from 'chai';
-import {
-  PxCvx,
-  UnionPirexVault,
-} from '../typechain-types';
+import { PxCvx, UnionPirexVault } from '../typechain-types';
 
 // Tests foundational units outside of the actual deposit flow
 describe('PirexCvx-Union', function () {

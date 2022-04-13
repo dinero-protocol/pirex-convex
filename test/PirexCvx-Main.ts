@@ -86,7 +86,9 @@ describe('PirexCvx-Main', function () {
 
       await expect(
         pCvx.deposit(invalidAssets, receiver, shouldCompound)
-      ).to.be.revertedWith("VM Exception while processing transaction: reverted with reason string 'TRANSFER_FROM_FAILED'");
+      ).to.be.revertedWith(
+        "VM Exception while processing transaction: reverted with reason string 'TRANSFER_FROM_FAILED'"
+      );
     });
 
     it('should revert if the contract is paused', async function () {
@@ -268,7 +270,9 @@ describe('PirexCvx-Main', function () {
         pCvx
           .connect(notAdmin)
           .initiateRedemptions(lockIndexes, f, invalidAssets, receiver)
-      ).to.be.revertedWith('VM Exception while processing transaction: reverted with panic code 0x11 (Arithmetic operation underflowed or overflowed outside of an unchecked block');
+      ).to.be.revertedWith(
+        'VM Exception while processing transaction: reverted with panic code 0x11 (Arithmetic operation underflowed or overflowed outside of an unchecked block'
+      );
     });
 
     it('should revert if the contract is paused', async function () {
@@ -390,7 +394,7 @@ describe('PirexCvx-Main', function () {
         initiateEvent,
         'InitiateRedemptions(uint256[],uint8,uint256[],address)',
         {
-          lockIndexes: lockIndexes.map(l => toBN(l)),
+          lockIndexes: lockIndexes.map((l) => toBN(l)),
           f,
           assets,
           receiver,
@@ -417,11 +421,15 @@ describe('PirexCvx-Main', function () {
           receiver,
         }
       );
-      validateEvent(pirexFeesApprovalEvent, 'Approval(address,address,uint256)', {
-        owner: msgSender,
-        spender: pirexFees.address,
-        amount: totalFeeAmounts,
-      });
+      validateEvent(
+        pirexFeesApprovalEvent,
+        'Approval(address,address,uint256)',
+        {
+          owner: msgSender,
+          spender: pirexFees.address,
+          amount: totalFeeAmounts,
+        }
+      );
       expect(pirexFeesApprovalEvent.args.owner).to.not.equal(zeroAddress);
       expect(pirexFeesApprovalEvent.args.spender).to.not.equal(zeroAddress);
       expect(pirexFeesApprovalEvent.args.value).to.not.equal(0);
@@ -551,8 +559,14 @@ describe('PirexCvx-Main', function () {
 
       await upCvx.setApprovalForAll(pCvx.address, true);
 
-      const upCvxBalanceBefore1 = await upCvx.balanceOf(admin.address, unlockTimes[0]);
-      const upCvxBalanceBefore2 = await upCvx.balanceOf(admin.address, unlockTimes[1]);
+      const upCvxBalanceBefore1 = await upCvx.balanceOf(
+        admin.address,
+        unlockTimes[0]
+      );
+      const upCvxBalanceBefore2 = await upCvx.balanceOf(
+        admin.address,
+        unlockTimes[1]
+      );
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const events = await callAndReturnEvents(pCvx.redeem, [
         unlockTimes,
@@ -563,8 +577,14 @@ describe('PirexCvx-Main', function () {
       const cvxTransferEvent = parseLog(pxCvx, events[14]);
       const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
       const totalAssets = assets[0].add(assets[1]);
-      const upCvxBalanceAfter1 = await upCvx.balanceOf(admin.address, unlockTimes[0]);
-      const upCvxBalanceAfter2 = await upCvx.balanceOf(admin.address, unlockTimes[1]);
+      const upCvxBalanceAfter1 = await upCvx.balanceOf(
+        admin.address,
+        unlockTimes[0]
+      );
+      const upCvxBalanceAfter2 = await upCvx.balanceOf(
+        admin.address,
+        unlockTimes[1]
+      );
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
 
       expect(upCvxBalanceAfter1).to.equal(upCvxBalanceBefore1.sub(assets[0]));
@@ -805,7 +825,9 @@ describe('PirexCvx-Main', function () {
 
       await expect(
         pCvx.unstake(id, invalidAssets, receiver)
-      ).to.be.revertedWith('VM Exception while processing transaction: reverted with panic code 0x11 (Arithmetic operation underflowed or overflowed outside of an unchecked block)');
+      ).to.be.revertedWith(
+        'VM Exception while processing transaction: reverted with panic code 0x11 (Arithmetic operation underflowed or overflowed outside of an unchecked block)'
+      );
 
       // Transfer funds back
       await spCvx

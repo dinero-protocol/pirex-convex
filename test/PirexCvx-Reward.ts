@@ -94,7 +94,9 @@ describe('PirexCvx-Reward', function () {
 
       await pxCvx.takeEpochSnapshot();
 
-      const { snapshotId: snapshotIdAfter } = await pxCvx.getEpoch(currentEpoch);
+      const { snapshotId: snapshotIdAfter } = await pxCvx.getEpoch(
+        currentEpoch
+      );
 
       expect(snapshotIdAfter).to.equal(snapshotIdBefore);
     });
@@ -102,9 +104,7 @@ describe('PirexCvx-Reward', function () {
     it('should revert if the contract is paused', async function () {
       await pCvx.setPauseState(true);
 
-      await expect(pxCvx.takeEpochSnapshot()).to.be.revertedWith(
-        'Paused()'
-      );
+      await expect(pxCvx.takeEpochSnapshot()).to.be.revertedWith('Paused()');
 
       await pCvx.setPauseState(false);
     });
@@ -157,9 +157,9 @@ describe('PirexCvx-Reward', function () {
     it('Should revert if votiumRewards.length is zero', async function () {
       const votiumRewards: any[] = [];
 
-      await expect(
-        pCvx.claimVotiumRewards(votiumRewards)
-      ).to.be.revertedWith('EmptyArray()');
+      await expect(pCvx.claimVotiumRewards(votiumRewards)).to.be.revertedWith(
+        'EmptyArray()'
+      );
     });
 
     it('Should claim Votium rewards', async function () {
@@ -204,7 +204,10 @@ describe('PirexCvx-Reward', function () {
       const crvVotiumRewardClaimEvent = events[9];
       const votiumToPirexCrvTransfer = parseLog(pxCvx, events[10]);
       const crvFeeTreasuryDistributionEvent = parseLog(pxCvx, events[15]);
-      const crvFeeContributorsDistributionEvent = parseLog(pxCvx, events[events.length - 1]);
+      const crvFeeContributorsDistributionEvent = parseLog(
+        pxCvx,
+        events[events.length - 1]
+      );
       const votium = await pCvx.votiumMultiMerkleStash();
       const { snapshotId, rewards, snapshotRewards, futuresRewards } =
         await pxCvx.getEpoch(currentEpoch);
@@ -556,16 +559,20 @@ describe('PirexCvx-Reward', function () {
     it('Should redeem a single snapshot reward', async function () {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const currentEpoch = snapshotRedeemEpoch;
-      const { snapshotId, snapshotRewards } = await pxCvx.getEpoch(currentEpoch);
-      const snapshotBalance = await pxCvx.balanceOfAt(admin.address, snapshotId);
+      const { snapshotId, snapshotRewards } = await pxCvx.getEpoch(
+        currentEpoch
+      );
+      const snapshotBalance = await pxCvx.balanceOfAt(
+        admin.address,
+        snapshotId
+      );
       const snapshotSupply = await pxCvx.totalSupplyAt(snapshotId);
-      const rewardIndexes = [0]
+      const rewardIndexes = [0];
       const receiver = admin.address;
-      const [redeemEvent] = await callAndReturnEvents(pCvx.redeemSnapshotRewards, [
-        currentEpoch,
-        rewardIndexes,
-        receiver,
-      ]);
+      const [redeemEvent] = await callAndReturnEvents(
+        pCvx.redeemSnapshotRewards,
+        [currentEpoch, rewardIndexes, receiver]
+      );
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const expectedCvxRewards = snapshotRewards[rewardIndexes[0]]
         .mul(snapshotBalance)
@@ -580,7 +587,7 @@ describe('PirexCvx-Reward', function () {
         'RedeemSnapshotRewards(uint256,uint256[],address,uint256,uint256)',
         {
           epoch: currentEpoch,
-          rewardIndexes: rewardIndexes.map(b => toBN(b)),
+          rewardIndexes: rewardIndexes.map((b) => toBN(b)),
           receiver,
           snapshotBalance,
           snapshotSupply,
@@ -608,7 +615,10 @@ describe('PirexCvx-Reward', function () {
       const { snapshotId, snapshotRewards } = await pxCvx.getEpoch(
         snapshotRedeemEpoch
       );
-      const snapshotBalance = await pxCvx.balanceOfAt(admin.address, snapshotId);
+      const snapshotBalance = await pxCvx.balanceOfAt(
+        admin.address,
+        snapshotId
+      );
       const snapshotSupply = await pxCvx.totalSupplyAt(snapshotId);
       const expectedSnapshotCrvRewards = [
         snapshotRewards[rewardIndexes[0]]
@@ -637,7 +647,7 @@ describe('PirexCvx-Reward', function () {
         'RedeemSnapshotRewards(uint256,uint256[],address,uint256,uint256)',
         {
           epoch,
-          rewardIndexes: rewardIndexes.map(b => toBN(b)),
+          rewardIndexes: rewardIndexes.map((b) => toBN(b)),
           receiver,
           snapshotBalance,
           snapshotSupply,

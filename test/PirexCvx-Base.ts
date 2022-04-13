@@ -88,7 +88,6 @@ describe('PirexCvx-Base', function () {
 
   describe('constructor', function () {
     it('Should set up contract state', async function () {
-      const { snapshotId } = await pxCvx.getEpoch(await pCvx.getCurrentEpoch());
       const _CVX = await pCvx.CVX();
       const _cvxLocker = await pCvx.cvxLocker();
       const _cvxDelegateRegistry = await pCvx.cvxDelegateRegistry();
@@ -100,11 +99,8 @@ describe('PirexCvx-Base', function () {
       const vpCvx = await pCvx.vpCvx();
       const rpCvx = await pCvx.rpCvx();
       const spCvx = await pCvx.spCvx();
-      const _name = await pxCvx.name();
-      const _symbol = await pxCvx.symbol();
       const paused = await pCvx.paused();
 
-      expect(snapshotId).to.equal(0);
       expect(_CVX).to.equal(cvx.address);
       expect(_CVX).to.not.equal(zeroAddress);
       expect(_cvxLocker).to.equal(cvxLocker.address);
@@ -121,8 +117,6 @@ describe('PirexCvx-Base', function () {
       expect(vpCvx).to.not.equal(zeroAddress);
       expect(rpCvx).to.not.equal(zeroAddress);
       expect(spCvx).to.not.equal(zeroAddress);
-      expect(_name).to.equal('Pirex CVX');
-      expect(_symbol).to.equal('pxCVX');
       expect(paused).to.be.true;
     });
   });
@@ -300,8 +294,14 @@ describe('PirexCvx-Base', function () {
     });
 
     it('Should replace unionPirex', async function () {
-      const unionPirexAllowanceBefore = await pxCvx.allowance(pCvx.address, unionPirex.address);
-      const adminAllowanceBefore = await pxCvx.allowance(pCvx.address, admin.address);
+      const unionPirexAllowanceBefore = await pxCvx.allowance(
+        pCvx.address,
+        unionPirex.address
+      );
+      const adminAllowanceBefore = await pxCvx.allowance(
+        pCvx.address,
+        admin.address
+      );
       const unionPirexBefore = await pCvx.unionPirex();
       const c = contractEnum.unionPirex;
       const contractAddress = admin.address;
@@ -313,17 +313,23 @@ describe('PirexCvx-Base', function () {
       const approvalEvent1 = parseLog(pxCvx, events[1]);
       const approvalEvent2 = parseLog(pxCvx, events[2]);
       const unionPirexAfter = await pCvx.unionPirex();
-      const unionPirexAllowanceAfter = await pxCvx.allowance(pCvx.address, unionPirex.address);
-      const adminAllowanceAfter = await pxCvx.allowance(pCvx.address, admin.address);
+      const unionPirexAllowanceAfter = await pxCvx.allowance(
+        pCvx.address,
+        unionPirex.address
+      );
+      const adminAllowanceAfter = await pxCvx.allowance(
+        pCvx.address,
+        admin.address
+      );
 
       expect(unionPirexBefore).to.not.equal(unionPirexAfter);
       expect(unionPirexAfter).to.equal(contractAddress);
       expect(unionPirexAllowanceBefore).to.not.equal(unionPirexAllowanceAfter);
       expect(unionPirexAllowanceBefore).to.equal(uint256Max);
       expect(unionPirexAllowanceAfter).to.equal(0);
-      expect(adminAllowanceBefore).to.not.equal(adminAllowanceAfter)
+      expect(adminAllowanceBefore).to.not.equal(adminAllowanceAfter);
       expect(adminAllowanceBefore).to.equal(0);
-      expect(adminAllowanceAfter).to.equal(uint256Max)
+      expect(adminAllowanceAfter).to.equal(uint256Max);
       validateEvent(setEvent, 'SetContract(uint8,address)', {
         c,
         contractAddress,
@@ -738,17 +744,6 @@ describe('PirexCvx-Base', function () {
 
       expect(expectedCurrentEpoch).to.not.equal(0);
       expect(expectedCurrentEpoch).to.equal(currentEpoch);
-    });
-  });
-
-  describe('getCurrentSnapshotId', function () {
-    it('Should return the current snapshot id', async function () {
-      const currentEpoch = await pCvx.getCurrentEpoch();
-      const { snapshotId } = await pxCvx.getEpoch(currentEpoch);
-      const currentSnapshotId = await pxCvx.getCurrentSnapshotId();
-
-      expect(snapshotId).to.equal(2);
-      expect(snapshotId).to.equal(currentSnapshotId);
     });
   });
 

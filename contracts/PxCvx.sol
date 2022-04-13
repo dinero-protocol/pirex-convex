@@ -158,8 +158,8 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
 
     /** 
         @notice Burn the specified amount of tokens from the specified account
-        @param  account  address  Receiver of the tokens
-        @param  amount   uint256  Amount to be minted
+        @param  account  address  Owner of the tokens
+        @param  amount   uint256  Amount to be burned
      */
     function burn(address account, uint256 amount) external onlyOperator {
         if (account == address(0)) revert ZeroAddress();
