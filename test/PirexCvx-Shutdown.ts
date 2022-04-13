@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { callAndReturnEvent, validateEvent } from './helpers';
 import { ConvexToken, CvxLockerV2, PirexCvx } from '../typechain-types';
 
 // Tests the emergency relock mechanism on CvxLockerV2 shutdown
@@ -13,15 +14,8 @@ describe('PirexCvx-Shutdown', function () {
   let zeroAddress: string;
 
   before(async function () {
-    ({
-      notAdmin,
-      pCvx,
-      pCvxNew,
-      cvx,
-      cvxLocker,
-      cvxLockerNew,
-      zeroAddress,
-    } = this);
+    ({ notAdmin, pCvx, pCvxNew, cvx, cvxLocker, cvxLockerNew, zeroAddress } =
+      this);
   });
 
   describe('emergency', function () {
@@ -70,15 +64,39 @@ describe('PirexCvx-Shutdown', function () {
       await pCvx.unlock();
 
       const cvxBalance = await cvx.balanceOf(pCvx.address);
+      const migrationAddress = pCvxNew.address;
 
       // Set migration and migrate tokens over
-      await pCvx.setPirexCvxMigration(pCvxNew.address);
-      const pirexCvxMigration = await pCvx.pirexCvxMigration();
-      expect(pirexCvxMigration).to.equal(pCvxNew.address);
+      const setEvent = await callAndReturnEvent(pCvx.setPirexCvxMigration, [
+        migrationAddress,
+      ]);
+      validateEvent(setEvent, 'SetPirexCvxMigration(address)', {
+        migrationAddress
+      });
 
-      const pCvxNewBalanceBefore = await cvx.balanceOf(pCvxNew.address);
-      await pCvx.emergencyMigrateTokens([cvx.address]);
-      const pCvxNewBalanceAfter = await cvx.balanceOf(pCvxNew.address);
+      const pirexCvxMigration = await pCvx.pirexCvxMigration();
+      expect(pirexCvxMigration).to.equal(migrationAddress);
+
+      const tokens = [cvx.address];
+      const amounts = [cvxBalance];
+      const pCvxNewBalanceBefore = await cvx.balanceOf(migrationAddress);
+
+      const migrateEvent = await callAndReturnEvent(
+        pCvx.emergencyMigrateTokens,
+        [tokens]
+      );
+      validateEvent(
+        migrateEvent,
+        'MigrateTokens(address,address[],uint256[])',
+        {
+          migrationAddress,
+          tokens,
+          amounts,
+        }
+      );
+
+      const pCvxNewBalanceAfter = await cvx.balanceOf(migrationAddress);
+
       expect(pCvxNewBalanceAfter).to.equal(
         pCvxNewBalanceBefore.add(cvxBalance)
       );
@@ -88,7 +106,7 @@ describe('PirexCvx-Shutdown', function () {
 
       // Confirm that the correct amount of Cvx are relocked
       const lockedBalanceAfter = await cvxLockerNew.lockedBalanceOf(
-        pCvxNew.address
+        migrationAddress
       );
       expect(lockedBalanceAfter).to.equal(cvxBalance);
     });
