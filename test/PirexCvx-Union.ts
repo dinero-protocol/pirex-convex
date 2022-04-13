@@ -1,3 +1,4 @@
+import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ConvexToken, PxCvx, PirexCvx, UnionPirexVault, UnionPirexStaking } from '../typechain-types';
@@ -6,9 +7,11 @@ import { callAndReturnEvents, toBN, toBN2, validateEvent } from './helpers';
 // Tests foundational units outside of the actual deposit flow
 describe('PirexCvx-Union', function () {
   let admin: SignerWithAddress;
+  let notAdmin: SignerWithAddress;
   let pCvx: PirexCvx;
   let unionPirex: UnionPirexVault;
   let unionPirexStaking: UnionPirexStaking;
+  let unionPirexStaking2: UnionPirexStaking;
   let cvx: ConvexToken;
   let zeroAddress: string;
   let contractEnum: any;
@@ -16,6 +19,7 @@ describe('PirexCvx-Union', function () {
   before(async function () {
     ({
       admin,
+      notAdmin,
       cvx,
       pxCvx,
       unionPirex,
@@ -33,6 +37,13 @@ describe('PirexCvx-Union', function () {
     // Mint pCVX for testing
     await cvx.approve(pCvx.address, toBN(50e18));
     await pCvx.deposit(toBN(50e18), admin.address, false);
+
+    // For making pxCVX deposits outside of the pCvx.deposit flow
+    await pCvx.approve(unionPirex.address, toBN2(1000e18).toFixed(0));
+
+    unionPirexStaking2 = await (
+      await ethers.getContractFactory('UnionPirexStaking')
+    ).deploy(pCvx.address, pCvx.address, admin.address);
   });
 
   describe('initial state', function () {
@@ -71,11 +82,108 @@ describe('PirexCvx-Union', function () {
     });
   });
 
-  describe('deposit', function () {
-    before(async function () {
-      await pCvx.approve(unionPirex.address, toBN2(1000e18).toFixed(0));
+  describe('setStrategy', function () {
+    it('Should revert if _strategy is zero address', async function () {
+      const invalidStrategy = zeroAddress;
+
+      await expect(unionPirex.setStrategy(invalidStrategy)).to.be.revertedWith(
+        'ZeroAddress()'
+      );
     });
 
+    it('Should revert if not called by owner', async function () {
+      const strategy = unionPirexStaking2.address;
+
+      await expect(
+        unionPirex.connect(notAdmin).setStrategy(strategy)
+      ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('Should set a new strategy', async function () {
+      const getStrategyBalance = async (strategy: string) =>
+        await pCvx.balanceOf(strategy);
+      const getStrategyAllowance = async (strategy: string) =>
+        await pCvx.allowance(unionPirex.address, strategy);
+      const oldStrategy = unionPirexStaking.address;
+      const strategy = unionPirexStaking2.address;
+      const oldStrategyBalanceBefore = await getStrategyBalance(oldStrategy);
+      const newStrategyBalanceBefore = await getStrategyBalance(strategy);
+      const oldStrategyAllowanceBefore = await getStrategyAllowance(
+        oldStrategy
+      );
+      const newStrategyAllowanceBefore = await getStrategyAllowance(strategy);
+      const events = await callAndReturnEvents(unionPirex.setStrategy, [
+        strategy,
+      ]);
+      const newStrategyApprovalEvent = events[0];
+      const oldStrategyApprovalEvent = events[1];
+      const oldStrategyWithdrawEvent = events[2];
+      const newStrategyStakeEvent = events[4];
+      const strategySetEvent = events[events.length - 1];
+      const oldStrategyBalanceAfter = await getStrategyBalance(oldStrategy);
+      const newStrategyBalanceAfter = await getStrategyBalance(strategy);
+      const oldStrategyAllowanceAfter = await getStrategyAllowance(oldStrategy);
+      const newStrategyAllowanceAfter = await getStrategyAllowance(strategy);
+
+      expect(oldStrategyBalanceBefore).to.not.equal(newStrategyBalanceBefore);
+      expect(newStrategyBalanceBefore).to.equal(0);
+      expect(oldStrategyBalanceBefore).to.not.equal(0);
+      expect(oldStrategyBalanceAfter).to.not.equal(newStrategyBalanceAfter);
+      expect(oldStrategyBalanceAfter).to.equal(0);
+      expect(newStrategyBalanceAfter).to.equal(oldStrategyBalanceBefore);
+      expect(oldStrategyAllowanceBefore).to.not.equal(
+        newStrategyAllowanceBefore
+      );
+      expect(newStrategyAllowanceBefore).to.equal(0);
+      expect(oldStrategyAllowanceAfter).to.not.equal(newStrategyAllowanceAfter);
+      expect(oldStrategyAllowanceAfter).to.equal(0);
+
+      // Using `oldStrategyAllowanceBefore` as a proxy for uint256 max
+      expect(newStrategyAllowanceAfter).to.equal(oldStrategyAllowanceBefore);
+
+      validateEvent(
+        newStrategyApprovalEvent,
+        'Approval(address,address,uint256)',
+        {
+          owner: unionPirex.address,
+          spender: unionPirexStaking2.address,
+          amount: oldStrategyAllowanceBefore,
+        }
+      );
+      validateEvent(
+        oldStrategyApprovalEvent,
+        'Approval(address,address,uint256)',
+        {
+          owner: unionPirex.address,
+          spender: unionPirexStaking.address,
+          amount: 0,
+        }
+      );
+      validateEvent(
+        oldStrategyWithdrawEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: unionPirexStaking.address,
+          to: unionPirex.address,
+          amount: oldStrategyBalanceBefore,
+        }
+      );
+      validateEvent(
+        newStrategyStakeEvent,
+        'Transfer(address,address,uint256)',
+        {
+          from: unionPirex.address,
+          to: unionPirexStaking2.address,
+          amount: oldStrategyBalanceBefore,
+        }
+      );
+      validateEvent(strategySetEvent, 'StrategySet(address)', {
+        _strategy: unionPirexStaking2.address,
+      });
+    });
+  });
+
+  describe('deposit', function () {
     it('Should revert if assets is zero', async function () {
       const invalidAssets = 0;
       const receiver = admin.address;
@@ -124,7 +232,7 @@ describe('PirexCvx-Union', function () {
       });
       validateEvent(stakeTransferEvent, 'Transfer(address,address,uint256)', {
         from: unionPirex.address,
-        to: unionPirexStaking.address,
+        to: unionPirexStaking2.address,
         amount: assets,
       });
     });

@@ -91,13 +91,24 @@ contract UnionPirexVault is Ownable, ERC4626 {
     function setStrategy(address _strategy) external onlyOwner {
         if (_strategy == address(0)) revert ZeroAddress();
 
-        // Set allowance of previous strategy contract to 0
-        if (address(strategy) != address(0))
-            pirexCvx.approve(address(strategy), 0);
+        // Store old strategy to perform maintenance if needed
+        address oldStrategy = address(strategy);
 
         // Set new strategy contract and approve max allowance
         strategy = UnionPirexStaking(_strategy);
         pirexCvx.approve(_strategy, type(uint256).max);
+
+        // Set allowance of previous strategy to 0
+        if (oldStrategy != address(0)) {
+            pirexCvx.approve(oldStrategy, 0);
+
+            // Migrate previous strategy balance to new strategy
+            uint256 balance = pirexCvx.getBalanceOf(oldStrategy);
+            if (balance != 0) {
+                UnionPirexStaking(oldStrategy).withdraw(balance);
+                strategy.stake(balance);
+            }
+        }
 
         emit StrategySet(_strategy);
     }
