@@ -35,6 +35,7 @@ contract UnionPirexVault is Ownable, ERC4626 {
     event StrategySet(address indexed _strategy);
 
     error ZeroAddress();
+    error ExceedsMax();
 
     constructor(address _token, address _pirexCvx)
         ERC4626(ERC20(_token), "Union Pirex", "uCVX")
@@ -43,64 +44,66 @@ contract UnionPirexVault is Ownable, ERC4626 {
         pirexCvx = PirexCvx(_pirexCvx);
     }
 
-    modifier notToZeroAddress(address _to) {
-        require(_to != address(0), "Invalid address!");
-        _;
-    }
-
-    /// @notice Updates the withdrawal penalty
-    /// @param _penalty - the amount of the new penalty (in BIPS)
+    /**
+        @notice Set the withdrawal penalty
+        @param _penalty  uint16  Withdrawal penalty
+     */
     function setWithdrawalPenalty(uint16 _penalty) external onlyOwner {
-        require(_penalty <= MAX_WITHDRAWAL_PENALTY);
+        if (_penalty > MAX_WITHDRAWAL_PENALTY) revert ExceedsMax();
         withdrawalPenalty = _penalty;
         emit WithdrawalPenaltyUpdated(_penalty);
     }
 
-    /// @notice Updates the caller incentive for harvests
-    /// @param _incentive - the amount of the new incentive (in BIPS)
+    /**
+        @notice Set the call incentive
+        @param _incentive  uint8  Call incentive
+     */
     function setCallIncentive(uint8 _incentive) external onlyOwner {
-        require(_incentive <= MAX_CALL_INCENTIVE);
+        if (_incentive > MAX_CALL_INCENTIVE) revert ExceedsMax();
         callIncentive = _incentive;
         emit CallerIncentiveUpdated(_incentive);
     }
 
-    /// @notice Updates the part of yield redirected to the platform
-    /// @param _fee - the amount of the new platform fee (in BIPS)
+    /**
+        @notice Set the platform fee
+        @param _fee  uint16  Platform fee
+     */
     function setPlatformFee(uint16 _fee) external onlyOwner {
-        require(_fee <= MAX_PLATFORM_FEE);
+        if (_fee > MAX_PLATFORM_FEE) revert ExceedsMax();
         platformFee = _fee;
         emit PlatformFeeUpdated(_fee);
     }
 
-    /// @notice Updates the address to which platform fees are paid out
-    /// @param _platform - the new platform wallet address
-    function setPlatform(address _platform)
-        external
-        onlyOwner
-        notToZeroAddress(_platform)
-    {
+    /**
+        @notice Set the platform
+        @param _platform  address  Platform
+     */
+    function setPlatform(address _platform) external onlyOwner {
+        if (_platform == address(0)) revert ZeroAddress();
         platform = _platform;
         emit PlatformUpdated(_platform);
     }
 
-    /// @notice Set the address of the strategy contract
-    /// @dev Can only be set once
-    /// @param _strategy - address of the strategy contract
-    function setStrategy(address _strategy)
-        external
-        onlyOwner
-        notToZeroAddress(_strategy)
-    {
+    /**
+        @notice Set the strategy
+        @param _strategy  address  Strategy
+     */
+    function setStrategy(address _strategy) external onlyOwner {
         if (_strategy == address(0)) revert ZeroAddress();
+
+        // Set allowance of previous strategy contract to 0
         if (address(strategy) != address(0))
             pirexCvx.approve(address(strategy), 0);
+
+        // Set new strategy contract and approve max allowance
         strategy = UnionPirexStaking(_strategy);
         pirexCvx.approve(_strategy, type(uint256).max);
+
         emit StrategySet(_strategy);
     }
 
     /**
-        @notice Get the assets (pxCVX) currently custodied by the UnionPirex contracts
+        @notice Get the pxCVX custodied by the UnionPirex contracts
         @return uint256  Assets
      */
     function totalAssets() public view override returns (uint256) {
@@ -115,7 +118,6 @@ contract UnionPirexVault is Ownable, ERC4626 {
         @param  shares  uint256  Shares
      */
     function beforeWithdraw(uint256 assets, uint256 shares) internal override {
-        // Call withdraw on the staking contract
         strategy.withdraw(assets);
     }
 
@@ -130,7 +132,7 @@ contract UnionPirexVault is Ownable, ERC4626 {
 
     /**
         @notice Preview the amount of assets a user would receive from redeeming shares
-        @param  shares   uint256  Shares
+        @param  shares  uint256  Shares
         @return uint256  Assets
      */
     function previewRedeem(uint256 shares)
@@ -142,18 +144,18 @@ contract UnionPirexVault is Ownable, ERC4626 {
         // Calculate assets based on a user's % ownership of vault shares
         uint256 assets = convertToAssets(shares);
 
-        // Calculate a penalty if user is not the last to withdraw
-        uint256 penalty = totalSupply == 0
+        // Calculate a penalty (0 if user is the last to withdraw)
+        uint256 penalty = (totalSupply == 0 || totalSupply - shares == 0)
             ? 0
             : (assets * withdrawalPenalty) / FEE_DENOMINATOR;
 
-        // Redeemed amount is the post-penalty amount
+        // Redeemable amount is the post-penalty amount
         return assets - penalty;
     }
 
     /**
         @notice Preview the amount of shares a user would need to redeem the specified asset amount
-        @param  assets   uint256  Assets
+        @param  assets  uint256  Assets
         @return uint256  Shares
      */
     function previewWithdraw(uint256 assets)
@@ -163,12 +165,9 @@ contract UnionPirexVault is Ownable, ERC4626 {
         returns (uint256)
     {
         uint256 supply = totalSupply;
-        uint256 shares = supply == 0
-            ? assets
-            : assets.mulDivUp(supply, totalAssets());
 
         return
-            shares = supply == 0
+            supply == 0
                 ? assets
                 : assets.mulDivUp(supply, totalAssets()) /
                     ((FEE_DENOMINATOR - withdrawalPenalty) / FEE_DENOMINATOR);
