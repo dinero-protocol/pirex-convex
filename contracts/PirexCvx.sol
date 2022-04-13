@@ -173,6 +173,10 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @param  _cvxRewardPool           address  CvxRewardPool address
         @param  _cvxCRV                  address  CvxCrvToken address
         @param  _pxCvx                   address  PxCvx address
+        @param  _upCvx                   address  UpCvx address
+        @param  _spCvx                   address  SpCvx address
+        @param  _vpCvx                   address  VpCvx address
+        @param  _rpCvx                   address  RpCvx address
         @param  _pirexFees               address  PirexFees address
         @param  _votiumMultiMerkleStash  address  VotiumMultiMerkleStash address
      */
@@ -183,6 +187,10 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         address _cvxRewardPool,
         address _cvxCRV,
         address _pxCvx,
+        address _upCvx,
+        address _spCvx,
+        address _vpCvx,
+        address _rpCvx,
         address _pirexFees,
         address _votiumMultiMerkleStash
     )
@@ -202,6 +210,18 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
         if (_pirexFees == address(0)) revert ZeroAddress();
         pirexFees = PirexFees(_pirexFees);
+
+        if (_upCvx == address(0)) revert ZeroAddress();
+        upCvx = ERC1155PresetMinterSupply(_upCvx);
+
+        if (_spCvx == address(0)) revert ZeroAddress();
+        spCvx = ERC1155PresetMinterSupply(_spCvx);
+
+        if (_vpCvx == address(0)) revert ZeroAddress();
+        vpCvx = ERC1155PresetMinterSupply(_vpCvx);
+
+        if (_rpCvx == address(0)) revert ZeroAddress();
+        rpCvx = ERC1155PresetMinterSupply(_rpCvx);
 
         if (_votiumMultiMerkleStash == address(0)) revert ZeroAddress();
         votiumMultiMerkleStash = IVotiumMultiMerkleStash(

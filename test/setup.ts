@@ -135,6 +135,18 @@ before(async function () {
   pirexFees = await (
     await ethers.getContractFactory('PirexFees')
   ).deploy(treasury.address, contributors.address);
+  const upCvx = await (
+    await ethers.getContractFactory('ERC1155PresetMinterSupply')
+  ).deploy('');
+  const spCvx = await (
+    await ethers.getContractFactory('ERC1155PresetMinterSupply')
+  ).deploy('');
+  const vpCvx = await (
+    await ethers.getContractFactory('ERC1155PresetMinterSupply')
+  ).deploy('');
+  const rpCvx = await (
+    await ethers.getContractFactory('ERC1155PresetMinterSupply')
+  ).deploy('');
   pCvx = await (
     await ethers.getContractFactory('PirexCvx')
   ).deploy(
@@ -144,6 +156,10 @@ before(async function () {
     cvxRewardPool.address,
     cvxCrvToken.address,
     pxCvx.address,
+    upCvx.address,
+    spCvx.address,
+    vpCvx.address,
+    rpCvx.address,
     pirexFees.address,
     votiumMultiMerkleStash.address
   );
@@ -173,19 +189,6 @@ before(async function () {
   await this.pirexFees.grantFeeDistributorRole(pCvx.address);
 
   await pxCvx.setOperator(this.pCvx.address);
-
-  const upCvx = await (
-    await ethers.getContractFactory('ERC1155PresetMinterSupply')
-  ).deploy('');
-  const spCvx = await (
-    await ethers.getContractFactory('ERC1155PresetMinterSupply')
-  ).deploy('');
-  const vpCvx = await (
-    await ethers.getContractFactory('ERC1155PresetMinterSupply')
-  ).deploy('');
-  const rpCvx = await (
-    await ethers.getContractFactory('ERC1155PresetMinterSupply')
-  ).deploy('');
 
   // Common constants
   this.feePercentDenominator = await pirexFees.PERCENT_DENOMINATOR();
@@ -220,12 +223,6 @@ before(async function () {
     redemptionMax: 1,
     redemptionMin: 2,
   };
-
-  // Setup ERC1155 base contracts for PirexCvx
-  await pCvx.setContract(this.contractEnum.upCvx, upCvx.address);
-  await pCvx.setContract(this.contractEnum.spCvx, spCvx.address);
-  await pCvx.setContract(this.contractEnum.vpCvx, vpCvx.address);
-  await pCvx.setContract(this.contractEnum.rpCvx, rpCvx.address);
 
   // Enable minting rights for PirexCvx contract
   const minterRole = await vpCvx.MINTER_ROLE();
