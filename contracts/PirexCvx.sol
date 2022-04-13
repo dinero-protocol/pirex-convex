@@ -6,7 +6,6 @@ import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import {Bytes32AddressLib} from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
 import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
-import {ERC1155Solmate} from "./ERC1155Solmate.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 import {PirexCvxConvex} from "./PirexCvxConvex.sol";
 import {PxCvx} from "./PxCvx.sol";
@@ -81,8 +80,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     PxCvx public pxCvx;
     PirexFees public pirexFees;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
-    ERC1155Solmate public upCvx;
-    ERC1155Solmate public spCvx;
+    ERC1155PresetMinterSupply public upCvx;
+    ERC1155PresetMinterSupply public spCvx;
     ERC1155PresetMinterSupply public vpCvx;
     ERC1155PresetMinterSupply public rpCvx;
     UnionPirexVault public unionPirex;
@@ -234,12 +233,12 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         }
 
         if (c == Contract.UpCvx) {
-            upCvx = ERC1155Solmate(contractAddress);
+            upCvx = ERC1155PresetMinterSupply(contractAddress);
             return;
         }
 
         if (c == Contract.SpCvx) {
-            spCvx = ERC1155Solmate(contractAddress);
+            spCvx = ERC1155PresetMinterSupply(contractAddress);
             return;
         }
 

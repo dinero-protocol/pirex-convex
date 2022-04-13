@@ -145,7 +145,9 @@ describe('PxCvx', function () {
       const balance = await pxCvx.balanceOf(account);
       const invalidAmount = balance.add(1);
 
-      await expect(pxCvx.burn(account, invalidAmount)).to.be.reverted;
+      await expect(pxCvx.burn(account, invalidAmount)).to.be.revertedWith(
+        'VM Exception while processing transaction: reverted with panic code 0x11 (Arithmetic operation underflowed or overflowed outside of an unchecked block)'
+      );
     });
 
     it('Should burn tokens based on specified recipient and amount by operator', async function () {

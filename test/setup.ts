@@ -175,11 +175,11 @@ before(async function () {
   await pxCvx.setOperator(this.pCvx.address);
 
   const upCvx = await (
-    await ethers.getContractFactory('ERC1155Solmate')
-  ).deploy();
+    await ethers.getContractFactory('ERC1155PresetMinterSupply')
+  ).deploy('');
   const spCvx = await (
-    await ethers.getContractFactory('ERC1155Solmate')
-  ).deploy();
+    await ethers.getContractFactory('ERC1155PresetMinterSupply')
+  ).deploy('');
   const vpCvx = await (
     await ethers.getContractFactory('ERC1155PresetMinterSupply')
   ).deploy('');
@@ -228,9 +228,9 @@ before(async function () {
   await pCvx.setContract(this.contractEnum.rpCvx, rpCvx.address);
 
   // Enable minting rights for PirexCvx contract
-  await upCvx.transferOwnership(pCvx.address);
-  await spCvx.transferOwnership(pCvx.address);
   const minterRole = await vpCvx.MINTER_ROLE();
+  await upCvx.grantRole(minterRole, pCvx.address);
+  await spCvx.grantRole(minterRole, pCvx.address);
   await vpCvx.grantRole(minterRole, pCvx.address);
   await rpCvx.grantRole(minterRole, pCvx.address);
 

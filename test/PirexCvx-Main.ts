@@ -826,7 +826,7 @@ describe('PirexCvx-Main', function () {
       await expect(
         pCvx.unstake(id, invalidAssets, receiver)
       ).to.be.revertedWith(
-        'VM Exception while processing transaction: reverted with panic code 0x11 (Arithmetic operation underflowed or overflowed outside of an unchecked block)'
+        'ERC1155: burn amount exceeds balance'
       );
 
       // Transfer funds back
