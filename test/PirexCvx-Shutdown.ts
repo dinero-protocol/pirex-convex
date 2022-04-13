@@ -71,7 +71,7 @@ describe('PirexCvx-Shutdown', function () {
         migrationAddress,
       ]);
       validateEvent(setEvent, 'SetPirexCvxMigration(address)', {
-        migrationAddress
+        migrationAddress,
       });
 
       const pirexCvxMigration = await pCvx.pirexCvxMigration();

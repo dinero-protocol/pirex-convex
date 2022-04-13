@@ -825,9 +825,7 @@ describe('PirexCvx-Main', function () {
 
       await expect(
         pCvx.unstake(id, invalidAssets, receiver)
-      ).to.be.revertedWith(
-        'ERC1155: burn amount exceeds balance'
-      );
+      ).to.be.revertedWith('ERC1155: burn amount exceeds balance');
 
       // Transfer funds back
       await spCvx

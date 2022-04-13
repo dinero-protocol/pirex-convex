@@ -130,9 +130,7 @@ before(async function () {
   await crv.mint(admin.address, initialBalanceForAdmin);
   await cvxCrvToken.mint(admin.address, initialBalanceForAdmin);
 
-  pxCvx = await (
-    await ethers.getContractFactory('PxCvx')
-  ).deploy();
+  pxCvx = await (await ethers.getContractFactory('PxCvx')).deploy();
   pirexFees = await (
     await ethers.getContractFactory('PirexFees')
   ).deploy(treasury.address, contributors.address);

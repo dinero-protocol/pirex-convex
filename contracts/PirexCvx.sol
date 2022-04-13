@@ -705,28 +705,28 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         uint256 rpCvxSupply = rpCvx.totalSupply(epoch);
 
         for (uint256 i; i < tLen; ++i) {
-            VotiumReward memory votiumReward = votiumRewards[i];
-            if (votiumReward.token == address(0)) revert ZeroAddress();
-            if (votiumReward.amount == 0) revert ZeroAmount();
+            address token = votiumRewards[i].token;
+            uint256 index = votiumRewards[i].index;
+            uint256 amount = votiumRewards[i].amount;
+            bytes32[] memory merkleProof = votiumRewards[i].merkleProof;
 
-            emit ClaimVotiumReward(
-                votiumReward.token,
-                votiumReward.index,
-                votiumReward.amount
-            );
+            if (token == address(0)) revert ZeroAddress();
+            if (amount == 0) revert ZeroAmount();
 
-            ERC20 t = ERC20(votiumReward.token);
+            emit ClaimVotiumReward(token, index, amount);
+
+            ERC20 t = ERC20(token);
 
             // Used for calculating the actual token amount received
             uint256 prevBalance = t.balanceOf(address(this));
 
             // Validates `token`, `index`, `amount`, and `merkleProof`
             votiumMultiMerkleStash.claim(
-                votiumReward.token,
-                votiumReward.index,
+                token,
+                index,
                 address(this),
-                votiumReward.amount,
-                votiumReward.merkleProof
+                amount,
+                merkleProof
             );
 
             (
@@ -743,18 +743,14 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
             // Add reward token address and snapshot/futuresRewards amounts (same index for all)
             pxCvx.addEpochRewardMetadata(
                 epoch,
-                votiumReward.token.fillLast12Bytes(),
+                token.fillLast12Bytes(),
                 snapshotRewards,
                 futuresRewards
             );
 
             // Distribute fees
             t.safeApprove(address(pirexFees), rewardFee);
-            pirexFees.distributeFees(
-                address(this),
-                votiumReward.token,
-                rewardFee
-            );
+            pirexFees.distributeFees(address(this), token, rewardFee);
         }
     }
 

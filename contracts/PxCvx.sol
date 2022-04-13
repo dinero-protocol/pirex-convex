@@ -47,7 +47,8 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
 
     modifier onlyOperatorOrNotPaused() {
         // This contract shares the same pause state as the operator
-        if (msg.sender != operator && Pausable(operator).paused()) revert Paused();
+        if (msg.sender != operator && Pausable(operator).paused())
+            revert Paused();
         _;
     }
 
