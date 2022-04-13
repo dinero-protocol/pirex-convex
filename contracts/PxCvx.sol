@@ -5,11 +5,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {ERC20SnapshotSolmate} from "./ERC20SnapshotSolmate.sol";
 
-interface IPirexCvx {
-    function getCurrentEpoch() external view returns (uint256);
-}
-
-contract PxCvx is ERC20SnapshotSolmate, Ownable {
+contract PxCvx is ERC20SnapshotSolmate("Pirex CVX", "pxCVX", 18), Ownable {
     /**
         @notice Epoch details
         @notice Reward/snapshotRewards/futuresRewards indexes are associated with 1 reward
@@ -52,8 +48,6 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
         _;
     }
 
-    constructor() ERC20SnapshotSolmate("Pirex CVX", "pxCVX", 18) {}
-
     /** 
         @notice Set a new operator address
         @param  _operator  address  New operator address    
@@ -66,7 +60,7 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
         // If it's the first operator, also set up 1st epoch with snapshot id 1
         // and prevent reward claims until subsequent epochs
         if (operator == address(0)) {
-            uint256 currentEpoch = IPirexCvx(_operator).getCurrentEpoch();
+            uint256 currentEpoch = getCurrentEpoch();
             epochs[currentEpoch].snapshotId = _snapshot();
         }
 
@@ -79,6 +73,14 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
      */
     function getCurrentSnapshotId() external view returns (uint256) {
         return _getCurrentSnapshotId();
+    }
+
+    /**
+        @notice Get current epoch
+        @return uint256  Current epoch
+     */
+    function getCurrentEpoch() public view returns (uint256) {
+        return (block.timestamp / 1209600) * 1209600;
     }
 
     /**
@@ -139,7 +141,7 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
     }
 
     /**
-        @notice Get redeemed snapshot rewards bitmap
+        @notice Set redeemed snapshot rewards bitmap
         @param  account   address  Account
         @param  epoch     uint256  Epoch
         @param  redeemed  uint256  Redeemed bitmap
@@ -197,7 +199,7 @@ contract PxCvx is ERC20SnapshotSolmate, Ownable {
         @notice Snapshot token balances for the current epoch
      */
     function takeEpochSnapshot() external onlyOperatorOrNotPaused {
-        uint256 currentEpoch = IPirexCvx(operator).getCurrentEpoch();
+        uint256 currentEpoch = getCurrentEpoch();
 
         // If snapshot has not been set for current epoch, take snapshot
         if (epochs[currentEpoch].snapshotId == 0) {
