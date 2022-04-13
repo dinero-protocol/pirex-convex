@@ -135,11 +135,11 @@ before(async function () {
     await ethers.getContractFactory('PirexFees')
   ).deploy(treasury.address, contributors.address);
   const upCvx = await (
-    await ethers.getContractFactory('ERC1155PresetMinterSupply')
-  ).deploy('');
+    await ethers.getContractFactory('ERC1155Solmate')
+  ).deploy();
   const spCvx = await (
-    await ethers.getContractFactory('ERC1155PresetMinterSupply')
-  ).deploy('');
+    await ethers.getContractFactory('ERC1155Solmate')
+  ).deploy();
   const vpCvx = await (
     await ethers.getContractFactory('ERC1155PresetMinterSupply')
   ).deploy('');

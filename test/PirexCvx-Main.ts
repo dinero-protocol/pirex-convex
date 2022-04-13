@@ -271,7 +271,7 @@ describe('PirexCvx-Main', function () {
           .connect(notAdmin)
           .initiateRedemptions(lockIndexes, f, invalidAssets, receiver)
       ).to.be.revertedWith(
-        'VM Exception while processing transaction: reverted with panic code 0x11 (Arithmetic operation underflowed or overflowed outside of an unchecked block'
+        '0x11'
       );
     });
 
@@ -667,7 +667,7 @@ describe('PirexCvx-Main', function () {
       );
 
       await expect(pCvx.stake(rounds, f, assets, receiver)).to.be.revertedWith(
-        'VM Exception while processing transaction: reverted with panic code 0x11 (Arithmetic operation underflowed or overflowed outside of an unchecked block)'
+        '0x11'
       );
 
       // Transfer funds back
@@ -825,7 +825,7 @@ describe('PirexCvx-Main', function () {
 
       await expect(
         pCvx.unstake(id, invalidAssets, receiver)
-      ).to.be.revertedWith('ERC1155: burn amount exceeds balance');
+      ).to.be.revertedWith('0x11');
 
       // Transfer funds back
       await spCvx
