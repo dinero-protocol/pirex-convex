@@ -7,6 +7,7 @@ import {
   ConvexToken,
   CvxLockerV2,
   DelegateRegistry,
+  PxCvx,
   PirexCvx,
   MultiMerkleStash,
   Crv,
@@ -21,6 +22,7 @@ let notAdmin: SignerWithAddress;
 let treasury: SignerWithAddress;
 let contributors: SignerWithAddress;
 let pCvx: PirexCvx;
+let pxCvx: PxCvx;
 let pirexFees: PirexFees;
 let unionPirex: UnionPirexVault;
 let cvx: ConvexToken;
@@ -127,6 +129,9 @@ before(async function () {
   await crv.mint(admin.address, initialBalanceForAdmin);
   await cvxCrvToken.mint(admin.address, initialBalanceForAdmin);
 
+  pxCvx = await (
+    await ethers.getContractFactory('PxCvx')
+  ).deploy();
   pirexFees = await (
     await ethers.getContractFactory('PirexFees')
   ).deploy(treasury.address, contributors.address);
@@ -138,12 +143,13 @@ before(async function () {
     cvxDelegateRegistry.address,
     cvxRewardPool.address,
     cvxCrvToken.address,
+    pxCvx.address,
     pirexFees.address,
     votiumMultiMerkleStash.address
   );
   unionPirex = await (
     await ethers.getContractFactory('UnionPirexVault')
-  ).deploy(pCvx.address, 'Union Pirex Vault', 'ppCVX');
+  ).deploy(pxCvx.address, 'Union Pirex Vault', 'pxCVX');
 
   // Common addresses and contracts
   this.admin = admin;
@@ -160,27 +166,33 @@ before(async function () {
   this.votiumAddressRegistry = votiumAddressRegistry;
   this.votiumMultiMerkleStash = votiumMultiMerkleStash;
   this.pirexFees = pirexFees;
+  this.pxCvx = pxCvx;
   this.pCvx = pCvx;
   this.unionPirex = unionPirex;
 
+  // Unpause only after initial setup is completed (setting all token contracts etc.)
+  await this.pCvx.setPauseState(false);
   await this.pirexFees.grantFeeDistributorRole(pCvx.address);
+
+  await pxCvx.setOperator(this.pCvx.address);
 
   // Common constants
   this.feePercentDenominator = await pirexFees.PERCENT_DENOMINATOR();
   this.feeDenominator = await pCvx.FEE_DENOMINATOR();
-  this.zeroAddress = '0x0000000000000000000000000000000000000000';
+  this.zeroAddress = ethers.constants.AddressZero;
   this.epochDuration = toBN(1209600);
   this.delegationSpace = 'cvx.eth';
   this.delegationSpaceBytes32 = ethers.utils.formatBytes32String(
     this.delegationSpace
   );
   this.contractEnum = {
-    pirexFees: 0,
-    upCvx: 1,
-    spCvx: 2,
-    vpCvx: 3,
-    rpCvx: 4,
-    unionPirex: 5,
+    pxCvx: 0,
+    pirexFees: 1,
+    upCvx: 2,
+    spCvx: 3,
+    vpCvx: 4,
+    rpCvx: 5,
+    unionPirex: 6,
   };
   this.convexContractEnum = {
     cvxLocker: 0,
