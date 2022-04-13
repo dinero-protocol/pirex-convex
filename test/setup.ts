@@ -22,6 +22,7 @@ let notAdmin: SignerWithAddress;
 let treasury: SignerWithAddress;
 let contributors: SignerWithAddress;
 let pCvx: PirexCvx;
+let pCvxNew: PirexCvx;
 let pxCvx: PxCvx;
 let pirexFees: PirexFees;
 let unionPirex: UnionPirexVault;
@@ -163,6 +164,22 @@ before(async function () {
     pirexFees.address,
     votiumMultiMerkleStash.address
   );
+  pCvxNew = await (
+    await ethers.getContractFactory('PirexCvx')
+  ).deploy(
+    cvx.address,
+    cvxLockerNew.address,
+    cvxDelegateRegistry.address,
+    cvxRewardPool.address,
+    cvxCrvToken.address,
+    pxCvx.address,
+    upCvx.address,
+    spCvx.address,
+    vpCvx.address,
+    rpCvx.address,
+    pirexFees.address,
+    votiumMultiMerkleStash.address
+  );
   unionPirex = await (
     await ethers.getContractFactory('UnionPirexVault')
   ).deploy(pxCvx.address, 'Union Pirex Vault', 'pxCVX');
@@ -185,6 +202,7 @@ before(async function () {
   this.pxCvx = pxCvx;
   this.pCvx = pCvx;
   this.unionPirex = unionPirex;
+  this.pCvxNew = pCvxNew;
 
   await this.pirexFees.grantFeeDistributorRole(pCvx.address);
 

@@ -95,6 +95,9 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     // Queued fees which will take effective after 1 epoch (2 weeks)
     mapping(Fees => QueuedFee) public queuedFees;
 
+    // Address of the new PirexCvx contract in the case of emergency redeployment
+    address public pirexCvxMigration;
+
     event SetContract(Contract indexed c, address contractAddress);
     event QueueFee(Fees indexed f, uint32 newFee, uint224 effectiveAfter);
     event SetFee(Fees indexed f, uint32 fee);
@@ -150,6 +153,12 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         uint256 amount,
         address indexed receiver,
         Futures f
+    );
+    event SetPirexCvxMigration(address migrationAddress);
+    event MigrateTokens(
+        address migrationAddress,
+        address[] tokens,
+        uint256[] amounts
     );
 
     error ZeroAmount();
@@ -277,6 +286,46 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         }
         unionPirex = UnionPirexVault(contractAddress);
         pxCvx.approve(address(unionPirex), type(uint256).max);
+    }
+
+    /** 
+        @notice Set pirexCvxMigration address
+        @param  _pirexCvxMigration  address  PirexCvxMigration address
+     */
+    function setPirexCvxMigration(address _pirexCvxMigration)
+        external
+        onlyOwner
+        whenPaused
+    {
+        if (_pirexCvxMigration == address(0)) revert ZeroAddress();
+
+        pirexCvxMigration = _pirexCvxMigration;
+
+        emit SetPirexCvxMigration(pirexCvxMigration);
+    }
+
+    /**
+        @notice Withdraw ERC20 tokens to the pirexCvxMigration address in case of emergency
+        @param  tokens  address[]  Token addresses
+     */
+    function emergencyMigrateTokens(address[] calldata tokens)
+        external
+        onlyOwner
+        whenPaused
+    {
+        if (pirexCvxMigration == address(0)) revert ZeroAddress();
+
+        uint256 tLen = tokens.length;
+        if (tLen == 0) revert EmptyArray();
+        uint256[] memory amounts = new uint256[](tLen);
+
+        for (uint256 i; i < tLen; ++i) {
+            uint256 amount = ERC20(tokens[i]).balanceOf(address(this));
+            amounts[i] = amount;
+            ERC20(tokens[i]).safeTransfer(pirexCvxMigration, amount);
+        }
+
+        emit MigrateTokens(pirexCvxMigration, tokens, amounts);
     }
 
     /** 
