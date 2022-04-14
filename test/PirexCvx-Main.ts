@@ -595,10 +595,11 @@ describe('PirexCvx-Main', function () {
       expect(outstandingRedemptionsAfter).to.equal(
         outstandingRedemptionsBefore.sub(totalAssets)
       );
-      validateEvent(redeemEvent, 'Redeem(uint256[],uint256[],address)', {
+      validateEvent(redeemEvent, 'Redeem(uint256[],uint256[],address,bool)', {
         unlockTimes,
         assets,
         receiver,
+        legacy: false,
       });
       validateEvent(cvxTransferEvent, 'Transfer(address,address,uint256)', {
         from: pCvx.address,

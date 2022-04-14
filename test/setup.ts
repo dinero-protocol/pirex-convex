@@ -12,7 +12,6 @@ import {
   MultiMerkleStash,
   Crv,
   PirexFees,
-  CvxRewardPool,
   AddressRegistry,
   UnionPirexVault,
 } from '../typechain-types';
@@ -22,17 +21,14 @@ let notAdmin: SignerWithAddress;
 let treasury: SignerWithAddress;
 let contributors: SignerWithAddress;
 let pCvx: PirexCvx;
-let pCvxNew: PirexCvx;
 let pxCvx: PxCvx;
 let pirexFees: PirexFees;
 let unionPirex: UnionPirexVault;
 let cvx: ConvexToken;
 let crv: Crv;
-let cvxCrvToken: any;
 let cvxLocker: CvxLockerV2;
 let cvxLockerNew: CvxLockerV2;
 let cvxDelegateRegistry: DelegateRegistry;
-let cvxRewardPool: CvxRewardPool;
 let votiumAddressRegistry: AddressRegistry;
 let votiumMultiMerkleStash: MultiMerkleStash;
 
@@ -42,6 +38,8 @@ before(async function () {
   const initialBalanceForAdmin = toBN(100e18);
   const crvDepositorAddr = '0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae';
 
+  this.zeroAddress = ethers.constants.AddressZero;
+
   // Deploy base contracts
   const curveVoterProxy = await (
     await ethers.getContractFactory('CurveVoterProxy')
@@ -50,7 +48,9 @@ before(async function () {
     await ethers.getContractFactory('ConvexToken')
   ).deploy(curveVoterProxy.address);
   crv = await (await ethers.getContractFactory('Crv')).deploy();
-  cvxCrvToken = await (await ethers.getContractFactory('cvxCrvToken')).deploy();
+  const cvxCrvToken = await (
+    await ethers.getContractFactory('cvxCrvToken')
+  ).deploy();
   const booster = await (
     await ethers.getContractFactory('Booster')
   ).deploy(curveVoterProxy.address, cvx.address);
@@ -74,7 +74,7 @@ before(async function () {
   cvxLockerNew = await (
     await ethers.getContractFactory('CvxLockerV2')
   ).deploy(cvx.address, cvxCrvToken.address, baseRewardPool.address);
-  cvxRewardPool = await (
+  const cvxRewardPool = await (
     await ethers.getContractFactory('CvxRewardPool')
   ).deploy(
     cvx.address,
@@ -152,31 +152,15 @@ before(async function () {
     cvx.address,
     cvxLocker.address,
     cvxDelegateRegistry.address,
-    cvxRewardPool.address,
-    cvxCrvToken.address,
     pxCvx.address,
     upCvx.address,
     spCvx.address,
     vpCvx.address,
     rpCvx.address,
     pirexFees.address,
-    votiumMultiMerkleStash.address
-  );
-  pCvxNew = await (
-    await ethers.getContractFactory('PirexCvx')
-  ).deploy(
-    cvx.address,
-    cvxLockerNew.address,
-    cvxDelegateRegistry.address,
-    cvxRewardPool.address,
-    cvxCrvToken.address,
-    pxCvx.address,
-    upCvx.address,
-    spCvx.address,
-    vpCvx.address,
-    rpCvx.address,
-    pirexFees.address,
-    votiumMultiMerkleStash.address
+    votiumMultiMerkleStash.address,
+    this.zeroAddress,
+    0
   );
   unionPirex = await (
     await ethers.getContractFactory('UnionPirexVault')
@@ -192,7 +176,6 @@ before(async function () {
   this.cvxCrvToken = cvxCrvToken;
   this.cvxLocker = cvxLocker;
   this.cvxLockerNew = cvxLockerNew;
-  this.cvxRewardPool = cvxRewardPool;
   this.cvxDelegateRegistry = cvxDelegateRegistry;
   this.votiumAddressRegistry = votiumAddressRegistry;
   this.votiumMultiMerkleStash = votiumMultiMerkleStash;
@@ -200,7 +183,6 @@ before(async function () {
   this.pxCvx = pxCvx;
   this.pCvx = pCvx;
   this.unionPirex = unionPirex;
-  this.pCvxNew = pCvxNew;
 
   await this.pirexFees.grantFeeDistributorRole(pCvx.address);
 
@@ -209,7 +191,6 @@ before(async function () {
   // Common constants
   this.feePercentDenominator = await pirexFees.PERCENT_DENOMINATOR();
   this.feeDenominator = await pCvx.FEE_DENOMINATOR();
-  this.zeroAddress = ethers.constants.AddressZero;
   this.epochDuration = toBN(1209600);
   this.delegationSpace = 'cvx.eth';
   this.delegationSpaceBytes32 = ethers.utils.formatBytes32String(
@@ -227,8 +208,6 @@ before(async function () {
   this.convexContractEnum = {
     cvxLocker: 0,
     cvxDelegateRegistry: 1,
-    cvxRewardPool: 2,
-    cvxCrvToken: 3,
   };
   this.futuresEnum = {
     vote: 0,
@@ -271,9 +250,9 @@ before(async function () {
       []
     );
   this.getUpCvx = async (address: string) =>
-    await ethers.getContractAt('ERC1155PresetMinterSupply', address);
+    await ethers.getContractAt('ERC1155Solmate', address);
   this.getSpCvx = async (address: string) =>
-    await ethers.getContractAt('ERC1155PresetMinterSupply', address);
+    await ethers.getContractAt('ERC1155Solmate', address);
   this.getRpCvx = async (address: string) =>
     await ethers.getContractAt('ERC1155PresetMinterSupply', address);
   this.getVpCvx = async (address: string) =>
