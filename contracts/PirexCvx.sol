@@ -11,7 +11,7 @@ import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol"
 import {PirexCvxConvex} from "./PirexCvxConvex.sol";
 import {PxCvx} from "./PxCvx.sol";
 import {PirexFees} from "./PirexFees.sol";
-import {UnionPirexVault} from "./UnionPirexVault.sol";
+import {UnionPirexVault} from "./union/UnionPirexVault.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 
 contract PirexCvx is ReentrancyGuard, PirexCvxConvex {

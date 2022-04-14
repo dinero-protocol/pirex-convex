@@ -6,15 +6,15 @@ import {ERC4626} from "@rari-capital/solmate/src/mixins/ERC4626.sol";
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {FixedPointMathLib} from "@rari-capital/solmate/src/utils/FixedPointMathLib.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
-import {PirexCvx} from "./PirexCvx.sol";
-import {UnionPirexStaking} from "./UnionPirexStaking.sol";
+import {PirexCvx} from "../PirexCvx.sol";
+import {UnionPirexStrategy} from "./UnionPirexStrategy.sol";
 
 contract UnionPirexVault is Ownable, ERC4626 {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
     PirexCvx public pirexCvx;
-    UnionPirexStaking public strategy;
+    UnionPirexStrategy public strategy;
 
     uint8 public constant MAX_CALL_INCENTIVE = 250;
     uint16 public constant MAX_WITHDRAWAL_PENALTY = 500;
@@ -95,7 +95,7 @@ contract UnionPirexVault is Ownable, ERC4626 {
         address oldStrategy = address(strategy);
 
         // Set new strategy contract and approve max allowance
-        strategy = UnionPirexStaking(_strategy);
+        strategy = UnionPirexStrategy(_strategy);
         pirexCvx.approve(_strategy, type(uint256).max);
 
         // Set allowance of previous strategy to 0
@@ -103,9 +103,9 @@ contract UnionPirexVault is Ownable, ERC4626 {
             pirexCvx.approve(oldStrategy, 0);
 
             // Migrate previous strategy balance to new strategy
-            uint256 balance = pirexCvx.getBalanceOf(oldStrategy);
+            uint256 balance = UnionPirexStrategy(oldStrategy).totalUnderlying();
             if (balance != 0) {
-                UnionPirexStaking(oldStrategy).withdraw(balance);
+                UnionPirexStrategy(oldStrategy).withdraw(balance);
                 strategy.stake(balance);
             }
         }
@@ -118,8 +118,8 @@ contract UnionPirexVault is Ownable, ERC4626 {
         @return uint256  Assets
      */
     function totalAssets() public view override returns (uint256) {
-        // Vault assets should always be stored in the stategy contract until withdrawal-time
-        return pirexCvx.getBalanceOf(address(strategy));
+        // Vault assets should always be stored in the staking contract until withdrawal-time
+        return strategy.totalUnderlying();
     }
 
     /**
