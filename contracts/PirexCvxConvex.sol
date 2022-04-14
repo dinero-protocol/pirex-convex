@@ -153,8 +153,9 @@ contract PirexCvxConvex is Ownable, Pausable {
 
         // Lock CVX if the balance is greater than outstanding redemptions or if there are pending locks
         if (balanceGreaterThanRedemptions || pendingLocks != 0) {
-            uint256 balanceRedemptionsDifference = balance -
-                outstandingRedemptions;
+            uint256 balanceRedemptionsDifference = balanceGreaterThanRedemptions
+                ? balance - outstandingRedemptions
+                : 0;
 
             // Lock amount is the greater of the two: balanceRedemptionsDifference or pendingLocks
             // balanceRedemptionsDifference is greater if there is unlocked CVX that isn't reserved for redemptions + deposits
