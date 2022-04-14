@@ -411,7 +411,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @param  unlockTimes  uint256[]  CVX unlock timestamps
         @param  assets       uint256[]  upCVX amounts
         @param  receiver     address    Receives CVX
-        @param  bool         legacy     Type of the upCVX
+        @param  legacy       bool       Type of the upCVX
      */
     function _redeem(
         uint256[] calldata unlockTimes,
