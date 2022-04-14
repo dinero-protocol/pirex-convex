@@ -37,8 +37,8 @@ contract UnionPirexVault is Ownable, ERC4626 {
     error ZeroAddress();
     error ExceedsMax();
 
-    constructor(address _token, address _pirexCvx)
-        ERC4626(ERC20(_token), "Union Pirex", "uCVX")
+    constructor(address _pirexCvx)
+        ERC4626(ERC20(_pirexCvx), "Union Pirex", "uCVX")
     {
         if (_pirexCvx == address(0)) revert ZeroAddress();
         pirexCvx = PirexCvx(_pirexCvx);
