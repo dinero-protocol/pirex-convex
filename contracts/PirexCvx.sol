@@ -406,6 +406,13 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         token.mintBatch(receiver, tokenIds, amounts, UNUSED_1155_DATA);
     }
 
+    /**
+        @notice Redeem CVX for specified unlock times
+        @param  unlockTimes  uint256[]  CVX unlock timestamps
+        @param  assets       uint256[]  upCVX amounts
+        @param  receiver     address    Receives CVX
+        @param  bool         legacy     Type of the upCVX
+     */
     function _redeem(
         uint256[] calldata unlockTimes,
         uint256[] calldata assets,
