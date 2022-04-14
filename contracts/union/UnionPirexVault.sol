@@ -1,30 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ERC4626} from "@rari-capital/solmate/src/mixins/ERC4626.sol";
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
+import {ReentrancyGuard} from "@rari-capital/solmate/src/utils/ReentrancyGuard.sol";
 import {FixedPointMathLib} from "@rari-capital/solmate/src/utils/FixedPointMathLib.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import {PirexCvx} from "../PirexCvx.sol";
 import {UnionPirexStrategy} from "./UnionPirexStrategy.sol";
 
-contract UnionPirexVault is Ownable, ERC4626 {
+contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
     PirexCvx public pirexCvx;
     UnionPirexStrategy public strategy;
 
-    uint8 public constant MAX_CALL_INCENTIVE = 250;
     uint16 public constant MAX_WITHDRAWAL_PENALTY = 500;
     uint16 public constant MAX_PLATFORM_FEE = 2000;
     uint16 public constant FEE_DENOMINATOR = 10000;
 
-    uint8 public callIncentive = 100;
     uint16 public withdrawalPenalty = 300;
     uint16 public platformFee = 500;
-
     address public platform;
 
     event Harvest(address indexed _caller, uint256 _value);
@@ -42,33 +40,33 @@ contract UnionPirexVault is Ownable, ERC4626 {
     {
         if (_pirexCvx == address(0)) revert ZeroAddress();
         pirexCvx = PirexCvx(_pirexCvx);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    // Harvest rewards before performing asset and share-related calculations
+    modifier harvest() {
+        strategy.harvest();
+        _;
     }
 
     /**
         @notice Set the withdrawal penalty
         @param _penalty  uint16  Withdrawal penalty
      */
-    function setWithdrawalPenalty(uint16 _penalty) external onlyOwner {
+    function setWithdrawalPenalty(uint16 _penalty)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         if (_penalty > MAX_WITHDRAWAL_PENALTY) revert ExceedsMax();
         withdrawalPenalty = _penalty;
         emit WithdrawalPenaltyUpdated(_penalty);
     }
 
     /**
-        @notice Set the call incentive
-        @param _incentive  uint8  Call incentive
-     */
-    function setCallIncentive(uint8 _incentive) external onlyOwner {
-        if (_incentive > MAX_CALL_INCENTIVE) revert ExceedsMax();
-        callIncentive = _incentive;
-        emit CallerIncentiveUpdated(_incentive);
-    }
-
-    /**
         @notice Set the platform fee
         @param _fee  uint16  Platform fee
      */
-    function setPlatformFee(uint16 _fee) external onlyOwner {
+    function setPlatformFee(uint16 _fee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_fee > MAX_PLATFORM_FEE) revert ExceedsMax();
         platformFee = _fee;
         emit PlatformFeeUpdated(_fee);
@@ -78,7 +76,10 @@ contract UnionPirexVault is Ownable, ERC4626 {
         @notice Set the platform
         @param _platform  address  Platform
      */
-    function setPlatform(address _platform) external onlyOwner {
+    function setPlatform(address _platform)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         if (_platform == address(0)) revert ZeroAddress();
         platform = _platform;
         emit PlatformUpdated(_platform);
@@ -88,7 +89,10 @@ contract UnionPirexVault is Ownable, ERC4626 {
         @notice Set the strategy
         @param _strategy  address  Strategy
      */
-    function setStrategy(address _strategy) external onlyOwner {
+    function setStrategy(address _strategy)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         if (_strategy == address(0)) revert ZeroAddress();
 
         // Store old strategy to perform maintenance if needed
@@ -184,5 +188,91 @@ contract UnionPirexVault is Ownable, ERC4626 {
                 ? shares
                 : shares /
                     ((FEE_DENOMINATOR - withdrawalPenalty) / FEE_DENOMINATOR);
+    }
+
+    function deposit(uint256 assets, address receiver)
+        public
+        override
+        harvest
+        nonReentrant
+        returns (uint256 shares)
+    {
+        // Check for rounding error since we round down in previewDeposit.
+        require((shares = previewDeposit(assets)) != 0, "ZERO_SHARES");
+
+        // Need to transfer before minting or ERC777s could reenter.
+        asset.safeTransferFrom(msg.sender, address(this), assets);
+
+        _mint(receiver, shares);
+
+        emit Deposit(msg.sender, receiver, assets, shares);
+
+        afterDeposit(assets, shares);
+    }
+
+    function mint(uint256 shares, address receiver)
+        public
+        override
+        harvest
+        nonReentrant
+        returns (uint256 assets)
+    {
+        assets = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
+
+        // Need to transfer before minting or ERC777s could reenter.
+        asset.safeTransferFrom(msg.sender, address(this), assets);
+
+        _mint(receiver, shares);
+
+        emit Deposit(msg.sender, receiver, assets, shares);
+
+        afterDeposit(assets, shares);
+    }
+
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner
+    ) public override harvest nonReentrant returns (uint256 shares) {
+        shares = previewWithdraw(assets); // No need to check for rounding error, previewWithdraw rounds up.
+
+        if (msg.sender != owner) {
+            uint256 allowed = allowance[owner][msg.sender]; // Saves gas for limited approvals.
+
+            if (allowed != type(uint256).max)
+                allowance[owner][msg.sender] = allowed - shares;
+        }
+
+        beforeWithdraw(assets, shares);
+
+        _burn(owner, shares);
+
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
+
+        asset.safeTransfer(receiver, assets);
+    }
+
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) public override harvest nonReentrant returns (uint256 assets) {
+        if (msg.sender != owner) {
+            uint256 allowed = allowance[owner][msg.sender]; // Saves gas for limited approvals.
+
+            if (allowed != type(uint256).max)
+                allowance[owner][msg.sender] = allowed - shares;
+        }
+
+        // Check for rounding error since we round down in previewRedeem.
+        require((assets = previewRedeem(shares)) != 0, "ZERO_ASSETS");
+
+        beforeWithdraw(assets, shares);
+
+        _burn(owner, shares);
+
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
+
+        asset.safeTransfer(receiver, assets);
     }
 }

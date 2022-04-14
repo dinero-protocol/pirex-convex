@@ -23,41 +23,30 @@ contract UnionPirexStrategy is UnionPirexStaking {
         vault = UnionPirexVault(_vault);
     }
 
-    /// @notice Claim rewards and restakes them
-    /// @dev Can be called by the vault only
-    /// @param _caller - the address calling the harvest on the vault
-    /// @return harvested - the amount harvested
-    function harvest(address _caller) external returns (uint256 harvested) {
+    /**
+        @notice Claim the available rewards (distributed over 14 days) and restake
+        @return harvested  uint256  Shares
+     */
+    function harvest() external returns (uint256 harvested) {
         require(address(vault) == msg.sender, "Vault calls only");
 
-        // claim rewards
+        uint256 balanceBeforeRewards = stakingToken.balanceOf(address(this));
+
+        // Claim rewards
         getReward();
 
-        uint256 _pCvxBalance = stakingToken.balanceOf(address(this));
+        uint256 rewardsReceived = balanceBeforeRewards -
+            stakingToken.balanceOf(address(this));
 
-        uint256 _stakingAmount = _pCvxBalance;
-
-        if (_pCvxBalance > 0) {
-            // if this is the last call, no fees
-            if (vault.totalSupply() != 0) {
-                // Deduce and pay out incentive to caller (not needed for final exit)
-                if (vault.callIncentive() > 0) {
-                    uint256 incentiveAmount = (_pCvxBalance *
-                        vault.callIncentive()) / FEE_DENOMINATOR;
-                    stakingToken.safeTransfer(_caller, incentiveAmount);
-                    _stakingAmount -= incentiveAmount;
-                }
-                // Deduce and pay platform fee
-                if (vault.platformFee() > 0) {
-                    uint256 feeAmount = (_pCvxBalance * vault.platformFee()) /
-                        FEE_DENOMINATOR;
-                    stakingToken.safeTransfer(vault.platform(), feeAmount);
-                    _stakingAmount -= feeAmount;
-                }
-            }
-            // Restake
-            this.stake(_stakingAmount);
+        if (rewardsReceived != 0) {
+            // Deduce and pay platform fee
+            uint256 feeAmount = (rewardsReceived * vault.platformFee()) /
+                FEE_DENOMINATOR;
+            stakingToken.safeTransfer(vault.platform(), feeAmount);
+            rewardsReceived -= feeAmount;
+            this.stake(rewardsReceived);
         }
-        return _stakingAmount;
+
+        return rewardsReceived;
     }
 }

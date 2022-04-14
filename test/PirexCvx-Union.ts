@@ -54,19 +54,15 @@ describe('PirexCvx-Union', function () {
 
   describe('initial state', function () {
     it('Should have initialized state variables', async function () {
-      const MAX_CALL_INCENTIVE = await unionPirex.MAX_CALL_INCENTIVE();
       const MAX_WITHDRAWAL_PENALTY = await unionPirex.MAX_WITHDRAWAL_PENALTY();
       const MAX_PLATFORM_FEE = await unionPirex.MAX_PLATFORM_FEE();
       const FEE_DENOMINATOR = await unionPirex.FEE_DENOMINATOR();
-      const callIncentive = await unionPirex.callIncentive();
       const withdrawalPenalty = await unionPirex.withdrawalPenalty();
       const platformFee = await unionPirex.platformFee();
 
-      expect(MAX_CALL_INCENTIVE).to.equal(250);
       expect(MAX_WITHDRAWAL_PENALTY).to.equal(500);
       expect(MAX_PLATFORM_FEE).to.equal(2000);
       expect(FEE_DENOMINATOR).to.equal(10000);
-      expect(callIncentive).to.equal(100);
       expect(withdrawalPenalty).to.equal(300);
       expect(platformFee).to.equal(500);
     });
@@ -102,7 +98,11 @@ describe('PirexCvx-Union', function () {
 
       await expect(
         unionPirex.connect(notAdmin).setStrategy(strategy)
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+      ).to.be.revertedWith(
+        `AccessControl: account ${
+          notAdmin.address.toLowerCase()
+        } is missing role ${await unionPirex.DEFAULT_ADMIN_ROLE()}`
+      );
     });
 
     it('Should set a new strategy', async function () {
