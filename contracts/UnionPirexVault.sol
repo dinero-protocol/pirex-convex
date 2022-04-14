@@ -118,9 +118,8 @@ contract UnionPirexVault is Ownable, ERC4626 {
         @return uint256  Assets
      */
     function totalAssets() public view override returns (uint256) {
-        return
-            pirexCvx.getBalanceOf(address(this)) +
-            pirexCvx.getBalanceOf(address(strategy));
+        // Vault assets should always be stored in the stategy contract until withdrawal-time
+        return pirexCvx.getBalanceOf(address(strategy));
     }
 
     /**
@@ -155,10 +154,10 @@ contract UnionPirexVault is Ownable, ERC4626 {
         // Calculate assets based on a user's % ownership of vault shares
         uint256 assets = convertToAssets(shares);
 
-        // Calculate a penalty (0 if user is the last to withdraw)
+        // Calculate a penalty - zero if user is the last to withdraw
         uint256 penalty = (totalSupply == 0 || totalSupply - shares == 0)
             ? 0
-            : (assets * withdrawalPenalty) / FEE_DENOMINATOR;
+            : assets.mulDivDown(withdrawalPenalty, FEE_DENOMINATOR);
 
         // Redeemable amount is the post-penalty amount
         return assets - penalty;
@@ -166,6 +165,7 @@ contract UnionPirexVault is Ownable, ERC4626 {
 
     /**
         @notice Preview the amount of shares a user would need to redeem the specified asset amount
+        @notice This modified version takes into consideration the withdrawal fee
         @param  assets  uint256  Assets
         @return uint256  Shares
      */
@@ -175,12 +175,14 @@ contract UnionPirexVault is Ownable, ERC4626 {
         override
         returns (uint256)
     {
-        uint256 supply = totalSupply;
+        // Calculate shares based on the specified assets' proportion of the pool
+        uint256 shares = convertToShares(assets);
 
+        // Factor in additional shares to fulfill withdrawal if user is not the last to withdraw
         return
-            supply == 0
-                ? assets
-                : assets.mulDivUp(supply, totalAssets()) /
+            (totalSupply == 0 || totalSupply - shares == 0)
+                ? shares
+                : shares /
                     ((FEE_DENOMINATOR - withdrawalPenalty) / FEE_DENOMINATOR);
     }
 }
