@@ -7,7 +7,6 @@ import {
   PirexCvx,
   UnionPirexVault,
   UnionPirexStrategy,
-  UnionPirexStaking,
 } from '../typechain-types';
 import { callAndReturnEvents, toBN, toBN2, validateEvent } from './helpers';
 
@@ -19,7 +18,6 @@ describe('PirexCvx-Union', function () {
   let unionPirex: UnionPirexVault;
   let unionPirexStrategy: UnionPirexStrategy;
   let unionPirexStrategy2: UnionPirexStrategy;
-  let unionPirexStaking: UnionPirexStaking;
   let cvx: ConvexToken;
   let zeroAddress: string;
   let contractEnum: any;
@@ -32,7 +30,6 @@ describe('PirexCvx-Union', function () {
       pxCvx,
       unionPirex,
       unionPirexStrategy,
-      unionPirexStaking,
       zeroAddress,
       contractEnum,
     } = this);
@@ -52,9 +49,7 @@ describe('PirexCvx-Union', function () {
 
     unionPirexStrategy2 = await (
       await ethers.getContractFactory('UnionPirexStrategy')
-    ).deploy(unionPirex.address, unionPirexStaking.address, pCvx.address);
-
-    await unionPirexStrategy2.setApprovals();
+    ).deploy(unionPirex.address, pCvx.address, admin.address);
   });
 
   describe('initial state', function () {
@@ -115,10 +110,8 @@ describe('PirexCvx-Union', function () {
         await pCvx.allowance(unionPirex.address, strategy);
       const oldStrategy = unionPirexStrategy.address;
       const strategy = unionPirexStrategy2.address;
-      const oldStrategyBalanceBefore =
-        await unionPirexStrategy.totalUnderlying();
-      const newStrategyBalanceBefore =
-        await unionPirexStrategy2.totalUnderlying();
+      const oldStrategyBalanceBefore = await unionPirexStrategy.totalSupply();
+      const newStrategyBalanceBefore = await unionPirexStrategy2.totalSupply();
       const oldStrategyAllowanceBefore = await getStrategyAllowance(
         oldStrategy
       );
@@ -129,14 +122,10 @@ describe('PirexCvx-Union', function () {
       const newStrategyApprovalEvent = events[0];
       const oldStrategyApprovalEvent = events[1];
       const oldStrategyWithdrawEvent = events[2];
-      const oldStrategyWithdrawEvent2 = events[4];
-      const newStrategyStakeEvent = events[5];
-      const newStrategyStakeEvent2 = events[6];
+      const newStrategyStakeEvent = events[4];
       const strategySetEvent = events[events.length - 1];
-      const oldStrategyBalanceAfter =
-        await unionPirexStrategy.totalUnderlying();
-      const newStrategyBalanceAfter =
-        await unionPirexStrategy2.totalUnderlying();
+      const oldStrategyBalanceAfter = await unionPirexStrategy.totalSupply();
+      const newStrategyBalanceAfter = await unionPirexStrategy2.totalSupply();
       const oldStrategyAllowanceAfter = await getStrategyAllowance(oldStrategy);
       const newStrategyAllowanceAfter = await getStrategyAllowance(strategy);
 
@@ -178,15 +167,6 @@ describe('PirexCvx-Union', function () {
         oldStrategyWithdrawEvent,
         'Transfer(address,address,uint256)',
         {
-          from: unionPirexStaking.address,
-          to: oldStrategy,
-          amount: oldStrategyBalanceBefore,
-        }
-      );
-      validateEvent(
-        oldStrategyWithdrawEvent2,
-        'Transfer(address,address,uint256)',
-        {
           from: oldStrategy,
           to: unionPirex.address,
           amount: oldStrategyBalanceBefore,
@@ -198,15 +178,6 @@ describe('PirexCvx-Union', function () {
         {
           from: unionPirex.address,
           to: strategy,
-          amount: oldStrategyBalanceBefore,
-        }
-      );
-      validateEvent(
-        newStrategyStakeEvent2,
-        'Transfer(address,address,uint256)',
-        {
-          from: strategy,
-          to: unionPirexStaking.address,
           amount: oldStrategyBalanceBefore,
         }
       );

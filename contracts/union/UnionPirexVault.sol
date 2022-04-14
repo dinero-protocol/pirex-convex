@@ -103,7 +103,7 @@ contract UnionPirexVault is Ownable, ERC4626 {
             pirexCvx.approve(oldStrategy, 0);
 
             // Migrate previous strategy balance to new strategy
-            uint256 balance = UnionPirexStrategy(oldStrategy).totalUnderlying();
+            uint256 balance = UnionPirexStrategy(oldStrategy).totalSupply();
             if (balance != 0) {
                 UnionPirexStrategy(oldStrategy).withdraw(balance);
                 strategy.stake(balance);
@@ -119,7 +119,7 @@ contract UnionPirexVault is Ownable, ERC4626 {
      */
     function totalAssets() public view override returns (uint256) {
         // Vault assets should always be stored in the staking contract until withdrawal-time
-        return strategy.totalUnderlying();
+        return strategy.totalSupply();
     }
 
     /**
