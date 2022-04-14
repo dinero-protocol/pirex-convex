@@ -43,7 +43,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    // Harvest rewards before performing asset and share-related calculations
+    // Harvest rewards before calling methods which rely on total assets (e.g. deposit)
     modifier harvest() {
         strategy.harvest();
         _;
@@ -190,6 +190,9 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
                     ((FEE_DENOMINATOR - withdrawalPenalty) / FEE_DENOMINATOR);
     }
 
+    /**
+        @notice Overridden solely to add harvest and nonReentrant modifiers 
+     */
     function deposit(uint256 assets, address receiver)
         public
         override
@@ -210,6 +213,9 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         afterDeposit(assets, shares);
     }
 
+    /**
+        @notice Overridden solely to add harvest and nonReentrant modifiers 
+     */
     function mint(uint256 shares, address receiver)
         public
         override
@@ -229,6 +235,9 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         afterDeposit(assets, shares);
     }
 
+    /**
+        @notice Overridden solely to add harvest and nonReentrant modifiers 
+     */
     function withdraw(
         uint256 assets,
         address receiver,
@@ -252,6 +261,9 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         asset.safeTransfer(receiver, assets);
     }
 
+    /**
+        @notice Overridden solely to add harvest and nonReentrant modifiers 
+     */
     function redeem(
         uint256 shares,
         address receiver,

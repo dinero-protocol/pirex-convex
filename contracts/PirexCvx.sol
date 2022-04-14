@@ -972,8 +972,4 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         // Validates `to`
         futuresOut.mint(receiver, epoch, amount, UNUSED_1155_DATA);
     }
-
-    function getBalanceOf(address account) external view returns (uint256) {
-        return balanceOf[account];
-    }
 }
