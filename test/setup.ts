@@ -38,6 +38,8 @@ before(async function () {
   const initialBalanceForAdmin = toBN(100e18);
   const crvDepositorAddr = '0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae';
 
+  this.zeroAddress = ethers.constants.AddressZero;
+
   // Deploy base contracts
   const curveVoterProxy = await (
     await ethers.getContractFactory('CurveVoterProxy')
@@ -46,7 +48,9 @@ before(async function () {
     await ethers.getContractFactory('ConvexToken')
   ).deploy(curveVoterProxy.address);
   crv = await (await ethers.getContractFactory('Crv')).deploy();
-  const cvxCrvToken = await (await ethers.getContractFactory('cvxCrvToken')).deploy();
+  const cvxCrvToken = await (
+    await ethers.getContractFactory('cvxCrvToken')
+  ).deploy();
   const booster = await (
     await ethers.getContractFactory('Booster')
   ).deploy(curveVoterProxy.address, cvx.address);
@@ -155,7 +159,8 @@ before(async function () {
     rpCvx.address,
     pirexFees.address,
     votiumMultiMerkleStash.address,
-    0,
+    this.zeroAddress,
+    0
   );
   unionPirex = await (
     await ethers.getContractFactory('UnionPirexVault')
@@ -186,7 +191,6 @@ before(async function () {
   // Common constants
   this.feePercentDenominator = await pirexFees.PERCENT_DENOMINATOR();
   this.feeDenominator = await pCvx.FEE_DENOMINATOR();
-  this.zeroAddress = ethers.constants.AddressZero;
   this.epochDuration = toBN(1209600);
   this.delegationSpace = 'cvx.eth';
   this.delegationSpaceBytes32 = ethers.utils.formatBytes32String(
@@ -246,9 +250,9 @@ before(async function () {
       []
     );
   this.getUpCvx = async (address: string) =>
-    await ethers.getContractAt('ERC1155PresetMinterSupply', address);
+    await ethers.getContractAt('ERC1155Solmate', address);
   this.getSpCvx = async (address: string) =>
-    await ethers.getContractAt('ERC1155PresetMinterSupply', address);
+    await ethers.getContractAt('ERC1155Solmate', address);
   this.getRpCvx = async (address: string) =>
     await ethers.getContractAt('ERC1155PresetMinterSupply', address);
   this.getVpCvx = async (address: string) =>

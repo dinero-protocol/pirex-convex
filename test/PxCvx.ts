@@ -66,7 +66,7 @@ describe('PxCvx', function () {
       const operatorAfter = await pxCvx.operator();
 
       expect(operatorAfter).to.not.equal(operatorBefore);
-      expect(operatorAfter).to.be.equal(newOperator);
+      expect(operatorAfter).to.equal(newOperator);
     });
   });
 
@@ -108,7 +108,7 @@ describe('PxCvx', function () {
       const balanceAfter = await pxCvx.balanceOf(recipient);
 
       expect(balanceAfter).to.be.gt(balanceBefore);
-      expect(balanceAfter).to.be.equal(balanceBefore.add(amount));
+      expect(balanceAfter).to.equal(balanceBefore.add(amount));
     });
   });
 
@@ -160,7 +160,7 @@ describe('PxCvx', function () {
       const balanceAfter = await pxCvx.balanceOf(account);
 
       expect(balanceBefore).to.be.gt(balanceAfter);
-      expect(balanceAfter).to.be.equal(balanceBefore.sub(amount));
+      expect(balanceAfter).to.equal(balanceBefore.sub(amount));
     });
   });
 

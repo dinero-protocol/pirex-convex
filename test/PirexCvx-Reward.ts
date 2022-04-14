@@ -427,7 +427,7 @@ describe('PirexCvx-Reward', function () {
         treasuryCrvBalanceAfter.gt(
           treasuryCrvBalanceBefore.add(expectedTreasuryCrvFees)
         )
-      ).to.be.equal(true);
+      ).to.equal(true);
       expect(
         treasuryCrvBalanceAfter.lt(
           treasuryCrvBalanceBefore

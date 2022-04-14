@@ -93,6 +93,8 @@ describe('PirexCvx-Base', function () {
       const rpCvx = await pCvx.rpCvx();
       const spCvx = await pCvx.spCvx();
       const paused = await pCvx.paused();
+      const outstandingRedemptions = await pCvx.outstandingRedemptions();
+      const upCvxLegacy = await pCvx.upCvxLegacy();
 
       expect(_CVX).to.equal(cvx.address);
       expect(_CVX).to.not.equal(zeroAddress);
@@ -109,6 +111,8 @@ describe('PirexCvx-Base', function () {
       expect(rpCvx).to.not.equal(zeroAddress);
       expect(spCvx).to.not.equal(zeroAddress);
       expect(paused).to.be.true;
+      expect(outstandingRedemptions).to.equal(0);
+      expect(upCvxLegacy).to.equal(zeroAddress);
     });
   });
 

@@ -270,9 +270,7 @@ describe('PirexCvx-Main', function () {
         pCvx
           .connect(notAdmin)
           .initiateRedemptions(lockIndexes, f, invalidAssets, receiver)
-      ).to.be.revertedWith(
-        '0x11'
-      );
+      ).to.be.revertedWith('0x11');
     });
 
     it('should revert if the contract is paused', async function () {
@@ -593,10 +591,11 @@ describe('PirexCvx-Main', function () {
       expect(outstandingRedemptionsAfter).to.equal(
         outstandingRedemptionsBefore.sub(totalAssets)
       );
-      validateEvent(redeemEvent, 'Redeem(uint256[],uint256[],address)', {
+      validateEvent(redeemEvent, 'Redeem(uint256[],uint256[],address,bool)', {
         unlockTimes,
         assets,
         receiver,
+        legacy: false,
       });
       validateEvent(cvxTransferEvent, 'Transfer(address,address,uint256)', {
         from: pCvx.address,

@@ -5,6 +5,7 @@ import {ReentrancyGuard} from "@rari-capital/solmate/src/utils/ReentrancyGuard.s
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import {Bytes32AddressLib} from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
+import {ERC1155Solmate} from "./ERC1155Solmate.sol";
 import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 import {PirexCvxConvex} from "./PirexCvxConvex.sol";
@@ -80,8 +81,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     PxCvx public pxCvx;
     PirexFees public pirexFees;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
-    ERC1155PresetMinterSupply public upCvx;
-    ERC1155PresetMinterSupply public spCvx;
+    ERC1155Solmate public upCvx;
+    ERC1155Solmate public spCvx;
     ERC1155PresetMinterSupply public vpCvx;
     ERC1155PresetMinterSupply public rpCvx;
     UnionPirexVault public unionPirex;
@@ -97,6 +98,9 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
     // Address of the new PirexCvx contract in the case of emergency redeployment
     address public pirexCvxMigration;
+
+    // Legacy upCvx token contract to be used for emergency redemptions
+    ERC1155Solmate public upCvxLegacy;
 
     event SetContract(Contract indexed c, address contractAddress);
     event QueueFee(Fees indexed f, uint32 newFee, uint224 effectiveAfter);
@@ -121,7 +125,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     event Redeem(
         uint256[] unlockTimes,
         uint256[] assets,
-        address indexed receiver
+        address indexed receiver,
+        bool legacy
     );
     event Stake(
         uint256 rounds,
@@ -174,6 +179,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     error EmptyArray();
     error MismatchedArrayLengths();
     error NoRewards();
+    error LegacyDisabled();
 
     /**
         @param  _CVX                     address  CVX address    
@@ -186,6 +192,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @param  _rpCvx                   address  RpCvx address
         @param  _pirexFees               address  PirexFees address
         @param  _votiumMultiMerkleStash  address  VotiumMultiMerkleStash address
+        @param  _upCvxLegacy             address  Legacy UpCvx address
         @param  _outstandingRedemptions  uint256  Initial outstanding redemptions
      */
     constructor(
@@ -199,6 +206,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         address _rpCvx,
         address _pirexFees,
         address _votiumMultiMerkleStash,
+        address _upCvxLegacy,
         uint256 _outstandingRedemptions
     )
         PirexCvxConvex(
@@ -218,10 +226,10 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         pirexFees = PirexFees(_pirexFees);
 
         if (_upCvx == address(0)) revert ZeroAddress();
-        upCvx = ERC1155PresetMinterSupply(_upCvx);
+        upCvx = ERC1155Solmate(_upCvx);
 
         if (_spCvx == address(0)) revert ZeroAddress();
-        spCvx = ERC1155PresetMinterSupply(_spCvx);
+        spCvx = ERC1155Solmate(_spCvx);
 
         if (_vpCvx == address(0)) revert ZeroAddress();
         vpCvx = ERC1155PresetMinterSupply(_vpCvx);
@@ -233,6 +241,11 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         votiumMultiMerkleStash = IVotiumMultiMerkleStash(
             _votiumMultiMerkleStash
         );
+
+        // Can be address(0) if it's the first deployment of PirexCvx
+        if (_upCvxLegacy != address(0)) {
+            upCvxLegacy = ERC1155Solmate(_upCvxLegacy);
+        }
     }
 
     /** 
@@ -259,12 +272,12 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         }
 
         if (c == Contract.UpCvx) {
-            upCvx = ERC1155PresetMinterSupply(contractAddress);
+            upCvx = ERC1155Solmate(contractAddress);
             return;
         }
 
         if (c == Contract.SpCvx) {
-            spCvx = ERC1155PresetMinterSupply(contractAddress);
+            spCvx = ERC1155Solmate(contractAddress);
             return;
         }
 
@@ -391,6 +404,46 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         }
 
         token.mintBatch(receiver, tokenIds, amounts, UNUSED_1155_DATA);
+    }
+
+    function _redeem(
+        uint256[] calldata unlockTimes,
+        uint256[] calldata assets,
+        address receiver,
+        bool legacy
+    ) internal {
+        ERC1155Solmate token = (legacy ? upCvxLegacy : upCvx);
+
+        uint256 unlockLen = unlockTimes.length;
+        if (unlockLen == 0) revert EmptyArray();
+        if (unlockLen != assets.length) revert MismatchedArrayLengths();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        emit Redeem(unlockTimes, assets, receiver, legacy);
+
+        uint256 totalAssets;
+
+        for (uint256 i; i < unlockLen; ++i) {
+            uint256 asset = assets[i];
+
+            if (!legacy && unlockTimes[i] > block.timestamp)
+                revert BeforeUnlock();
+            if (asset == 0) revert ZeroAmount();
+
+            totalAssets += asset;
+        }
+
+        // Unlock and relock if balance is greater than outstandingRedemptions
+        _relock();
+
+        // Subtract redemption amount from outstanding CVX amount
+        outstandingRedemptions -= totalAssets;
+
+        // Reverts if sender has an insufficient amount of upCVX with unlockTime id
+        token.burnBatch(msg.sender, unlockTimes, assets);
+
+        // Validates `to`
+        CVX.safeTransfer(receiver, totalAssets);
     }
 
     /**
@@ -594,35 +647,22 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         uint256[] calldata assets,
         address receiver
     ) external whenNotPaused nonReentrant {
-        uint256 unlockLen = unlockTimes.length;
-        if (unlockLen == 0) revert EmptyArray();
-        if (unlockLen != assets.length) revert MismatchedArrayLengths();
-        if (receiver == address(0)) revert ZeroAddress();
+        _redeem(unlockTimes, assets, receiver, false);
+    }
 
-        emit Redeem(unlockTimes, assets, receiver);
-
-        uint256 totalAssets;
-
-        for (uint256 i; i < unlockLen; ++i) {
-            uint256 asset = assets[i];
-
-            if (unlockTimes[i] > block.timestamp) revert BeforeUnlock();
-            if (asset == 0) revert ZeroAmount();
-
-            totalAssets += asset;
-        }
-
-        // Unlock and relock if balance is greater than outstandingRedemptions
-        _relock();
-
-        // Subtract redemption amount from outstanding CVX amount
-        outstandingRedemptions -= totalAssets;
-
-        // Reverts if sender has an insufficient amount of upCVX with unlockTime id
-        upCvx.burnBatch(msg.sender, unlockTimes, assets);
-
-        // Validates `to`
-        CVX.safeTransfer(receiver, totalAssets);
+    /**
+        @notice Redeem CVX for specified unlock times for legacy upCvx holders if enabled
+        @param  unlockTimes  uint256[]  CVX unlock timestamps
+        @param  assets       uint256[]  upCVX amounts
+        @param  receiver     address    Receives CVX
+     */
+    function redeemLegacy(
+        uint256[] calldata unlockTimes,
+        uint256[] calldata assets,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        if (address(upCvxLegacy) == address(0)) revert LegacyDisabled();
+        _redeem(unlockTimes, assets, receiver, true);
     }
 
     /**
