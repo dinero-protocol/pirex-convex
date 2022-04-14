@@ -49,7 +49,7 @@ describe('PirexCvx-Union', function () {
 
     unionPirexStrategy2 = await (
       await ethers.getContractFactory('UnionPirexStrategy')
-    ).deploy(unionPirex.address, pCvx.address, admin.address);
+    ).deploy(pCvx.address, admin.address);
   });
 
   describe('initial state', function () {

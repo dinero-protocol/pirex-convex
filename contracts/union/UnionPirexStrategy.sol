@@ -3,50 +3,32 @@ pragma solidity 0.8.12;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "./UnionPirexVault.sol";
-import "./UnionPirexStaking.sol";
+import {PirexCvx} from "../PirexCvx.sol";
+import {UnionPirexVault} from "./UnionPirexVault.sol";
+import {UnionPirexStaking} from "./UnionPirexStaking.sol";
 
 contract UnionPirexStrategy is UnionPirexStaking {
     using SafeERC20 for IERC20;
 
-    UnionPirexVault public immutable vault;
-
-    uint256 public constant FEE_DENOMINATOR = 10000;
+    PirexCvx public immutable pirexCvx;
 
     error ZeroAddress();
 
-    constructor(
-        address _vault,
-        address _pxCVX,
-        address _distributor
-    ) UnionPirexStaking(_pxCVX, _pxCVX, _distributor) {
-        vault = UnionPirexVault(_vault);
+    constructor(address _pxCVX, address _distributor)
+        UnionPirexStaking(_pxCVX, _pxCVX, _distributor)
+    {
+        if (_pxCVX == address(0)) revert ZeroAddress();
+        pirexCvx = PirexCvx(_pxCVX);
     }
 
     /**
-        @notice Claim the available rewards (distributed over 14 days) and restake
-        @return harvested  uint256  Shares
+        @notice Redeem pxCVX rewards and transfer them to the distributor
+        @param  epoch          uint256    Rewards epoch
+        @param  rewardIndexes  uint256[]  Reward indexes
      */
-    function harvest() external returns (uint256 harvested) {
-        require(address(vault) == msg.sender, "Vault calls only");
-
-        uint256 balanceBeforeRewards = stakingToken.balanceOf(address(this));
-
-        // Claim rewards
-        getReward();
-
-        uint256 rewardsReceived = balanceBeforeRewards -
-            stakingToken.balanceOf(address(this));
-
-        if (rewardsReceived != 0) {
-            // Deduce and pay platform fee
-            uint256 feeAmount = (rewardsReceived * vault.platformFee()) /
-                FEE_DENOMINATOR;
-            stakingToken.safeTransfer(vault.platform(), feeAmount);
-            rewardsReceived -= feeAmount;
-            this.stake(rewardsReceived);
-        }
-
-        return rewardsReceived;
+    function redeemRewards(uint256 epoch, uint256[] calldata rewardIndexes)
+        external
+    {
+        pirexCvx.redeemSnapshotRewards(epoch, rewardIndexes, distributor);
     }
 }
