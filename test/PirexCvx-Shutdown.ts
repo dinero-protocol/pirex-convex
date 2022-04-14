@@ -7,29 +7,37 @@ import {
   CvxLockerV2,
   PirexCvx,
   ERC1155Solmate,
+  DelegateRegistry,
+  PxCvx,
+  PirexFees,
+  MultiMerkleStash,
 } from '../typechain-types';
 
 // Tests the emergency relock mechanism on CvxLockerV2 shutdown
 describe('PirexCvx-Shutdown', function () {
   let notAdmin: SignerWithAddress;
+  let pxCvx: PxCvx;
+  let pirexFees: PirexFees;
   let pCvx: PirexCvx;
-  let pCvxNew: PirexCvx;
   let cvx: ConvexToken;
   let cvxLocker: CvxLockerV2;
   let cvxLockerNew: CvxLockerV2;
+  let cvxDelegateRegistry: DelegateRegistry;
+  let votiumMultiMerkleStash: MultiMerkleStash;
   let zeroAddress: string;
-  let contractEnum: any;
 
   before(async function () {
     ({
       notAdmin,
+      pxCvx,
       pCvx,
-      pCvxNew,
       cvx,
       cvxLocker,
       cvxLockerNew,
+      cvxDelegateRegistry,
+      votiumMultiMerkleStash,
       zeroAddress,
-      contractEnum,
+      pirexFees,
     } = this);
   });
 
@@ -79,6 +87,37 @@ describe('PirexCvx-Shutdown', function () {
       await pCvx.unlock();
 
       const cvxBalance = await cvx.balanceOf(pCvx.address);
+      const outstandingRedemptions = await pCvx.outstandingRedemptions();
+
+      // Deploy a new PirexCvx contract
+      // Redeploy upCvx and set it to the new PirexCvx contract
+      const upCvxNew: ERC1155Solmate = await (
+        await ethers.getContractFactory('ERC1155Solmate')
+      ).deploy();
+      const spCvxAddress = await pCvx.spCvx();
+      const rpCvxAddress = await pCvx.rpCvx();
+      const vpCvxAddress = await pCvx.vpCvx();
+      const pCvxNew: PirexCvx = await (
+        await ethers.getContractFactory('PirexCvx')
+      ).deploy(
+        cvx.address,
+        cvxLockerNew.address,
+        cvxDelegateRegistry.address,
+        pxCvx.address,
+        upCvxNew.address,
+        spCvxAddress,
+        vpCvxAddress,
+        rpCvxAddress,
+        pirexFees.address,
+        votiumMultiMerkleStash.address,
+        outstandingRedemptions, // Required to keep track of old upCvx claims
+      );
+
+      const upCvxAfter = await pCvxNew.upCvx();
+      const outstandingRedemptionsNew = await pCvx.outstandingRedemptions();
+      expect(upCvxAfter).to.be.equal(upCvxNew.address);
+      expect(outstandingRedemptionsNew).to.be.equal(outstandingRedemptions);
+
       const migrationAddress = pCvxNew.address;
 
       // Set migration and migrate tokens over
@@ -123,16 +162,7 @@ describe('PirexCvx-Shutdown', function () {
       const lockedBalanceAfter = await cvxLockerNew.lockedBalanceOf(
         migrationAddress
       );
-      expect(lockedBalanceAfter).to.equal(cvxBalance);
-
-      // Redeploy upCvx and set it to the new PirexCvx contract
-      const upCvxNew: ERC1155Solmate = await (
-        await ethers.getContractFactory('ERC1155Solmate')
-      ).deploy();
-
-      await pCvxNew.setContract(contractEnum.upCvx, upCvxNew.address);
-      const upCvxAfter = await pCvxNew.upCvx();
-      expect(upCvxAfter).to.be.equal(upCvxNew.address);
+      expect(lockedBalanceAfter).to.equal(cvxBalance.sub(outstandingRedemptionsNew));
     });
   });
 });

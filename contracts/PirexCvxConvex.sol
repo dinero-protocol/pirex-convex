@@ -7,7 +7,6 @@ import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
-import {ICvxRewardPool} from "./interfaces/ICvxRewardPool.sol";
 
 contract PirexCvxConvex is Ownable, Pausable {
     using SafeTransferLib for ERC20;
@@ -27,17 +26,13 @@ contract PirexCvxConvex is Ownable, Pausable {
     // Configurable contracts
     enum ConvexContract {
         CvxLocker,
-        CvxDelegateRegistry,
-        CvxRewardPool,
-        CvxCrvToken
+        CvxDelegateRegistry
     }
 
     ERC20 public immutable CVX;
 
     ICvxLocker public cvxLocker;
     ICvxDelegateRegistry public cvxDelegateRegistry;
-    ICvxRewardPool public cvxRewardPool;
-    ERC20 public cvxCRV;
 
     // Convex Snapshot space
     bytes32 public delegationSpace = bytes32("cvx.eth");
@@ -54,18 +49,16 @@ contract PirexCvxConvex is Ownable, Pausable {
     error EmptyString();
 
     /**
-        @param  _CVX                  address  CVX address    
-        @param  _cvxLocker            address  CvxLocker address
-        @param  _cvxDelegateRegistry  address  CvxDelegateRegistry address
-        @param  _cvxRewardPool        address  CvxRewardPool address
-        @param  _cvxCRV               address  CvxCrvToken address
+        @param  _CVX                     address  CVX address    
+        @param  _cvxLocker               address  CvxLocker address
+        @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
+        @param  _outstandingRedemptions  uint256  Initial outstanding redemptions
      */
     constructor(
         address _CVX,
         address _cvxLocker,
         address _cvxDelegateRegistry,
-        address _cvxRewardPool,
-        address _cvxCRV
+        uint256 _outstandingRedemptions
     ) {
         if (_CVX == address(0)) revert ZeroAddress();
         CVX = ERC20(_CVX);
@@ -76,14 +69,10 @@ contract PirexCvxConvex is Ownable, Pausable {
         if (_cvxDelegateRegistry == address(0)) revert ZeroAddress();
         cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
 
-        if (_cvxRewardPool == address(0)) revert ZeroAddress();
-        cvxRewardPool = ICvxRewardPool(_cvxRewardPool);
-
-        if (_cvxCRV == address(0)) revert ZeroAddress();
-        cvxCRV = ERC20(_cvxCRV);
-
         // Max allowance for cvxLocker
         CVX.safeApprove(address(cvxLocker), type(uint256).max);
+
+        outstandingRedemptions = _outstandingRedemptions;
     }
 
     /** 
@@ -123,13 +112,6 @@ contract PirexCvxConvex is Ownable, Pausable {
             cvxDelegateRegistry = ICvxDelegateRegistry(contractAddress);
             return;
         }
-
-        if (c == ConvexContract.CvxRewardPool) {
-            cvxRewardPool = ICvxRewardPool(contractAddress);
-            return;
-        }
-
-        cvxCRV = ERC20(contractAddress);
     }
 
     /**

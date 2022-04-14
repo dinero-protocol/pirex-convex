@@ -12,7 +12,6 @@ import {
   MultiMerkleStash,
   Crv,
   PirexFees,
-  CvxRewardPool,
   AddressRegistry,
   UnionPirexVault,
 } from '../typechain-types';
@@ -22,17 +21,14 @@ let notAdmin: SignerWithAddress;
 let treasury: SignerWithAddress;
 let contributors: SignerWithAddress;
 let pCvx: PirexCvx;
-let pCvxNew: PirexCvx;
 let pxCvx: PxCvx;
 let pirexFees: PirexFees;
 let unionPirex: UnionPirexVault;
 let cvx: ConvexToken;
 let crv: Crv;
-let cvxCrvToken: any;
 let cvxLocker: CvxLockerV2;
 let cvxLockerNew: CvxLockerV2;
 let cvxDelegateRegistry: DelegateRegistry;
-let cvxRewardPool: CvxRewardPool;
 let votiumAddressRegistry: AddressRegistry;
 let votiumMultiMerkleStash: MultiMerkleStash;
 
@@ -50,7 +46,7 @@ before(async function () {
     await ethers.getContractFactory('ConvexToken')
   ).deploy(curveVoterProxy.address);
   crv = await (await ethers.getContractFactory('Crv')).deploy();
-  cvxCrvToken = await (await ethers.getContractFactory('cvxCrvToken')).deploy();
+  const cvxCrvToken = await (await ethers.getContractFactory('cvxCrvToken')).deploy();
   const booster = await (
     await ethers.getContractFactory('Booster')
   ).deploy(curveVoterProxy.address, cvx.address);
@@ -74,7 +70,7 @@ before(async function () {
   cvxLockerNew = await (
     await ethers.getContractFactory('CvxLockerV2')
   ).deploy(cvx.address, cvxCrvToken.address, baseRewardPool.address);
-  cvxRewardPool = await (
+  const cvxRewardPool = await (
     await ethers.getContractFactory('CvxRewardPool')
   ).deploy(
     cvx.address,
@@ -152,31 +148,14 @@ before(async function () {
     cvx.address,
     cvxLocker.address,
     cvxDelegateRegistry.address,
-    cvxRewardPool.address,
-    cvxCrvToken.address,
     pxCvx.address,
     upCvx.address,
     spCvx.address,
     vpCvx.address,
     rpCvx.address,
     pirexFees.address,
-    votiumMultiMerkleStash.address
-  );
-  pCvxNew = await (
-    await ethers.getContractFactory('PirexCvx')
-  ).deploy(
-    cvx.address,
-    cvxLockerNew.address,
-    cvxDelegateRegistry.address,
-    cvxRewardPool.address,
-    cvxCrvToken.address,
-    pxCvx.address,
-    upCvx.address,
-    spCvx.address,
-    vpCvx.address,
-    rpCvx.address,
-    pirexFees.address,
-    votiumMultiMerkleStash.address
+    votiumMultiMerkleStash.address,
+    0,
   );
   unionPirex = await (
     await ethers.getContractFactory('UnionPirexVault')
@@ -192,7 +171,6 @@ before(async function () {
   this.cvxCrvToken = cvxCrvToken;
   this.cvxLocker = cvxLocker;
   this.cvxLockerNew = cvxLockerNew;
-  this.cvxRewardPool = cvxRewardPool;
   this.cvxDelegateRegistry = cvxDelegateRegistry;
   this.votiumAddressRegistry = votiumAddressRegistry;
   this.votiumMultiMerkleStash = votiumMultiMerkleStash;
@@ -200,7 +178,6 @@ before(async function () {
   this.pxCvx = pxCvx;
   this.pCvx = pCvx;
   this.unionPirex = unionPirex;
-  this.pCvxNew = pCvxNew;
 
   await this.pirexFees.grantFeeDistributorRole(pCvx.address);
 
@@ -227,8 +204,6 @@ before(async function () {
   this.convexContractEnum = {
     cvxLocker: 0,
     cvxDelegateRegistry: 1,
-    cvxRewardPool: 2,
-    cvxCrvToken: 3,
   };
   this.futuresEnum = {
     vote: 0,

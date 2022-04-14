@@ -17,7 +17,6 @@ import {
   PirexCvx,
   MultiMerkleStash,
   PirexFees,
-  CvxRewardPool,
   UnionPirexVault,
 } from '../typechain-types';
 import { BigNumber } from 'ethers';
@@ -31,10 +30,8 @@ describe('PirexCvx-Base', function () {
   let pirexFees: PirexFees;
   let unionPirex: UnionPirexVault;
   let cvx: ConvexToken;
-  let cvxCrvToken: any;
   let cvxLocker: CvxLockerV2;
   let cvxDelegateRegistry: DelegateRegistry;
-  let cvxRewardPool: CvxRewardPool;
   let votiumMultiMerkleStash: MultiMerkleStash;
 
   let zeroAddress: string;
@@ -53,9 +50,7 @@ describe('PirexCvx-Base', function () {
       admin,
       notAdmin,
       cvx,
-      cvxCrvToken,
       cvxLocker,
-      cvxRewardPool,
       cvxDelegateRegistry,
       votiumMultiMerkleStash,
       pirexFees,
@@ -91,8 +86,6 @@ describe('PirexCvx-Base', function () {
       const _CVX = await pCvx.CVX();
       const _cvxLocker = await pCvx.cvxLocker();
       const _cvxDelegateRegistry = await pCvx.cvxDelegateRegistry();
-      const _cvxRewardPool = await pCvx.cvxRewardPool();
-      const _cvxCRV = await pCvx.cvxCRV();
       const _pirexFees = await pCvx.pirexFees();
       const _votiumMultiMerkleStash = await pCvx.votiumMultiMerkleStash();
       const upCvx = await pCvx.upCvx();
@@ -107,8 +100,6 @@ describe('PirexCvx-Base', function () {
       expect(_cvxLocker).to.not.equal(zeroAddress);
       expect(_cvxDelegateRegistry).to.equal(cvxDelegateRegistry.address);
       expect(_cvxDelegateRegistry).to.not.equal(zeroAddress);
-      expect(_cvxRewardPool).to.equal(cvxRewardPool.address);
-      expect(_cvxCRV).to.equal(cvxCrvToken.address);
       expect(_pirexFees).to.equal(pirexFees.address);
       expect(_pirexFees).to.not.equal(zeroAddress);
       expect(_votiumMultiMerkleStash).to.equal(votiumMultiMerkleStash.address);
@@ -409,47 +400,6 @@ describe('PirexCvx-Base', function () {
         c,
         contractAddress,
       });
-    });
-
-    it('Should set cvxRewardPool', async function () {
-      const cvxRewardPoolBefore = await pCvx.cvxRewardPool();
-      const c = convexContractEnum.cvxRewardPool;
-      const contractAddress = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setConvexContract, [
-        c,
-        contractAddress,
-      ]);
-      const cvxRewardPoolAfter = await pCvx.cvxRewardPool();
-
-      await pCvx.setConvexContract(c, cvxRewardPoolBefore);
-
-      expect(cvxRewardPoolBefore).to.not.equal(cvxRewardPoolAfter);
-      expect(cvxRewardPoolAfter).to.equal(contractAddress);
-      validateEvent(setEvent, 'SetConvexContract(uint8,address)', {
-        c,
-        contractAddress,
-      });
-    });
-
-    it('Should set cvxCrvToken', async function () {
-      const cvxCrvTokenBefore = await pCvx.cvxCRV();
-      const c = convexContractEnum.cvxCrvToken;
-      const contractAddress = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setConvexContract, [
-        c,
-        contractAddress,
-      ]);
-      const cvxCrvTokenAfter = await pCvx.cvxCRV();
-
-      await pCvx.setConvexContract(c, cvxCrvTokenBefore);
-
-      expect(cvxCrvTokenBefore).to.not.equal(cvxCrvTokenAfter);
-      expect(cvxCrvTokenAfter).to.equal(contractAddress);
-      validateEvent(setEvent, 'SetConvexContract(uint8,address)', {
-        c,
-        contractAddress,
-      });
-      expect(cvxCrvTokenBefore).to.equal(await pCvx.cvxCRV());
     });
   });
 

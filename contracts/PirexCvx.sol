@@ -179,8 +179,6 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @param  _CVX                     address  CVX address    
         @param  _cvxLocker               address  CvxLocker address
         @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
-        @param  _cvxRewardPool           address  CvxRewardPool address
-        @param  _cvxCRV                  address  CvxCrvToken address
         @param  _pxCvx                   address  PxCvx address
         @param  _upCvx                   address  UpCvx address
         @param  _spCvx                   address  SpCvx address
@@ -188,27 +186,26 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @param  _rpCvx                   address  RpCvx address
         @param  _pirexFees               address  PirexFees address
         @param  _votiumMultiMerkleStash  address  VotiumMultiMerkleStash address
+        @param  _outstandingRedemptions  uint256  Initial outstanding redemptions
      */
     constructor(
         address _CVX,
         address _cvxLocker,
         address _cvxDelegateRegistry,
-        address _cvxRewardPool,
-        address _cvxCRV,
         address _pxCvx,
         address _upCvx,
         address _spCvx,
         address _vpCvx,
         address _rpCvx,
         address _pirexFees,
-        address _votiumMultiMerkleStash
+        address _votiumMultiMerkleStash,
+        uint256 _outstandingRedemptions
     )
         PirexCvxConvex(
             _CVX,
             _cvxLocker,
             _cvxDelegateRegistry,
-            _cvxRewardPool,
-            _cvxCRV
+            _outstandingRedemptions
         )
     {
         // Init with paused state, should only unpause after fully perform the full setup
