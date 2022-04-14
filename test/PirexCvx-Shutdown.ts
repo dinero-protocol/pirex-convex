@@ -1,7 +1,13 @@
+import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { callAndReturnEvent, validateEvent } from './helpers';
-import { ConvexToken, CvxLockerV2, PirexCvx } from '../typechain-types';
+import {
+  ConvexToken,
+  CvxLockerV2,
+  PirexCvx,
+  ERC1155Solmate,
+} from '../typechain-types';
 
 // Tests the emergency relock mechanism on CvxLockerV2 shutdown
 describe('PirexCvx-Shutdown', function () {
@@ -12,10 +18,19 @@ describe('PirexCvx-Shutdown', function () {
   let cvxLocker: CvxLockerV2;
   let cvxLockerNew: CvxLockerV2;
   let zeroAddress: string;
+  let contractEnum: any;
 
   before(async function () {
-    ({ notAdmin, pCvx, pCvxNew, cvx, cvxLocker, cvxLockerNew, zeroAddress } =
-      this);
+    ({
+      notAdmin,
+      pCvx,
+      pCvxNew,
+      cvx,
+      cvxLocker,
+      cvxLockerNew,
+      zeroAddress,
+      contractEnum,
+    } = this);
   });
 
   describe('emergency', function () {
@@ -109,6 +124,15 @@ describe('PirexCvx-Shutdown', function () {
         migrationAddress
       );
       expect(lockedBalanceAfter).to.equal(cvxBalance);
+
+      // Redeploy upCvx and set it to the new PirexCvx contract
+      const upCvxNew: ERC1155Solmate = await (
+        await ethers.getContractFactory('ERC1155Solmate')
+      ).deploy();
+
+      await pCvxNew.setContract(contractEnum.upCvx, upCvxNew.address);
+      const upCvxAfter = await pCvxNew.upCvx();
+      expect(upCvxAfter).to.be.equal(upCvxNew.address);
     });
   });
 });
