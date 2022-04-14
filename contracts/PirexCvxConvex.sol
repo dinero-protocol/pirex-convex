@@ -39,6 +39,7 @@ contract PirexCvxConvex is Ownable, Pausable {
 
     // The amount of CVX that needs to remain unlocked for redemptions
     uint256 public outstandingRedemptions;
+    uint256 public pendingLocks;
 
     event SetConvexContract(ConvexContract c, address contractAddress);
     event SetDelegationSpace(string _delegationSpace);
@@ -126,20 +127,38 @@ contract PirexCvxConvex is Ownable, Pausable {
     /**
         @notice Unlock CVX and relock excess
      */
-    function _relock() internal {
+    function _lock() internal {
         _unlock();
 
         uint256 balance = CVX.balanceOf(address(this));
+        bool balanceGreaterThanRedemptions = balance > outstandingRedemptions;
 
-        if (balance > outstandingRedemptions) {
-            unchecked {
-                cvxLocker.lock(
-                    address(this),
-                    balance - outstandingRedemptions,
-                    0
-                );
-            }
+        // Lock CVX if the balance is greater than outstanding redemptions or if there are pending locks
+        if (balanceGreaterThanRedemptions || pendingLocks != 0) {
+            uint256 balanceRedemptionsDifference = balanceGreaterThanRedemptions
+                ? balance - outstandingRedemptions
+                : 0;
+
+            // Lock amount is the greater of the two: balanceRedemptionsDifference or pendingLocks
+            // balanceRedemptionsDifference is greater if there is unlocked CVX that isn't reserved for redemptions + deposits
+            // pendingLocks is greater if there are more new deposits than unlocked CVX that is reserved for redemptions
+            cvxLocker.lock(
+                address(this),
+                balanceRedemptionsDifference > pendingLocks
+                    ? balanceRedemptionsDifference
+                    : pendingLocks,
+                0
+            );
+
+            pendingLocks = 0;
         }
+    }
+
+    /**
+        @notice Non-permissioned relock method
+     */
+    function lock() external whenNotPaused {
+        _lock();
     }
 
     /**
@@ -223,7 +242,7 @@ contract PirexCvxConvex is Ownable, Pausable {
     /**
         @notice Only for emergency purposes in the case of a forced-unlock by Convex
      */
-    function relock() external whenPaused onlyOwner {
-        _relock();
+    function pausedRelock() external whenPaused onlyOwner {
+        _lock();
     }
 }

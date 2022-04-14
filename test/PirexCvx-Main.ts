@@ -123,6 +123,8 @@ describe('PirexCvx-Main', function () {
         shouldCompound,
       ]);
 
+      await pCvx.lock();
+
       const pxCvxMintEvent = parseLog(pxCvx, events[0]);
       const depositEvent = events[1];
       const pxCvxTransferEvent = parseLog(pxCvx, events[2]);
@@ -176,6 +178,7 @@ describe('PirexCvx-Main', function () {
 
       await cvx.approve(pCvx.address, amount);
       await pCvx.deposit(amount, admin.address, false);
+      await pCvx.lock();
     });
 
     it('Should revert if lockIndexes is an empty array', async function () {
@@ -245,6 +248,7 @@ describe('PirexCvx-Main', function () {
 
       await cvx.approve(pCvx.address, assets);
       await pCvx.deposit(assets, admin.address, true);
+      await pCvx.lock();
 
       const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
       const lockIndexes = [1];
