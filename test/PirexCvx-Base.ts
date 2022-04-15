@@ -5,6 +5,7 @@ import {
   callAndReturnEvent,
   callAndReturnEvents,
   increaseBlockTimestamp,
+  parseLog,
   toBN,
   validateEvent,
 } from './helpers';
@@ -12,10 +13,10 @@ import {
   ConvexToken,
   CvxLockerV2,
   DelegateRegistry,
+  PxCvx,
   PirexCvx,
   MultiMerkleStash,
   PirexFees,
-  CvxRewardPool,
   UnionPirexVault,
 } from '../typechain-types';
 import { BigNumber } from 'ethers';
@@ -24,14 +25,13 @@ import { BigNumber } from 'ethers';
 describe('PirexCvx-Base', function () {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
+  let pxCvx: PxCvx;
   let pCvx: PirexCvx;
   let pirexFees: PirexFees;
   let unionPirex: UnionPirexVault;
   let cvx: ConvexToken;
-  let cvxCrvToken: any;
   let cvxLocker: CvxLockerV2;
   let cvxDelegateRegistry: DelegateRegistry;
-  let cvxRewardPool: CvxRewardPool;
   let votiumMultiMerkleStash: MultiMerkleStash;
 
   let zeroAddress: string;
@@ -43,19 +43,18 @@ describe('PirexCvx-Base', function () {
   let convexContractEnum: any;
   let feesEnum: any;
 
-  const uint256Max = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+  const { MaxUint256: uint256Max } = ethers.constants;
 
   before(async function () {
     ({
       admin,
       notAdmin,
       cvx,
-      cvxCrvToken,
       cvxLocker,
-      cvxRewardPool,
       cvxDelegateRegistry,
       votiumMultiMerkleStash,
       pirexFees,
+      pxCvx,
       pCvx,
       unionPirex,
       zeroAddress,
@@ -84,30 +83,26 @@ describe('PirexCvx-Base', function () {
 
   describe('constructor', function () {
     it('Should set up contract state', async function () {
-      const { snapshotId } = await pCvx.getEpoch(await pCvx.getCurrentEpoch());
       const _CVX = await pCvx.CVX();
       const _cvxLocker = await pCvx.cvxLocker();
       const _cvxDelegateRegistry = await pCvx.cvxDelegateRegistry();
-      const _cvxRewardPool = await pCvx.cvxRewardPool();
-      const _cvxCRV = await pCvx.cvxCRV();
       const _pirexFees = await pCvx.pirexFees();
       const _votiumMultiMerkleStash = await pCvx.votiumMultiMerkleStash();
       const upCvx = await pCvx.upCvx();
       const vpCvx = await pCvx.vpCvx();
       const rpCvx = await pCvx.rpCvx();
       const spCvx = await pCvx.spCvx();
-      const _name = await pCvx.name();
-      const _symbol = await pCvx.symbol();
+      const paused = await pCvx.paused();
+      const outstandingRedemptions = await pCvx.outstandingRedemptions();
+      const upCvxDeprecated = await pCvx.upCvxDeprecated();
+      const pirexCvxMigration = await pCvx.pirexCvxMigration();
 
-      expect(snapshotId).to.equal(1);
       expect(_CVX).to.equal(cvx.address);
       expect(_CVX).to.not.equal(zeroAddress);
       expect(_cvxLocker).to.equal(cvxLocker.address);
       expect(_cvxLocker).to.not.equal(zeroAddress);
       expect(_cvxDelegateRegistry).to.equal(cvxDelegateRegistry.address);
       expect(_cvxDelegateRegistry).to.not.equal(zeroAddress);
-      expect(_cvxRewardPool).to.equal(cvxRewardPool.address);
-      expect(_cvxCRV).to.equal(cvxCrvToken.address);
       expect(_pirexFees).to.equal(pirexFees.address);
       expect(_pirexFees).to.not.equal(zeroAddress);
       expect(_votiumMultiMerkleStash).to.equal(votiumMultiMerkleStash.address);
@@ -116,8 +111,10 @@ describe('PirexCvx-Base', function () {
       expect(vpCvx).to.not.equal(zeroAddress);
       expect(rpCvx).to.not.equal(zeroAddress);
       expect(spCvx).to.not.equal(zeroAddress);
-      expect(_name).to.equal('Pirex CVX');
-      expect(_symbol).to.equal('pCVX');
+      expect(paused).to.be.true;
+      expect(outstandingRedemptions).to.equal(0);
+      expect(upCvxDeprecated).to.be.false;
+      expect(pirexCvxMigration).to.equal(zeroAddress);
     });
   });
 
@@ -138,6 +135,33 @@ describe('PirexCvx-Base', function () {
       await expect(
         pCvx.connect(notAdmin).setContract(c, contractAddress)
       ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('Should set pxCvx', async function () {
+      const pxCvxBefore = await pCvx.pxCvx();
+      const c = contractEnum.pxCvx;
+
+      // Deplyo a new temporary PxCvx contract for testing purposes
+      const newContract = await (
+        await ethers.getContractFactory('PxCvx')
+      ).deploy();
+      await newContract.setOperator(pCvx.address);
+      const contractAddress = newContract.address;
+
+      const [setEvent] = await callAndReturnEvents(pCvx.setContract, [
+        c,
+        contractAddress,
+      ]);
+      const pxCvxAfter = await pCvx.pxCvx();
+
+      await pCvx.setContract(c, pxCvxBefore);
+
+      expect(pxCvxBefore).to.not.equal(pxCvxAfter);
+      expect(pxCvxAfter).to.equal(contractAddress);
+      validateEvent(setEvent, 'SetContract(uint8,address)', {
+        c,
+        contractAddress,
+      });
     });
 
     it('Should set pirexFees', async function () {
@@ -250,7 +274,7 @@ describe('PirexCvx-Base', function () {
         contractAddress,
       ]);
       const setEvent = events[0];
-      const approvalEvent = events[1];
+      const approvalEvent = parseLog(pxCvx, events[1]);
       const unionPirexAfter = await pCvx.unionPirex();
 
       expect(unionPirexBefore).to.not.equal(unionPirexAfter);
@@ -267,8 +291,14 @@ describe('PirexCvx-Base', function () {
     });
 
     it('Should replace unionPirex', async function () {
-      const unionPirexAllowanceBefore = await pCvx.allowance(pCvx.address, unionPirex.address);
-      const adminAllowanceBefore = await pCvx.allowance(pCvx.address, admin.address);
+      const unionPirexAllowanceBefore = await pxCvx.allowance(
+        pCvx.address,
+        unionPirex.address
+      );
+      const adminAllowanceBefore = await pxCvx.allowance(
+        pCvx.address,
+        admin.address
+      );
       const unionPirexBefore = await pCvx.unionPirex();
       const c = contractEnum.unionPirex;
       const contractAddress = admin.address;
@@ -277,20 +307,26 @@ describe('PirexCvx-Base', function () {
         contractAddress,
       ]);
       const setEvent = events[0];
-      const approvalEvent1 = events[1];
-      const approvalEvent2 = events[2];
+      const approvalEvent1 = parseLog(pxCvx, events[1]);
+      const approvalEvent2 = parseLog(pxCvx, events[2]);
       const unionPirexAfter = await pCvx.unionPirex();
-      const unionPirexAllowanceAfter = await pCvx.allowance(pCvx.address, unionPirex.address);
-      const adminAllowanceAfter = await pCvx.allowance(pCvx.address, admin.address);
+      const unionPirexAllowanceAfter = await pxCvx.allowance(
+        pCvx.address,
+        unionPirex.address
+      );
+      const adminAllowanceAfter = await pxCvx.allowance(
+        pCvx.address,
+        admin.address
+      );
 
       expect(unionPirexBefore).to.not.equal(unionPirexAfter);
       expect(unionPirexAfter).to.equal(contractAddress);
       expect(unionPirexAllowanceBefore).to.not.equal(unionPirexAllowanceAfter);
       expect(unionPirexAllowanceBefore).to.equal(uint256Max);
       expect(unionPirexAllowanceAfter).to.equal(0);
-      expect(adminAllowanceBefore).to.not.equal(adminAllowanceAfter)
+      expect(adminAllowanceBefore).to.not.equal(adminAllowanceAfter);
       expect(adminAllowanceBefore).to.equal(0);
-      expect(adminAllowanceAfter).to.equal(uint256Max)
+      expect(adminAllowanceAfter).to.equal(uint256Max);
       validateEvent(setEvent, 'SetContract(uint8,address)', {
         c,
         contractAddress,
@@ -370,47 +406,6 @@ describe('PirexCvx-Base', function () {
         c,
         contractAddress,
       });
-    });
-
-    it('Should set cvxRewardPool', async function () {
-      const cvxRewardPoolBefore = await pCvx.cvxRewardPool();
-      const c = convexContractEnum.cvxRewardPool;
-      const contractAddress = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setConvexContract, [
-        c,
-        contractAddress,
-      ]);
-      const cvxRewardPoolAfter = await pCvx.cvxRewardPool();
-
-      await pCvx.setConvexContract(c, cvxRewardPoolBefore);
-
-      expect(cvxRewardPoolBefore).to.not.equal(cvxRewardPoolAfter);
-      expect(cvxRewardPoolAfter).to.equal(contractAddress);
-      validateEvent(setEvent, 'SetConvexContract(uint8,address)', {
-        c,
-        contractAddress,
-      });
-    });
-
-    it('Should set cvxCrvToken', async function () {
-      const cvxCrvTokenBefore = await pCvx.cvxCRV();
-      const c = convexContractEnum.cvxCrvToken;
-      const contractAddress = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setConvexContract, [
-        c,
-        contractAddress,
-      ]);
-      const cvxCrvTokenAfter = await pCvx.cvxCRV();
-
-      await pCvx.setConvexContract(c, cvxCrvTokenBefore);
-
-      expect(cvxCrvTokenBefore).to.not.equal(cvxCrvTokenAfter);
-      expect(cvxCrvTokenAfter).to.equal(contractAddress);
-      validateEvent(setEvent, 'SetConvexContract(uint8,address)', {
-        c,
-        contractAddress,
-      });
-      expect(cvxCrvTokenBefore).to.equal(await pCvx.cvxCRV());
     });
   });
 
@@ -492,8 +487,11 @@ describe('PirexCvx-Base', function () {
 
   describe('setFee', function () {
     after(async function () {
+      // Unpause only after initial setup is completed on previous steps (setting all token contracts etc.)
+      await this.pCvx.setPauseState(false);
+
       // Take a snapshot after setFee tests since we are forwarding an epoch below
-      await pCvx.takeEpochSnapshot();
+      await pxCvx.takeEpochSnapshot();
     });
 
     it('Should revert if f is not valid Fees enum', async function () {
@@ -702,17 +700,6 @@ describe('PirexCvx-Base', function () {
 
       expect(expectedCurrentEpoch).to.not.equal(0);
       expect(expectedCurrentEpoch).to.equal(currentEpoch);
-    });
-  });
-
-  describe('getCurrentSnapshotId', function () {
-    it('Should return the current snapshot id', async function () {
-      const currentEpoch = await pCvx.getCurrentEpoch();
-      const { snapshotId } = await pCvx.getEpoch(currentEpoch);
-      const currentSnapshotId = await pCvx.getCurrentSnapshotId();
-
-      expect(snapshotId).to.equal(2);
-      expect(snapshotId).to.equal(currentSnapshotId);
     });
   });
 

@@ -5,39 +5,18 @@ import {ReentrancyGuard} from "@rari-capital/solmate/src/utils/ReentrancyGuard.s
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import {Bytes32AddressLib} from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
-import {ERC20SnapshotSolmate} from "./ERC20SnapshotSolmate.sol";
-import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
 import {ERC1155Solmate} from "./ERC1155Solmate.sol";
+import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 import {PirexCvxConvex} from "./PirexCvxConvex.sol";
+import {PxCvx} from "./PxCvx.sol";
 import {PirexFees} from "./PirexFees.sol";
 import {UnionPirexVault} from "./UnionPirexVault.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 
-contract PirexCvx is
-    ReentrancyGuard,
-    ERC20SnapshotSolmate,
-    PirexCvxConvex
-{
+contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     using SafeTransferLib for ERC20;
     using Bytes32AddressLib for address;
-
-    /**
-        @notice Epoch details
-        @notice Reward/snapshotRewards/futuresRewards indexes are associated with 1 reward
-        @param  snapshotId               uint256    Snapshot id
-        @param  rewards                  bytes32[]  Rewards
-        @param  snapshotRewards          uint256[]  Snapshot reward amounts
-        @param  futuresRewards           uint256[]  Futures reward amounts
-        @param  redeemedSnapshotRewards  mapping    Redeemed snapshot rewards
-     */
-    struct Epoch {
-        uint256 snapshotId;
-        bytes32[] rewards;
-        uint256[] snapshotRewards;
-        uint256[] futuresRewards;
-        mapping(address => uint256) redeemedSnapshotRewards;
-    }
 
     /**
         @notice Queued fee changes
@@ -49,6 +28,20 @@ contract PirexCvx is
         uint224 effectiveAfter;
     }
 
+    /**
+        @notice Votium reward metadata
+        @param  token        address    Reward token address
+        @param  index        uint256    Merkle tree node index
+        @param  amount       uint256    Reward token amount
+        @param  merkleProof  bytes32[]  Merkle proof
+     */
+    struct VotiumReward {
+        address token;
+        uint256 index;
+        uint256 amount;
+        bytes32[] merkleProof;
+    }
+
     // Users can choose between the two futures tokens when staking or initiating a redemption
     enum Futures {
         Vote,
@@ -57,6 +50,7 @@ contract PirexCvx is
 
     // Configurable contracts
     enum Contract {
+        PxCvx,
         PirexFees,
         UpCvx,
         SpCvx,
@@ -84,6 +78,7 @@ contract PirexCvx is
     // Unused ERC1155 `data` param value
     bytes private constant UNUSED_1155_DATA = "";
 
+    PxCvx public pxCvx;
     PirexFees public pirexFees;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
     ERC1155Solmate public upCvx;
@@ -91,9 +86,6 @@ contract PirexCvx is
     ERC1155PresetMinterSupply public vpCvx;
     ERC1155PresetMinterSupply public rpCvx;
     UnionPirexVault public unionPirex;
-
-    // Epochs mapped to epoch details
-    mapping(uint256 => Epoch) private epochs;
 
     // Fees (e.g. 5000 / 1000000 = 0.5%)
     mapping(Fees => uint32) public fees;
@@ -103,6 +95,13 @@ contract PirexCvx is
 
     // Queued fees which will take effective after 1 epoch (2 weeks)
     mapping(Fees => QueuedFee) public queuedFees;
+
+    // Address of the new PirexCvx contract in the case of emergency redeployment
+    address public pirexCvxMigration;
+
+    // In the case of a mass unlock by Convex, the current upCvx would be deprecated
+    // and should allow holders to immediately redeem their CVX by burning upCvx
+    bool public upCvxDeprecated;
 
     event SetContract(Contract indexed c, address contractAddress);
     event QueueFee(Fees indexed f, uint32 newFee, uint224 effectiveAfter);
@@ -127,7 +126,8 @@ contract PirexCvx is
     event Redeem(
         uint256[] unlockTimes,
         uint256[] assets,
-        address indexed receiver
+        address indexed receiver,
+        bool legacy
     );
     event Stake(
         uint256 rounds,
@@ -160,6 +160,13 @@ contract PirexCvx is
         address indexed receiver,
         Futures f
     );
+    event SetPirexCvxMigration(address migrationAddress);
+    event SetUpCvxDeprecated(bool state);
+    event MigrateTokens(
+        address migrationAddress,
+        address[] tokens,
+        uint256[] amounts
+    );
 
     error ZeroAmount();
     error BeforeUnlock();
@@ -174,13 +181,17 @@ contract PirexCvx is
     error EmptyArray();
     error MismatchedArrayLengths();
     error NoRewards();
+    error RedeemClosed();
 
     /**
         @param  _CVX                     address  CVX address    
         @param  _cvxLocker               address  CvxLocker address
         @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
-        @param  _cvxRewardPool           address  CvxRewardPool address
-        @param  _cvxCRV                  address  CvxCrvToken address
+        @param  _pxCvx                   address  PxCvx address
+        @param  _upCvx                   address  UpCvx address
+        @param  _spCvx                   address  SpCvx address
+        @param  _vpCvx                   address  VpCvx address
+        @param  _rpCvx                   address  RpCvx address
         @param  _pirexFees               address  PirexFees address
         @param  _votiumMultiMerkleStash  address  VotiumMultiMerkleStash address
      */
@@ -188,35 +199,39 @@ contract PirexCvx is
         address _CVX,
         address _cvxLocker,
         address _cvxDelegateRegistry,
-        address _cvxRewardPool,
-        address _cvxCRV,
+        address _pxCvx,
+        address _upCvx,
+        address _spCvx,
+        address _vpCvx,
+        address _rpCvx,
         address _pirexFees,
         address _votiumMultiMerkleStash
-    )
-        ERC20SnapshotSolmate("Pirex CVX", "pCVX", 18)
-        PirexCvxConvex(
-            _CVX,
-            _cvxLocker,
-            _cvxDelegateRegistry,
-            _cvxRewardPool,
-            _cvxCRV
-        )
-    {
-        // Set up 1st epoch with snapshot id 1 and prevent reward claims until subsequent epochs
-        epochs[getCurrentEpoch()].snapshotId = _snapshot();
+    ) PirexCvxConvex(_CVX, _cvxLocker, _cvxDelegateRegistry) {
+        // Init with paused state, should only unpause after fully perform the full setup
+        _pause();
+
+        if (_pxCvx == address(0)) revert ZeroAddress();
+        pxCvx = PxCvx(_pxCvx);
 
         if (_pirexFees == address(0)) revert ZeroAddress();
         pirexFees = PirexFees(_pirexFees);
+
+        if (_upCvx == address(0)) revert ZeroAddress();
+        upCvx = ERC1155Solmate(_upCvx);
+
+        if (_spCvx == address(0)) revert ZeroAddress();
+        spCvx = ERC1155Solmate(_spCvx);
+
+        if (_vpCvx == address(0)) revert ZeroAddress();
+        vpCvx = ERC1155PresetMinterSupply(_vpCvx);
+
+        if (_rpCvx == address(0)) revert ZeroAddress();
+        rpCvx = ERC1155PresetMinterSupply(_rpCvx);
 
         if (_votiumMultiMerkleStash == address(0)) revert ZeroAddress();
         votiumMultiMerkleStash = IVotiumMultiMerkleStash(
             _votiumMultiMerkleStash
         );
-
-        upCvx = new ERC1155Solmate();
-        spCvx = new ERC1155Solmate();
-        vpCvx = new ERC1155PresetMinterSupply("");
-        rpCvx = new ERC1155PresetMinterSupply("");
     }
 
     /** 
@@ -231,6 +246,11 @@ contract PirexCvx is
         if (contractAddress == address(0)) revert ZeroAddress();
 
         emit SetContract(c, contractAddress);
+
+        if (c == Contract.PxCvx) {
+            pxCvx = PxCvx(contractAddress);
+            return;
+        }
 
         if (c == Contract.PirexFees) {
             pirexFees = PirexFees(contractAddress);
@@ -257,10 +277,69 @@ contract PirexCvx is
             return;
         }
 
-        if (address(unionPirex) != address(0))
-            _approve(address(this), address(unionPirex), 0);
+        if (address(unionPirex) != address(0)) {
+            pxCvx.approve(address(unionPirex), 0);
+        }
         unionPirex = UnionPirexVault(contractAddress);
-        _approve(address(this), address(unionPirex), type(uint256).max);
+        pxCvx.approve(address(unionPirex), type(uint256).max);
+    }
+
+    /** 
+        @notice Set pirexCvxMigration address
+        @param  _pirexCvxMigration  address  PirexCvxMigration address
+     */
+    function setPirexCvxMigration(address _pirexCvxMigration)
+        external
+        onlyOwner
+        whenPaused
+    {
+        if (_pirexCvxMigration == address(0)) revert ZeroAddress();
+
+        pirexCvxMigration = _pirexCvxMigration;
+
+        emit SetPirexCvxMigration(pirexCvxMigration);
+    }
+
+    /**
+        @notice Withdraw ERC20 tokens to the pirexCvxMigration address in case of emergency
+        @param  tokens  address[]  Token addresses
+     */
+    function emergencyMigrateTokens(address[] calldata tokens)
+        external
+        onlyOwner
+        whenPaused
+    {
+        if (pirexCvxMigration == address(0)) revert ZeroAddress();
+
+        uint256 tLen = tokens.length;
+        if (tLen == 0) revert EmptyArray();
+        uint256[] memory amounts = new uint256[](tLen);
+
+        for (uint256 i; i < tLen; ++i) {
+            uint256 amount = ERC20(tokens[i]).balanceOf(address(this));
+
+            // If it's CVX, make sure we take into account the outstandingRedemptions
+            if (tokens[i] == address(CVX)) {
+                amount -= outstandingRedemptions;
+            }
+
+            if (amount == 0) revert ZeroAmount();
+
+            amounts[i] = amount;
+            ERC20(tokens[i]).safeTransfer(pirexCvxMigration, amount);
+        }
+
+        emit MigrateTokens(pirexCvxMigration, tokens, amounts);
+    }
+
+    /**
+        @notice Set whether the currently set upCvx is deprecated or not
+        @param  state  bool  Deprecation state
+     */
+    function setUpCvxDeprecated(bool state) external onlyOwner whenPaused {
+        upCvxDeprecated = state;
+
+        emit SetUpCvxDeprecated(state);
     }
 
     /** 
@@ -304,37 +383,6 @@ contract PirexCvx is
     }
 
     /**
-        @notice Get current snapshot id
-        @return uint256  Current snapshot id
-     */
-    function getCurrentSnapshotId() external view returns (uint256) {
-        return _getCurrentSnapshotId();
-    }
-
-    /**
-        @notice Get epoch
-        @param  epoch            uint256    Epoch
-        @return snapshotId       uint256    Snapshot id
-        @return rewards          address[]  Reward tokens
-        @return snapshotRewards  uint256[]  Snapshot reward amounts
-        @return futuresRewards   uint256[]  Futures reward amounts
-     */
-    function getEpoch(uint256 epoch)
-        external
-        view
-        returns (
-            uint256 snapshotId,
-            bytes32[] memory rewards,
-            uint256[] memory snapshotRewards,
-            uint256[] memory futuresRewards
-        )
-    {
-        Epoch storage e = epochs[epoch];
-
-        return (e.snapshotId, e.rewards, e.snapshotRewards, e.futuresRewards);
-    }
-
-    /**
         @notice Mint futures tokens
         @param  rounds    uint256    Rounds (i.e. Convex voting rounds)
         @param  f         enum     Futures enum
@@ -360,6 +408,53 @@ contract PirexCvx is
         }
 
         token.mintBatch(receiver, tokenIds, amounts, UNUSED_1155_DATA);
+    }
+
+    /**
+        @notice Redeem CVX for specified unlock times
+        @param  unlockTimes  uint256[]  CVX unlock timestamps
+        @param  assets       uint256[]  upCVX amounts
+        @param  receiver     address    Receives CVX
+        @param  legacy       bool       Type of the upCVX
+     */
+    function _redeem(
+        uint256[] calldata unlockTimes,
+        uint256[] calldata assets,
+        address receiver,
+        bool legacy
+    ) internal {
+        uint256 unlockLen = unlockTimes.length;
+        if (unlockLen == 0) revert EmptyArray();
+        if (unlockLen != assets.length) revert MismatchedArrayLengths();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        emit Redeem(unlockTimes, assets, receiver, legacy);
+
+        uint256 totalAssets;
+
+        for (uint256 i; i < unlockLen; ++i) {
+            uint256 asset = assets[i];
+
+            if (!legacy && unlockTimes[i] > block.timestamp)
+                revert BeforeUnlock();
+            if (asset == 0) revert ZeroAmount();
+
+            totalAssets += asset;
+        }
+
+        // Unlock and relock if balance is greater than outstandingRedemptions
+        if (!legacy) {
+            _lock();
+        }
+
+        // Subtract redemption amount from outstanding CVX amount
+        outstandingRedemptions -= totalAssets;
+
+        // Reverts if sender has an insufficient amount of upCVX with unlockTime id
+        upCvx.burnBatch(msg.sender, unlockTimes, assets);
+
+        // Validates `to`
+        CVX.safeTransfer(receiver, totalAssets);
     }
 
     /**
@@ -402,75 +497,6 @@ contract PirexCvx is
     }
 
     /**
-        @notice Claim a single Votium reward
-        @param  e            Epoch      Epoch details
-        @param  rpCvxSupply  uint256    rpCVX supply
-        @param  token        address    Reward token address
-        @param  index        uint256    Merkle tree node index
-        @param  amount       uint256    Reward token amount
-        @param  merkleProof  bytes32[]  Merkle proof
-    */
-    function _claimVotiumReward(
-        Epoch storage e,
-        uint256 rpCvxSupply,
-        address token,
-        uint256 index,
-        uint256 amount,
-        bytes32[] memory merkleProof
-    ) internal {
-        if (token == address(0)) revert ZeroAddress();
-        if (amount == 0) revert ZeroAmount();
-
-        emit ClaimVotiumReward(token, index, amount);
-
-        ERC20 t = ERC20(token);
-
-        // Used for calculating the actual token amount received
-        uint256 prevBalance = t.balanceOf(address(this));
-
-        // Validates `token`, `index`, `amount`, and `merkleProof`
-        votiumMultiMerkleStash.claim(
-            token,
-            index,
-            address(this),
-            amount,
-            merkleProof
-        );
-
-        (
-            uint256 rewardFee,
-            uint256 snapshotRewards,
-            uint256 futuresRewards
-        ) = _calculateRewards(
-                fees[Fees.Reward],
-                totalSupplyAt(e.snapshotId),
-                rpCvxSupply,
-                t.balanceOf(address(this)) - prevBalance
-            );
-
-        // Add reward token address and snapshot/futuresRewards amounts (same index for all)
-        e.rewards.push(token.fillLast12Bytes());
-        e.snapshotRewards.push(snapshotRewards);
-        e.futuresRewards.push(futuresRewards);
-
-        // Distribute fees
-        t.safeApprove(address(pirexFees), rewardFee);
-        pirexFees.distributeFees(address(this), token, rewardFee);
-    }
-
-    /**
-        @notice Snapshot token balances for the current epoch
-     */
-    function takeEpochSnapshot() public whenNotPaused {
-        uint256 currentEpoch = getCurrentEpoch();
-
-        // If snapshot has not been set for current epoch, take snapshot
-        if (epochs[currentEpoch].snapshotId == 0) {
-            epochs[currentEpoch].snapshotId = _snapshot();
-        }
-    }
-
-    /**
         @notice Deposit CVX
         @param  assets          uint256  CVX amount
         @param  receiver        address  Receives pCVX
@@ -485,10 +511,10 @@ contract PirexCvx is
         if (receiver == address(0)) revert ZeroAddress();
 
         // Take snapshot if necessary
-        takeEpochSnapshot();
+        pxCvx.takeEpochSnapshot();
 
         // Mint pCVX - recipient depends on whether or not to compound
-        _mint(shouldCompound ? address(this) : receiver, assets);
+        pxCvx.mint(shouldCompound ? address(this) : receiver, assets);
 
         emit Deposit(assets, receiver, shouldCompound);
 
@@ -501,7 +527,7 @@ contract PirexCvx is
         CVX.safeTransferFrom(msg.sender, address(this), assets);
 
         // Lock CVX
-        cvxLocker.lock(address(this), assets, 0);
+        pendingLocks += assets;
     }
 
     /**
@@ -612,13 +638,13 @@ contract PirexCvx is
         }
 
         // Burn pCVX - reverts if sender balance is insufficient
-        _burn(msg.sender, totalAssets - feeAmount);
+        pxCvx.burn(msg.sender, totalAssets - feeAmount);
 
         // Allow PirexFees to distribute fees directly from sender
-        _approve(msg.sender, address(pirexFees), feeAmount);
+        pxCvx.operatorApprove(msg.sender, address(pirexFees), feeAmount);
 
         // Distribute fees
-        pirexFees.distributeFees(msg.sender, address(this), feeAmount);
+        pirexFees.distributeFees(msg.sender, address(pxCvx), feeAmount);
     }
 
     /**
@@ -632,35 +658,23 @@ contract PirexCvx is
         uint256[] calldata assets,
         address receiver
     ) external whenNotPaused nonReentrant {
-        uint256 unlockLen = unlockTimes.length;
-        if (unlockLen == 0) revert EmptyArray();
-        if (unlockLen != assets.length) revert MismatchedArrayLengths();
-        if (receiver == address(0)) revert ZeroAddress();
+        if (upCvxDeprecated) revert RedeemClosed();
+        _redeem(unlockTimes, assets, receiver, false);
+    }
 
-        emit Redeem(unlockTimes, assets, receiver);
-
-        uint256 totalAssets;
-
-        for (uint256 i; i < unlockLen; ++i) {
-            uint256 asset = assets[i];
-
-            if (unlockTimes[i] > block.timestamp) revert BeforeUnlock();
-            if (asset == 0) revert ZeroAmount();
-
-            totalAssets += asset;
-        }
-
-        // Unlock and relock if balance is greater than outstandingRedemptions
-        _relock();
-
-        // Subtract redemption amount from outstanding CVX amount
-        outstandingRedemptions -= totalAssets;
-
-        // Reverts if sender has an insufficient amount of upCVX with unlockTime id
-        upCvx.burnBatch(msg.sender, unlockTimes, assets);
-
-        // Validates `to`
-        CVX.safeTransfer(receiver, totalAssets);
+    /**
+        @notice Redeem CVX for deprecated upCvx holders if enabled
+        @param  unlockTimes  uint256[]  CVX unlock timestamps
+        @param  assets       uint256[]  upCVX amounts
+        @param  receiver     address    Receives CVX
+     */
+    function redeemLegacy(
+        uint256[] calldata unlockTimes,
+        uint256[] calldata assets,
+        address receiver
+    ) external whenPaused nonReentrant {
+        if (!upCvxDeprecated) revert RedeemClosed();
+        _redeem(unlockTimes, assets, receiver, true);
     }
 
     /**
@@ -681,7 +695,7 @@ contract PirexCvx is
         if (receiver == address(0)) revert ZeroAddress();
 
         // Burn pCVX
-        _burn(msg.sender, assets);
+        pxCvx.burn(msg.sender, assets);
 
         emit Stake(rounds, f, assets, receiver);
 
@@ -712,7 +726,7 @@ contract PirexCvx is
         if (receiver == address(0)) revert ZeroAddress();
 
         // Mint pCVX for receiver
-        _mint(receiver, assets);
+        pxCvx.mint(receiver, assets);
 
         emit Unstake(id, assets, receiver);
 
@@ -722,41 +736,70 @@ contract PirexCvx is
 
     /**
         @notice Claim multiple Votium rewards
-        @param  tokens        address[]    Reward token addresses
-        @param  indexes       uint256[]    Merkle tree node indexes
-        @param  amounts       uint256[]    Reward token amounts
-        @param  merkleProofs  bytes32[][]  Merkle proofs
+        @param  votiumRewards  VotiumRewards[]  Votium rewards metadata
     */
-    function claimVotiumRewards(
-        address[] calldata tokens,
-        uint256[] calldata indexes,
-        uint256[] calldata amounts,
-        bytes32[][] calldata merkleProofs
-    ) external whenNotPaused nonReentrant {
-        uint256 tLen = tokens.length;
+    function claimVotiumRewards(VotiumReward[] calldata votiumRewards)
+        external
+        whenNotPaused
+        nonReentrant
+    {
+        uint256 tLen = votiumRewards.length;
         if (tLen == 0) revert EmptyArray();
-        if (
-            !(tLen == indexes.length &&
-                indexes.length == amounts.length &&
-                amounts.length == merkleProofs.length)
-        ) revert MismatchedArrayLengths();
 
         // Take snapshot before claiming rewards, if necessary
-        takeEpochSnapshot();
+        pxCvx.takeEpochSnapshot();
 
-        uint256 currentEpoch = getCurrentEpoch();
-        Epoch storage e = epochs[currentEpoch];
-        uint256 rpCvxSupply = rpCvx.totalSupply(currentEpoch);
+        uint256 epoch = getCurrentEpoch();
+        (uint256 snapshotId, , , ) = pxCvx.getEpoch(epoch);
+        uint256 rpCvxSupply = rpCvx.totalSupply(epoch);
 
         for (uint256 i; i < tLen; ++i) {
-            _claimVotiumReward(
-                e,
-                rpCvxSupply,
-                tokens[i],
-                indexes[i],
-                amounts[i],
-                merkleProofs[i]
+            address token = votiumRewards[i].token;
+            uint256 index = votiumRewards[i].index;
+            uint256 amount = votiumRewards[i].amount;
+            bytes32[] memory merkleProof = votiumRewards[i].merkleProof;
+
+            if (token == address(0)) revert ZeroAddress();
+            if (amount == 0) revert ZeroAmount();
+
+            emit ClaimVotiumReward(token, index, amount);
+
+            ERC20 t = ERC20(token);
+
+            // Used for calculating the actual token amount received
+            uint256 prevBalance = t.balanceOf(address(this));
+
+            // Validates `token`, `index`, `amount`, and `merkleProof`
+            votiumMultiMerkleStash.claim(
+                token,
+                index,
+                address(this),
+                amount,
+                merkleProof
             );
+
+            (
+                uint256 rewardFee,
+                uint256 snapshotRewards,
+                uint256 futuresRewards
+            ) = _calculateRewards(
+                    fees[Fees.Reward],
+                    pxCvx.totalSupplyAt(snapshotId),
+                    rpCvxSupply,
+                    t.balanceOf(address(this)) - prevBalance
+                );
+
+            // Add reward token address and snapshot/futuresRewards amounts (same index for all)
+            pxCvx.addEpochRewardMetadata(
+                epoch,
+                token.fillLast12Bytes(),
+                snapshotRewards,
+                futuresRewards
+            );
+
+            // Distribute fees
+            t.safeApprove(address(pirexFees), rewardFee);
+            pirexFees.distributeFees(address(this), token, rewardFee);
         }
     }
 
@@ -803,16 +846,23 @@ contract PirexCvx is
         uint256 rewardLen = rewardIndexes.length;
         if (rewardLen == 0) revert EmptyArray();
 
-        Epoch storage e = epochs[epoch];
+        (
+            uint256 snapshotId,
+            bytes32[] memory rewards,
+            uint256[] memory snapshotRewards,
 
-        // Check whether msg.sender maintained a positive balance before the snapshot
-        uint256 snapshotId = e.snapshotId;
-        uint256 snapshotBalance = balanceOfAt(msg.sender, snapshotId);
-        uint256 snapshotSupply = totalSupplyAt(snapshotId);
-        if (snapshotBalance == 0) revert InsufficientBalance();
+        ) = pxCvx.getEpoch(epoch);
 
         // Used to update the redeemed flag locally before updating to the storage all at once for gas efficiency
-        uint256 redeemed = e.redeemedSnapshotRewards[msg.sender];
+        uint256 redeemed = pxCvx.getEpochRedeemedSnapshotRewards(
+            msg.sender,
+            epoch
+        );
+
+        // Check whether msg.sender maintained a positive balance before the snapshot
+        uint256 snapshotBalance = pxCvx.balanceOfAt(msg.sender, snapshotId);
+        uint256 snapshotSupply = pxCvx.totalSupplyAt(snapshotId);
+        if (snapshotBalance == 0) revert InsufficientBalance();
 
         emit RedeemSnapshotRewards(
             epoch,
@@ -828,14 +878,14 @@ contract PirexCvx is
             if ((redeemed & indexRedeemed) != 0) revert AlreadyRedeemed();
             redeemed |= indexRedeemed;
 
-            ERC20(address(uint160(bytes20(e.rewards[index])))).safeTransfer(
+            ERC20(address(uint160(bytes20(rewards[index])))).safeTransfer(
                 receiver,
-                (e.snapshotRewards[index] * snapshotBalance) / snapshotSupply
+                (snapshotRewards[index] * snapshotBalance) / snapshotSupply
             );
         }
 
         // Update the redeemed rewards flag in storage to prevent double claimings
-        e.redeemedSnapshotRewards[msg.sender] = redeemed;
+        pxCvx.setEpochRedeemedSnapshotRewards(msg.sender, epoch, redeemed);
     }
 
     /**
@@ -853,10 +903,12 @@ contract PirexCvx is
         if (receiver == address(0)) revert ZeroAddress();
 
         // Prevent users from burning their futures notes before rewards are claimed
-        bytes32[] memory r = epochs[epoch].rewards;
-        if (r.length == 0) revert NoRewards();
+        (, bytes32[] memory rewards, , uint256[] memory futuresRewards) = pxCvx
+            .getEpoch(epoch);
 
-        emit RedeemFuturesRewards(epoch, receiver, r);
+        if (rewards.length == 0) revert NoRewards();
+
+        emit RedeemFuturesRewards(epoch, receiver, rewards);
 
         // Check sender rpCVX balance
         uint256 rpCvxBalance = rpCvx.balanceOf(msg.sender, epoch);
@@ -868,15 +920,14 @@ contract PirexCvx is
         // Burn rpCVX tokens
         rpCvx.burn(msg.sender, epoch, rpCvxBalance);
 
-        uint256[] memory f = epochs[epoch].futuresRewards;
-        uint256 rLen = r.length;
+        uint256 rLen = rewards.length;
 
         // Loop over rewards and transfer the amount entitled to the rpCVX token holder
         for (uint256 i; i < rLen; ++i) {
             // Proportionate to the % of rpCVX owned out of the rpCVX total supply
-            ERC20(address(uint160(bytes20(r[i])))).safeTransfer(
+            ERC20(address(uint160(bytes20(rewards[i])))).safeTransfer(
                 receiver,
-                (f[i] * rpCvxBalance) / rpCvxTotalSupply
+                (futuresRewards[i] * rpCvxBalance) / rpCvxTotalSupply
             );
         }
     }

@@ -18,9 +18,13 @@ export async function callAndReturnEvents(fn: any, fnArgs: any): Promise<any> {
   return events;
 }
 
+export function parseLog(contract: any, event: any): any {
+  return contract.interface.parseLog(event);
+}
+
 export function validateEvent(event: any, signature: string, args: any) {
   // Assert the event signature
-  expect(event.eventSignature).to.equal(signature);
+  expect(event.signature || event.eventSignature).to.equal(signature);
   // Assert all the event arguments (supports primitive data types and arrays only)
   // For arrays, we perform deep equality check instead
   Object.keys(args).forEach((k) => {

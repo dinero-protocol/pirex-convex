@@ -7,7 +7,6 @@ import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
-import {ICvxRewardPool} from "./interfaces/ICvxRewardPool.sol";
 
 contract PirexCvxConvex is Ownable, Pausable {
     using SafeTransferLib for ERC20;
@@ -27,23 +26,20 @@ contract PirexCvxConvex is Ownable, Pausable {
     // Configurable contracts
     enum ConvexContract {
         CvxLocker,
-        CvxDelegateRegistry,
-        CvxRewardPool,
-        CvxCrvToken
+        CvxDelegateRegistry
     }
 
     ERC20 public immutable CVX;
 
     ICvxLocker public cvxLocker;
     ICvxDelegateRegistry public cvxDelegateRegistry;
-    ICvxRewardPool public cvxRewardPool;
-    ERC20 public cvxCRV;
 
     // Convex Snapshot space
     bytes32 public delegationSpace = bytes32("cvx.eth");
 
     // The amount of CVX that needs to remain unlocked for redemptions
     uint256 public outstandingRedemptions;
+    uint256 public pendingLocks;
 
     event SetConvexContract(ConvexContract c, address contractAddress);
     event SetDelegationSpace(string _delegationSpace);
@@ -54,18 +50,14 @@ contract PirexCvxConvex is Ownable, Pausable {
     error EmptyString();
 
     /**
-        @param  _CVX                  address  CVX address    
-        @param  _cvxLocker            address  CvxLocker address
-        @param  _cvxDelegateRegistry  address  CvxDelegateRegistry address
-        @param  _cvxRewardPool        address  CvxRewardPool address
-        @param  _cvxCRV               address  CvxCrvToken address
+        @param  _CVX                     address  CVX address    
+        @param  _cvxLocker               address  CvxLocker address
+        @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
      */
     constructor(
         address _CVX,
         address _cvxLocker,
-        address _cvxDelegateRegistry,
-        address _cvxRewardPool,
-        address _cvxCRV
+        address _cvxDelegateRegistry
     ) {
         if (_CVX == address(0)) revert ZeroAddress();
         CVX = ERC20(_CVX);
@@ -75,12 +67,6 @@ contract PirexCvxConvex is Ownable, Pausable {
 
         if (_cvxDelegateRegistry == address(0)) revert ZeroAddress();
         cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
-
-        if (_cvxRewardPool == address(0)) revert ZeroAddress();
-        cvxRewardPool = ICvxRewardPool(_cvxRewardPool);
-
-        if (_cvxCRV == address(0)) revert ZeroAddress();
-        cvxCRV = ERC20(_cvxCRV);
 
         // Max allowance for cvxLocker
         CVX.safeApprove(address(cvxLocker), type(uint256).max);
@@ -123,13 +109,6 @@ contract PirexCvxConvex is Ownable, Pausable {
             cvxDelegateRegistry = ICvxDelegateRegistry(contractAddress);
             return;
         }
-
-        if (c == ConvexContract.CvxRewardPool) {
-            cvxRewardPool = ICvxRewardPool(contractAddress);
-            return;
-        }
-
-        cvxCRV = ERC20(contractAddress);
     }
 
     /**
@@ -144,20 +123,38 @@ contract PirexCvxConvex is Ownable, Pausable {
     /**
         @notice Unlock CVX and relock excess
      */
-    function _relock() internal {
+    function _lock() internal {
         _unlock();
 
         uint256 balance = CVX.balanceOf(address(this));
+        bool balanceGreaterThanRedemptions = balance > outstandingRedemptions;
 
-        if (balance > outstandingRedemptions) {
-            unchecked {
-                cvxLocker.lock(
-                    address(this),
-                    balance - outstandingRedemptions,
-                    0
-                );
-            }
+        // Lock CVX if the balance is greater than outstanding redemptions or if there are pending locks
+        if (balanceGreaterThanRedemptions || pendingLocks != 0) {
+            uint256 balanceRedemptionsDifference = balanceGreaterThanRedemptions
+                ? balance - outstandingRedemptions
+                : 0;
+
+            // Lock amount is the greater of the two: balanceRedemptionsDifference or pendingLocks
+            // balanceRedemptionsDifference is greater if there is unlocked CVX that isn't reserved for redemptions + deposits
+            // pendingLocks is greater if there are more new deposits than unlocked CVX that is reserved for redemptions
+            cvxLocker.lock(
+                address(this),
+                balanceRedemptionsDifference > pendingLocks
+                    ? balanceRedemptionsDifference
+                    : pendingLocks,
+                0
+            );
+
+            pendingLocks = 0;
         }
+    }
+
+    /**
+        @notice Non-permissioned relock method
+     */
+    function lock() external whenNotPaused {
+        _lock();
     }
 
     /**
@@ -241,7 +238,7 @@ contract PirexCvxConvex is Ownable, Pausable {
     /**
         @notice Only for emergency purposes in the case of a forced-unlock by Convex
      */
-    function relock() external whenPaused onlyOwner {
-        _relock();
+    function pausedRelock() external whenPaused onlyOwner {
+        _lock();
     }
 }

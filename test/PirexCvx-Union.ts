@@ -1,16 +1,13 @@
 import { expect } from 'chai';
-import {
-  PirexCvx,
-  UnionPirexVault,
-} from '../typechain-types';
+import { PxCvx, UnionPirexVault } from '../typechain-types';
 
 // Tests foundational units outside of the actual deposit flow
 describe('PirexCvx-Union', function () {
-  let pCvx: PirexCvx;
+  let pxCvx: PxCvx;
   let unionPirex: UnionPirexVault;
 
   before(async function () {
-    ({ pCvx, unionPirex } = this);
+    ({ pxCvx, unionPirex } = this);
   });
 
   describe('constructor', function () {
@@ -20,10 +17,10 @@ describe('PirexCvx-Union', function () {
       const name = await unionPirex.name();
       const symbol = await unionPirex.symbol();
 
-      expect(pirex).to.equal(pCvx.address);
-      expect(asset).to.equal(pCvx.address);
+      expect(pirex).to.equal(pxCvx.address);
+      expect(asset).to.equal(pxCvx.address);
       expect(name).to.equal('Union Pirex Vault');
-      expect(symbol).to.equal('ppCVX');
+      expect(symbol).to.equal('pxCVX');
     });
   });
 });

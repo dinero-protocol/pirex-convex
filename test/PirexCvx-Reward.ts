@@ -7,6 +7,7 @@ import {
   toBN,
   increaseBlockTimestamp,
   validateEvent,
+  parseLog,
 } from './helpers';
 import {
   ConvexToken,
@@ -15,6 +16,7 @@ import {
   MultiMerkleStash,
   Crv,
   PirexFees,
+  PxCvx,
 } from '../typechain-types';
 import { BalanceTree } from '../lib/merkle';
 
@@ -24,6 +26,7 @@ describe('PirexCvx-Reward', function () {
   let notAdmin: SignerWithAddress;
   let treasury: SignerWithAddress;
   let contributors: SignerWithAddress;
+  let pxCvx: PxCvx;
   let pCvx: PirexCvx;
   let pirexFees: PirexFees;
   let cvx: ConvexToken;
@@ -53,6 +56,7 @@ describe('PirexCvx-Reward', function () {
       cvxLocker,
       votiumMultiMerkleStash,
       pirexFees,
+      pxCvx,
       pCvx,
       feePercentDenominator,
       feeDenominator,
@@ -66,12 +70,12 @@ describe('PirexCvx-Reward', function () {
   describe('takeEpochSnapshot', function () {
     it('Should take a snapshot', async function () {
       const currentEpoch = await pCvx.getCurrentEpoch();
-      const epochBefore = await pCvx.getEpoch(currentEpoch);
-      const snapshotIdBefore = await pCvx.getCurrentSnapshotId();
-      const events = await callAndReturnEvents(pCvx.takeEpochSnapshot, []);
+      const epochBefore = await pxCvx.getEpoch(currentEpoch);
+      const snapshotIdBefore = await pxCvx.getCurrentSnapshotId();
+      const events = await callAndReturnEvents(pxCvx.takeEpochSnapshot, []);
       const snapshotEvent = events[0];
-      const epochAfter = await pCvx.getEpoch(currentEpoch);
-      const snapshotIdAfter = await pCvx.getCurrentSnapshotId();
+      const epochAfter = await pxCvx.getEpoch(currentEpoch);
+      const snapshotIdAfter = await pxCvx.getCurrentSnapshotId();
 
       expect(epochBefore.snapshotId).to.equal(0);
       expect(epochAfter.snapshotId).to.equal(snapshotIdAfter);
@@ -84,13 +88,15 @@ describe('PirexCvx-Reward', function () {
 
     it('Should not take a snapshot if already taken for the epoch', async function () {
       const currentEpoch = await pCvx.getCurrentEpoch();
-      const { snapshotId: snapshotIdBefore } = await pCvx.getEpoch(
+      const { snapshotId: snapshotIdBefore } = await pxCvx.getEpoch(
         currentEpoch
       );
 
-      await pCvx.takeEpochSnapshot();
+      await pxCvx.takeEpochSnapshot();
 
-      const { snapshotId: snapshotIdAfter } = await pCvx.getEpoch(currentEpoch);
+      const { snapshotId: snapshotIdAfter } = await pxCvx.getEpoch(
+        currentEpoch
+      );
 
       expect(snapshotIdAfter).to.equal(snapshotIdBefore);
     });
@@ -98,9 +104,7 @@ describe('PirexCvx-Reward', function () {
     it('should revert if the contract is paused', async function () {
       await pCvx.setPauseState(true);
 
-      await expect(pCvx.takeEpochSnapshot()).to.be.revertedWith(
-        'Pausable: paused'
-      );
+      await expect(pxCvx.takeEpochSnapshot()).to.be.revertedWith('Paused()');
 
       await pCvx.setPauseState(false);
     });
@@ -116,7 +120,7 @@ describe('PirexCvx-Reward', function () {
       // Provision rpCVX tokens for futures redemption later
       const assets = toBN(5e17);
 
-      await pCvx.approve(pCvx.address, assets);
+      await pxCvx.approve(pCvx.address, assets);
       await pCvx.stake(255, futuresEnum.reward, assets, admin.address);
 
       cvxRewardDistribution = [
@@ -150,47 +154,12 @@ describe('PirexCvx-Reward', function () {
       );
     });
 
-    it('Should revert if tokens.length is zero', async function () {
-      const invalidTokens: any = [];
-      const indexes = [0, 0];
-      const amounts = [
-        cvxRewardDistribution[0].amount,
-        crvRewardDistribution[0].amount,
-      ];
-      const merkleProofs = [
-        cvxTree.getProof(indexes[0], pCvx.address, amounts[0]),
-        crvTree.getProof(indexes[1], pCvx.address, amounts[1]),
-      ];
+    it('Should revert if votiumRewards.length is zero', async function () {
+      const votiumRewards: any[] = [];
 
-      await expect(
-        pCvx.claimVotiumRewards(invalidTokens, indexes, amounts, merkleProofs)
-      ).to.be.revertedWith('EmptyArray()');
-    });
-
-    it('Should revert if array lengths are mismatched', async function () {
-      const tokens: any = [cvx.address, crv.address];
-      const indexes: any = [0, 0];
-      const amounts: any = [
-        cvxRewardDistribution[0].amount,
-        crvRewardDistribution[0].amount,
-      ];
-      const merkleProofs: any = [
-        cvxTree.getProof(indexes[0], pCvx.address, amounts[0]),
-        crvTree.getProof(indexes[1], pCvx.address, amounts[1]),
-      ];
-
-      await expect(
-        pCvx.claimVotiumRewards([tokens[0]], indexes, amounts, merkleProofs)
-      ).to.be.revertedWith('MismatchedArrayLengths()');
-      await expect(
-        pCvx.claimVotiumRewards(tokens, [indexes[0]], amounts, merkleProofs)
-      ).to.be.revertedWith('MismatchedArrayLengths()');
-      await expect(
-        pCvx.claimVotiumRewards(tokens, indexes, [amounts[0]], merkleProofs)
-      ).to.be.revertedWith('MismatchedArrayLengths()');
-      await expect(
-        pCvx.claimVotiumRewards(tokens, indexes, amounts, [merkleProofs[0]])
-      ).to.be.revertedWith('MismatchedArrayLengths()');
+      await expect(pCvx.claimVotiumRewards(votiumRewards)).to.be.revertedWith(
+        'EmptyArray()'
+      );
     });
 
     it('Should claim Votium rewards', async function () {
@@ -204,6 +173,11 @@ describe('PirexCvx-Reward', function () {
         cvxTree.getProof(indexes[0], pCvx.address, amounts[0]),
         crvTree.getProof(indexes[1], pCvx.address, amounts[1]),
       ];
+      const votiumRewards: any[] = [
+        [tokens[0], indexes[0], amounts[0], merkleProofs[0]],
+        [tokens[1], indexes[1], amounts[1], merkleProofs[1]],
+      ];
+
       snapshotRedeemEpoch = await pCvx.getCurrentEpoch();
       const currentEpoch = snapshotRedeemEpoch;
       const epochRpCvxSupply = await (
@@ -221,23 +195,23 @@ describe('PirexCvx-Reward', function () {
         contributors.address
       );
       const events = await callAndReturnEvents(pCvx.claimVotiumRewards, [
-        tokens,
-        indexes,
-        amounts,
-        merkleProofs,
+        votiumRewards,
       ]);
       const cvxVotiumRewardClaimEvent = events[0];
-      const votiumToPirexCvxTransferEvent = events[1];
-      const cvxFeeTreasuryDistributionEvent = events[5];
-      const cvxFeeContributorsDistributionEvent = events[7];
+      const votiumToPirexCvxTransferEvent = parseLog(pxCvx, events[1]);
+      const cvxFeeTreasuryDistributionEvent = parseLog(pxCvx, events[5]);
+      const cvxFeeContributorsDistributionEvent = parseLog(pxCvx, events[7]);
       const crvVotiumRewardClaimEvent = events[9];
-      const votiumToPirexCrvTransfer = events[10];
-      const crvFeeTreasuryDistributionEvent = events[15];
-      const crvFeeContributorsDistributionEvent = events[events.length - 1];
+      const votiumToPirexCrvTransfer = parseLog(pxCvx, events[10]);
+      const crvFeeTreasuryDistributionEvent = parseLog(pxCvx, events[15]);
+      const crvFeeContributorsDistributionEvent = parseLog(
+        pxCvx,
+        events[events.length - 1]
+      );
       const votium = await pCvx.votiumMultiMerkleStash();
       const { snapshotId, rewards, snapshotRewards, futuresRewards } =
-        await pCvx.getEpoch(currentEpoch);
-      const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
+        await pxCvx.getEpoch(currentEpoch);
+      const snapshotSupply = await pxCvx.totalSupplyAt(snapshotId);
       const votiumSnapshotRewards = snapshotRewards;
       const votiumFuturesRewards = futuresRewards;
 
@@ -453,7 +427,7 @@ describe('PirexCvx-Reward', function () {
         treasuryCrvBalanceAfter.gt(
           treasuryCrvBalanceBefore.add(expectedTreasuryCrvFees)
         )
-      ).to.be.equal(true);
+      ).to.equal(true);
       expect(
         treasuryCrvBalanceAfter.lt(
           treasuryCrvBalanceBefore
@@ -564,8 +538,12 @@ describe('PirexCvx-Reward', function () {
           crvRewardDistribution[0].amount
         ),
       ];
+      const votiumRewards: any[] = [
+        [tokens[0], indexes[0], amounts[0], proofs[0]],
+        [tokens[1], indexes[1], amounts[1], proofs[1]],
+      ];
 
-      await pCvx.claimVotiumRewards(tokens, indexes, amounts, proofs);
+      await pCvx.claimVotiumRewards(votiumRewards);
     });
 
     it('Should revert if rewardIndexes is an empty array', async function () {
@@ -581,16 +559,20 @@ describe('PirexCvx-Reward', function () {
     it('Should redeem a single snapshot reward', async function () {
       const cvxBalanceBefore = await cvx.balanceOf(admin.address);
       const currentEpoch = snapshotRedeemEpoch;
-      const { snapshotId, snapshotRewards } = await pCvx.getEpoch(currentEpoch);
-      const snapshotBalance = await pCvx.balanceOfAt(admin.address, snapshotId);
-      const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
-      const rewardIndexes = [0]
+      const { snapshotId, snapshotRewards } = await pxCvx.getEpoch(
+        currentEpoch
+      );
+      const snapshotBalance = await pxCvx.balanceOfAt(
+        admin.address,
+        snapshotId
+      );
+      const snapshotSupply = await pxCvx.totalSupplyAt(snapshotId);
+      const rewardIndexes = [0];
       const receiver = admin.address;
-      const [redeemEvent] = await callAndReturnEvents(pCvx.redeemSnapshotRewards, [
-        currentEpoch,
-        rewardIndexes,
-        receiver,
-      ]);
+      const [redeemEvent] = await callAndReturnEvents(
+        pCvx.redeemSnapshotRewards,
+        [currentEpoch, rewardIndexes, receiver]
+      );
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const expectedCvxRewards = snapshotRewards[rewardIndexes[0]]
         .mul(snapshotBalance)
@@ -605,7 +587,7 @@ describe('PirexCvx-Reward', function () {
         'RedeemSnapshotRewards(uint256,uint256[],address,uint256,uint256)',
         {
           epoch: currentEpoch,
-          rewardIndexes: rewardIndexes.map(b => toBN(b)),
+          rewardIndexes: rewardIndexes.map((b) => toBN(b)),
           receiver,
           snapshotBalance,
           snapshotSupply,
@@ -625,16 +607,19 @@ describe('PirexCvx-Reward', function () {
         receiver,
       ]);
       const redeemEvent = events[0];
-      const transferEvent1 = events[1];
-      const transferEvent2 = events[2];
-      const transferEvent3 = events[3];
+      const transferEvent1 = parseLog(pxCvx, events[1]);
+      const transferEvent2 = parseLog(pxCvx, events[2]);
+      const transferEvent3 = parseLog(pxCvx, events[3]);
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const crvBalanceAfter = await crv.balanceOf(admin.address);
-      const { snapshotId, snapshotRewards } = await pCvx.getEpoch(
+      const { snapshotId, snapshotRewards } = await pxCvx.getEpoch(
         snapshotRedeemEpoch
       );
-      const snapshotBalance = await pCvx.balanceOfAt(admin.address, snapshotId);
-      const snapshotSupply = await pCvx.totalSupplyAt(snapshotId);
+      const snapshotBalance = await pxCvx.balanceOfAt(
+        admin.address,
+        snapshotId
+      );
+      const snapshotSupply = await pxCvx.totalSupplyAt(snapshotId);
       const expectedSnapshotCrvRewards = [
         snapshotRewards[rewardIndexes[0]]
           .mul(snapshotBalance)
@@ -662,7 +647,7 @@ describe('PirexCvx-Reward', function () {
         'RedeemSnapshotRewards(uint256,uint256[],address,uint256,uint256)',
         {
           epoch,
-          rewardIndexes: rewardIndexes.map(b => toBN(b)),
+          rewardIndexes: rewardIndexes.map((b) => toBN(b)),
           receiver,
           snapshotBalance,
           snapshotSupply,
@@ -779,7 +764,7 @@ describe('PirexCvx-Reward', function () {
       const crvBalanceAfter = await crv.balanceOf(admin.address);
       const rpCvxBalanceAfter = await rpCvx.balanceOf(admin.address, epoch);
       const rpCvxSupplyAfter = await rpCvx.totalSupply(epoch);
-      const { rewards, futuresRewards } = await pCvx.getEpoch(epoch);
+      const { rewards, futuresRewards } = await pxCvx.getEpoch(epoch);
       const expectedClaimAmounts = futuresRewards.map((amount: BigNumber) =>
         amount.mul(rpCvxBalanceBefore).div(rpCvxSupplyBefore)
       );
