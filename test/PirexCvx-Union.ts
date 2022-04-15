@@ -15,6 +15,7 @@ describe('PirexCvx-Union', function () {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let pCvx: PirexCvx;
+  let pxCvx: PxCvx;
   let unionPirex: UnionPirexVault;
   let unionPirexStrategy: UnionPirexStrategy;
   let unionPirexStrategy2: UnionPirexStrategy;
@@ -27,6 +28,7 @@ describe('PirexCvx-Union', function () {
       admin,
       notAdmin,
       cvx,
+      pCvx,
       pxCvx,
       unionPirex,
       unionPirexStrategy,
@@ -45,11 +47,11 @@ describe('PirexCvx-Union', function () {
     await pCvx.deposit(toBN(50e18), admin.address, false);
 
     // For making pxCVX deposits outside of the pCvx.deposit flow
-    await pCvx.approve(unionPirex.address, toBN2(1000e18).toFixed(0));
+    await pxCvx.approve(unionPirex.address, toBN2(1000e18).toFixed(0));
 
     unionPirexStrategy2 = await (
       await ethers.getContractFactory('UnionPirexStrategy')
-    ).deploy(pCvx.address, admin.address);
+    ).deploy(pCvx.address, pxCvx.address, admin.address);
   });
 
   describe('initial state', function () {
@@ -70,15 +72,15 @@ describe('PirexCvx-Union', function () {
 
   describe('constructor', function () {
     it('Should set up contract state', async function () {
-      const pirexCvx = await unionPirex.pirexCvx();
+      const _pxCvx = await unionPirex.pxCvx();
       const strategy = await unionPirex.strategy();
       const asset = await unionPirex.asset();
       const name = await unionPirex.name();
       const symbol = await unionPirex.symbol();
 
-      expect(pirexCvx).to.equal(pCvx.address);
+      expect(_pxCvx).to.equal(pxCvx.address);
       expect(strategy).to.equal(unionPirexStrategy.address);
-      expect(asset).to.equal(pCvx.address);
+      expect(asset).to.equal(pxCvx.address);
       expect(name).to.equal('Union Pirex');
       expect(symbol).to.equal('uCVX');
     });
@@ -107,7 +109,7 @@ describe('PirexCvx-Union', function () {
 
     it('Should set a new strategy', async function () {
       const getStrategyAllowance = async (strategy: string) =>
-        await pCvx.allowance(unionPirex.address, strategy);
+        await pxCvx.allowance(unionPirex.address, strategy);
       const oldStrategy = unionPirexStrategy.address;
       const strategy = unionPirexStrategy2.address;
       const oldStrategyBalanceBefore = await unionPirexStrategy.totalSupply();
@@ -198,7 +200,7 @@ describe('PirexCvx-Union', function () {
     });
 
     it('Should deposit pCVX', async function () {
-      const assets = (await pCvx.balanceOf(admin.address)).div(10);
+      const assets = (await pxCvx.balanceOf(admin.address)).div(10);
       const receiver = admin.address;
       const totalAssetsBefore = await unionPirex.totalAssets();
       const sharesBefore = await unionPirex.balanceOf(receiver);

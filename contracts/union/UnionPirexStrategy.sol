@@ -14,11 +14,13 @@ contract UnionPirexStrategy is UnionPirexStaking {
 
     error ZeroAddress();
 
-    constructor(address _pxCVX, address _distributor)
-        UnionPirexStaking(_pxCVX, _pxCVX, _distributor)
-    {
-        if (_pxCVX == address(0)) revert ZeroAddress();
-        pirexCvx = PirexCvx(_pxCVX);
+    constructor(
+        address _pirexCvx,
+        address _pxCVX,
+        address _distributor
+    ) UnionPirexStaking(_pxCVX, _pxCVX, _distributor) {
+        if (_pirexCvx == address(0)) revert ZeroAddress();
+        pirexCvx = PirexCvx(_pirexCvx);
     }
 
     /**

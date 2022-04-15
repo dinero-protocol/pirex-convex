@@ -8,13 +8,14 @@ import {ReentrancyGuard} from "@rari-capital/solmate/src/utils/ReentrancyGuard.s
 import {FixedPointMathLib} from "@rari-capital/solmate/src/utils/FixedPointMathLib.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import {PirexCvx} from "../PirexCvx.sol";
+import {PxCvx} from "../PxCvx.sol";
 import {UnionPirexStaking} from "./UnionPirexStaking.sol";
 
 contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
-    PirexCvx public pirexCvx;
+    PxCvx public immutable pxCvx;
     UnionPirexStaking public strategy;
 
     uint16 public constant MAX_WITHDRAWAL_PENALTY = 500;
@@ -35,12 +36,12 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     error ZeroAddress();
     error ExceedsMax();
 
-    constructor(address _pirexCvx)
-        ERC4626(ERC20(_pirexCvx), "Union Pirex", "uCVX")
+    constructor(address _pirexCvx, address _pxCvx)
+        ERC4626(ERC20(_pxCvx), "Union Pirex", "uCVX")
     {
-        if (_pirexCvx == address(0)) revert ZeroAddress();
-        pirexCvx = PirexCvx(_pirexCvx);
-        
+        if (_pxCvx == address(0)) revert ZeroAddress();
+        pxCvx = PxCvx(_pxCvx);
+
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
@@ -56,7 +57,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
             uint256 feeAmount = (rewardBalance * platformFee) / FEE_DENOMINATOR;
 
             // Claimed rewards should be in pxCVX
-            ERC20(address(pirexCvx)).safeTransfer(platform, feeAmount);
+            ERC20(address(pxCvx)).safeTransfer(platform, feeAmount);
 
             // Deduct fee from reward balance and stake remainder
             rewardBalance -= feeAmount;
@@ -118,11 +119,11 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
 
         // Set new strategy contract and approve max allowance
         strategy = UnionPirexStaking(_strategy);
-        pirexCvx.approve(_strategy, type(uint256).max);
+        pxCvx.approve(_strategy, type(uint256).max);
 
         // Set allowance of previous strategy to 0
         if (oldStrategy != address(0)) {
-            pirexCvx.approve(oldStrategy, 0);
+            pxCvx.approve(oldStrategy, 0);
 
             // Migrate previous strategy balance to new strategy
             uint256 balance = UnionPirexStaking(oldStrategy).totalSupply();

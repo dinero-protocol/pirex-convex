@@ -164,10 +164,10 @@ before(async function () {
   );
   unionPirex = await (
     await ethers.getContractFactory('UnionPirexVault')
-  ).deploy(pCvx.address);
+  ).deploy(pCvx.address, pxCvx.address);
   unionPirexStrategy = await (
     await ethers.getContractFactory('UnionPirexStrategy')
-  ).deploy(pCvx.address, admin.address);
+  ).deploy(pCvx.address, pxCvx.address, admin.address);
 
   await unionPirex.setStrategy(unionPirexStrategy.address);
 
