@@ -159,8 +159,6 @@ before(async function () {
     rpCvx.address,
     pirexFees.address,
     votiumMultiMerkleStash.address,
-    this.zeroAddress,
-    0
   );
   unionPirex = await (
     await ethers.getContractFactory('UnionPirexVault')

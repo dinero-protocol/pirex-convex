@@ -53,13 +53,11 @@ contract PirexCvxConvex is Ownable, Pausable {
         @param  _CVX                     address  CVX address    
         @param  _cvxLocker               address  CvxLocker address
         @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
-        @param  _outstandingRedemptions  uint256  Initial outstanding redemptions
      */
     constructor(
         address _CVX,
         address _cvxLocker,
-        address _cvxDelegateRegistry,
-        uint256 _outstandingRedemptions
+        address _cvxDelegateRegistry
     ) {
         if (_CVX == address(0)) revert ZeroAddress();
         CVX = ERC20(_CVX);
@@ -72,8 +70,6 @@ contract PirexCvxConvex is Ownable, Pausable {
 
         // Max allowance for cvxLocker
         CVX.safeApprove(address(cvxLocker), type(uint256).max);
-
-        outstandingRedemptions = _outstandingRedemptions;
     }
 
     /** 
