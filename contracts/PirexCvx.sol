@@ -99,8 +99,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     // Address of the new PirexCvx contract in the case of emergency redeployment
     address public pirexCvxMigration;
 
-    // In the case of emergency redeployment, the current upCvx would be deprecated
-    // and should allow holders to redeem immediately for CVX
+    // In the case of a mass unlock by Convex, the current upCvx would be deprecated
+    // and should allow holders to immediately redeem their CVX by burning upCvx
     bool public upCvxDeprecated;
 
     event SetContract(Contract indexed c, address contractAddress);
@@ -206,13 +206,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         address _rpCvx,
         address _pirexFees,
         address _votiumMultiMerkleStash
-    )
-        PirexCvxConvex(
-            _CVX,
-            _cvxLocker,
-            _cvxDelegateRegistry
-        )
-    {
+    ) PirexCvxConvex(_CVX, _cvxLocker, _cvxDelegateRegistry) {
         // Init with paused state, should only unpause after fully perform the full setup
         _pause();
 
@@ -449,7 +443,9 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         }
 
         // Unlock and relock if balance is greater than outstandingRedemptions
-        _lock();
+        if (!legacy) {
+            _lock();
+        }
 
         // Subtract redemption amount from outstanding CVX amount
         outstandingRedemptions -= totalAssets;
@@ -662,6 +658,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         uint256[] calldata assets,
         address receiver
     ) external whenNotPaused nonReentrant {
+        if (upCvxDeprecated) revert RedeemClosed();
         _redeem(unlockTimes, assets, receiver, false);
     }
 
