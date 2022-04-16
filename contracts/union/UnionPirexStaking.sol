@@ -7,18 +7,28 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-// https://docs.synthetix.io/contracts/source/contracts/stakingrewards
+// https://docs.synthetix.io/contracts/source/contracts/StakingRewards/
+// https://github.com/Synthetixio/synthetix/blob/v2.66.0/contracts/StakingRewards.sol
+/**
+  Modifications
+    - Pin pragma to 0.8.12
+    - Remove IStakingRewards, RewardsDistributionRecipient, and Pausable
+    - Add and inherit from Ownable
+    - Add `RewardsDistributionRecipient` logic to contract
+    - Add `vault` state variable and `onlyVault` modifier
+    - Add `onlyVault` modifier to `stake` method
+    - Change `rewardsDuration` to 14 days
+*/
 contract UnionPirexStaking is ReentrancyGuard, Ownable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     /* ========== STATE VARIABLES ========== */
 
-    address public immutable vault;
-
     IERC20 public rewardsToken;
     IERC20 public stakingToken;
     address public distributor;
+    address public vault;
     uint256 public periodFinish = 0;
     uint256 public rewardRate = 0;
     uint256 public rewardsDuration = 14 days;
@@ -92,49 +102,38 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         onlyVault
         nonReentrant
         updateReward(msg.sender)
-        returns (bool)
     {
         require(amount > 0, "Cannot stake 0");
-        stakingToken.safeTransferFrom(msg.sender, address(this), amount);
         _totalSupply = _totalSupply.add(amount);
         _balances[msg.sender] = _balances[msg.sender].add(amount);
+        stakingToken.safeTransferFrom(msg.sender, address(this), amount);
         emit Staked(msg.sender, amount);
-        return true;
     }
 
     function withdraw(uint256 amount)
         public
         nonReentrant
         updateReward(msg.sender)
-        returns (bool)
     {
         require(amount > 0, "Cannot withdraw 0");
         _totalSupply = _totalSupply.sub(amount);
         _balances[msg.sender] = _balances[msg.sender].sub(amount);
         stakingToken.safeTransfer(msg.sender, amount);
         emit Withdrawn(msg.sender, amount);
-        return true;
     }
 
-    function getReward()
-        public
-        nonReentrant
-        updateReward(msg.sender)
-        returns (bool)
-    {
+    function getReward() public nonReentrant updateReward(msg.sender) {
         uint256 reward = rewards[msg.sender];
         if (reward > 0) {
             rewards[msg.sender] = 0;
             rewardsToken.safeTransfer(msg.sender, reward);
             emit RewardPaid(msg.sender, reward);
         }
-        return true;
     }
 
-    function exit() external returns (bool) {
+    function exit() external {
         withdraw(_balances[msg.sender]);
         getReward();
-        return true;
     }
 
     /* ========== RESTRICTED FUNCTIONS ========== */
@@ -192,6 +191,11 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
     function setDistributor(address _distributor) external onlyOwner {
         require(_distributor != address(0));
         distributor = _distributor;
+    }
+
+    function setVault(address _vault) external onlyOwner {
+        require(_vault != address(0));
+        vault = _vault;
     }
 
     /* ========== MODIFIERS ========== */
