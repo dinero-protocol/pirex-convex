@@ -1,26 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {PirexCvx} from "../PirexCvx.sol";
-import {UnionPirexVault} from "./UnionPirexVault.sol";
 import {UnionPirexStaking} from "./UnionPirexStaking.sol";
 
-contract UnionPirexStrategy is UnionPirexStaking {
-    using SafeERC20 for IERC20;
+interface IPirexCvx {
+    function redeemSnapshotRewards(
+        uint256 epoch,
+        uint256[] calldata rewardIndexes,
+        address receiver
+    ) external;
+}
 
-    PirexCvx public immutable pirexCvx;
+contract UnionPirexStrategy is UnionPirexStaking {
+    IPirexCvx public immutable pirexCvx;
 
     error ZeroAddress();
 
     constructor(
         address _pirexCvx,
         address _pxCVX,
-        address _distributor
-    ) UnionPirexStaking(_pxCVX, _pxCVX, _distributor) {
+        address _distributor,
+        address _vault
+    ) UnionPirexStaking(_pxCVX, _pxCVX, _distributor, _vault) {
         if (_pirexCvx == address(0)) revert ZeroAddress();
-        pirexCvx = PirexCvx(_pirexCvx);
+        pirexCvx = IPirexCvx(_pirexCvx);
     }
 
     /**

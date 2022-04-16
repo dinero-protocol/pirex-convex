@@ -13,8 +13,8 @@ import {
   Crv,
   PirexFees,
   AddressRegistry,
-  UnionPirexVault,
   UnionPirexStrategy,
+  UnionPirexVault,
 } from '../typechain-types';
 
 let admin: SignerWithAddress;
@@ -162,12 +162,13 @@ before(async function () {
     pirexFees.address,
     votiumMultiMerkleStash.address
   );
-  unionPirex = await (
-    await ethers.getContractFactory('UnionPirexVault')
-  ).deploy(pCvx.address, pxCvx.address);
+  const unionPirexVault: any = await ethers.getContractFactory(
+    'UnionPirexVault'
+  );
+  unionPirex = await unionPirexVault.deploy(pxCvx.address);
   unionPirexStrategy = await (
     await ethers.getContractFactory('UnionPirexStrategy')
-  ).deploy(pCvx.address, pxCvx.address, admin.address);
+  ).deploy(pCvx.address, pxCvx.address, admin.address, unionPirex.address);
 
   await unionPirex.setStrategy(unionPirexStrategy.address);
 

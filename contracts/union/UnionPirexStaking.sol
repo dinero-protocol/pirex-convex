@@ -14,6 +14,8 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
 
     /* ========== STATE VARIABLES ========== */
 
+    address public immutable vault;
+
     IERC20 public rewardsToken;
     IERC20 public stakingToken;
     address public distributor;
@@ -34,11 +36,13 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
     constructor(
         address _rewardsToken,
         address _stakingToken,
-        address _distributor
+        address _distributor,
+        address _vault
     ) {
         rewardsToken = IERC20(_rewardsToken);
         stakingToken = IERC20(_stakingToken);
         distributor = _distributor;
+        vault = _vault;
     }
 
     /* ========== VIEWS ========== */
@@ -85,6 +89,7 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
 
     function stake(uint256 amount)
         external
+        onlyVault
         nonReentrant
         updateReward(msg.sender)
         returns (bool)
@@ -212,6 +217,11 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
 
     modifier onlyDistributor() {
         require((msg.sender == distributor), "Distributor only");
+        _;
+    }
+
+    modifier onlyVault() {
+        require((msg.sender == vault), "Vault only");
         _;
     }
 }

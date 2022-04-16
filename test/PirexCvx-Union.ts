@@ -51,7 +51,7 @@ describe('PirexCvx-Union', function () {
 
     unionPirexStrategy2 = await (
       await ethers.getContractFactory('UnionPirexStrategy')
-    ).deploy(pCvx.address, pxCvx.address, admin.address);
+    ).deploy(pCvx.address, pxCvx.address, admin.address, unionPirex.address);
   });
 
   describe('initial state', function () {
@@ -101,9 +101,7 @@ describe('PirexCvx-Union', function () {
       await expect(
         unionPirex.connect(notAdmin).setStrategy(strategy)
       ).to.be.revertedWith(
-        `AccessControl: account ${
-          notAdmin.address.toLowerCase()
-        } is missing role ${await unionPirex.DEFAULT_ADMIN_ROLE()}`
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${await unionPirex.DEFAULT_ADMIN_ROLE()}`
       );
     });
 

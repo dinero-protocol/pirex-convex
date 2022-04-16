@@ -28,7 +28,6 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
 
     event Harvest(address indexed _caller, uint256 _value);
     event WithdrawalPenaltyUpdated(uint256 _penalty);
-    event CallerIncentiveUpdated(uint256 _incentive);
     event PlatformFeeUpdated(uint256 _fee);
     event PlatformUpdated(address indexed _platform);
     event StrategySet(address indexed _strategy);
@@ -36,7 +35,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     error ZeroAddress();
     error ExceedsMax();
 
-    constructor(address _pirexCvx, address _pxCvx)
+    constructor(address _pxCvx)
         ERC4626(ERC20(_pxCvx), "Union Pirex", "uCVX")
     {
         if (_pxCvx == address(0)) revert ZeroAddress();
@@ -63,6 +62,8 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
             rewardBalance -= feeAmount;
 
             strategy.stake(rewardBalance);
+
+            emit Harvest(msg.sender, rewardBalance);
         }
 
         _;
