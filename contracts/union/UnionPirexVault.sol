@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
+import "hardhat/console.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ERC4626} from "@rari-capital/solmate/src/mixins/ERC4626.sol";
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
@@ -177,8 +178,8 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         return
             (totalSupply == 0 || totalSupply - shares == 0)
                 ? shares
-                : shares /
-                    ((FEE_DENOMINATOR - withdrawalPenalty) / FEE_DENOMINATOR);
+                : (shares * FEE_DENOMINATOR) /
+                    (FEE_DENOMINATOR - withdrawalPenalty);
     }
 
     /**
@@ -216,6 +217,8 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         nonReentrant
         returns (uint256 shares)
     {
+        if (receiver == address(0)) revert ZeroAddress();
+
         harvest();
 
         // Check for rounding error since we round down in previewDeposit.
@@ -240,6 +243,8 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         nonReentrant
         returns (uint256 assets)
     {
+        if (receiver == address(0)) revert ZeroAddress();
+
         harvest();
 
         assets = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
@@ -262,6 +267,9 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         address receiver,
         address owner
     ) public override nonReentrant returns (uint256 shares) {
+        if (receiver == address(0)) revert ZeroAddress();
+        if (owner == address(0)) revert ZeroAddress();
+
         harvest();
 
         shares = previewWithdraw(assets); // No need to check for rounding error, previewWithdraw rounds up.
@@ -290,6 +298,8 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         address receiver,
         address owner
     ) public override nonReentrant returns (uint256 assets) {
+        if (receiver == address(0)) revert ZeroAddress();
+
         harvest();
 
         if (msg.sender != owner) {
