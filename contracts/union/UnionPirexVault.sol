@@ -45,12 +45,12 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     // Harvest rewards before calling methods which rely on total assets (e.g. deposit)
     modifier harvest() {
         // Used for calculating the actual amount of rewards earned
-        uint256 balanceBefore = strategy.balanceOf(address(this));
+        uint256 balanceBefore = strategy.totalSupply();
 
         // Claim rewards
         strategy.getReward();
 
-        uint256 earned = strategy.balanceOf(address(this)) - balanceBefore;
+        uint256 earned = strategy.totalSupply() - balanceBefore;
 
         if (earned != 0) {
             // Fee for platform

@@ -18,6 +18,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
     - Add `vault` state variable and `onlyVault` modifier
     - Add `onlyVault` modifier to `stake` method
     - Change `rewardsDuration` to 14 days
+    - Update contract to support only the vault as a user
 */
 contract UnionPirexStaking is ReentrancyGuard, Ownable {
     using SafeMath for uint256;
@@ -25,21 +26,20 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
 
     /* ========== STATE VARIABLES ========== */
 
+    address public immutable vault;
+
     IERC20 public rewardsToken;
     IERC20 public stakingToken;
     address public distributor;
-    address public vault;
     uint256 public periodFinish = 0;
     uint256 public rewardRate = 0;
     uint256 public rewardsDuration = 14 days;
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
-
-    mapping(address => uint256) public userRewardPerTokenPaid;
-    mapping(address => uint256) public rewards;
+    uint256 public userRewardPerTokenPaid;
+    uint256 public rewards;
 
     uint256 private _totalSupply;
-    mapping(address => uint256) private _balances;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -61,10 +61,6 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         return _totalSupply;
     }
 
-    function balanceOf(address account) external view returns (uint256) {
-        return _balances[account];
-    }
-
     function lastTimeRewardApplicable() public view returns (uint256) {
         return block.timestamp < periodFinish ? block.timestamp : periodFinish;
     }
@@ -83,12 +79,12 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
             );
     }
 
-    function earned(address account) public view returns (uint256) {
+    function earned() public view returns (uint256) {
         return
-            _balances[account]
-                .mul(rewardPerToken().sub(userRewardPerTokenPaid[account]))
+            _totalSupply
+                .mul(rewardPerToken().sub(userRewardPerTokenPaid))
                 .div(1e18)
-                .add(rewards[account]);
+                .add(rewards);
     }
 
     function getRewardForDuration() external view returns (uint256) {
@@ -101,39 +97,34 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         external
         onlyVault
         nonReentrant
-        updateReward(msg.sender)
+        updateReward(vault)
     {
         require(amount > 0, "Cannot stake 0");
         _totalSupply = _totalSupply.add(amount);
-        _balances[msg.sender] = _balances[msg.sender].add(amount);
-        stakingToken.safeTransferFrom(msg.sender, address(this), amount);
-        emit Staked(msg.sender, amount);
+        stakingToken.safeTransferFrom(vault, address(this), amount);
+        emit Staked(amount);
     }
 
     function withdraw(uint256 amount)
         public
+        onlyVault
         nonReentrant
-        updateReward(msg.sender)
+        updateReward(vault)
     {
         require(amount > 0, "Cannot withdraw 0");
         _totalSupply = _totalSupply.sub(amount);
-        _balances[msg.sender] = _balances[msg.sender].sub(amount);
-        stakingToken.safeTransfer(msg.sender, amount);
-        emit Withdrawn(msg.sender, amount);
+        stakingToken.safeTransfer(vault, amount);
+        emit Withdrawn(amount);
     }
 
-    function getReward() public nonReentrant updateReward(msg.sender) {
-        uint256 reward = rewards[msg.sender];
+    function getReward() public onlyVault nonReentrant updateReward(vault) {
+        uint256 reward = rewards;
+
         if (reward > 0) {
-            rewards[msg.sender] = 0;
-            rewardsToken.safeTransfer(msg.sender, reward);
-            emit RewardPaid(msg.sender, reward);
+            rewards = 0;
+            rewardsToken.safeTransfer(vault, reward);
+            emit RewardPaid(reward);
         }
-    }
-
-    function exit() external {
-        withdraw(_balances[msg.sender]);
-        getReward();
     }
 
     /* ========== RESTRICTED FUNCTIONS ========== */
@@ -175,7 +166,7 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
             tokenAddress != address(stakingToken),
             "Cannot withdraw the staking token"
         );
-        IERC20(tokenAddress).safeTransfer(msg.sender, tokenAmount);
+        IERC20(tokenAddress).safeTransfer(owner(), tokenAmount);
         emit Recovered(tokenAddress, tokenAmount);
     }
 
@@ -193,19 +184,14 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         distributor = _distributor;
     }
 
-    function setVault(address _vault) external onlyOwner {
-        require(_vault != address(0));
-        vault = _vault;
-    }
-
     /* ========== MODIFIERS ========== */
 
     modifier updateReward(address account) {
         rewardPerTokenStored = rewardPerToken();
         lastUpdateTime = lastTimeRewardApplicable();
         if (account != address(0)) {
-            rewards[account] = earned(account);
-            userRewardPerTokenPaid[account] = rewardPerTokenStored;
+            rewards = earned();
+            userRewardPerTokenPaid = rewardPerTokenStored;
         }
         _;
     }
@@ -213,9 +199,9 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
     /* ========== EVENTS ========== */
 
     event RewardAdded(uint256 reward);
-    event Staked(address indexed user, uint256 amount);
-    event Withdrawn(address indexed user, uint256 amount);
-    event RewardPaid(address indexed user, uint256 reward);
+    event Staked(uint256 amount);
+    event Withdrawn(uint256 amount);
+    event RewardPaid(uint256 reward);
     event RewardsDurationUpdated(uint256 newDuration);
     event Recovered(address token, uint256 amount);
 
