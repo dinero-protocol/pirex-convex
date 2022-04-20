@@ -78,13 +78,11 @@ describe('PirexCvx-Union', function () {
 
   describe('constructor', function () {
     it('Should set up contract state', async function () {
-      const _pxCvx = await unionPirex.pxCvx();
       const strategy = await unionPirex.strategy();
       const asset = await unionPirex.asset();
       const name = await unionPirex.name();
       const symbol = await unionPirex.symbol();
 
-      expect(_pxCvx).to.equal(pxCvx.address);
       expect(strategy).to.equal(unionPirexStrategy.address);
       expect(asset).to.equal(pxCvx.address);
       expect(name).to.equal('Union Pirex');
@@ -124,7 +122,7 @@ describe('PirexCvx-Union', function () {
 
       expect(penaltyBefore).to.not.equal(penaltyAfter);
       expect(penaltyAfter).to.equal(penalty);
-      
+
       validateEvent(setEvent, 'WithdrawalPenaltyUpdated(uint256)', {
         _penalty: penalty,
       });

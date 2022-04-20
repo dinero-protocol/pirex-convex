@@ -14,7 +14,6 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
-    PxCvx public immutable pxCvx;
     UnionPirexStaking public strategy;
 
     uint256 public constant MAX_WITHDRAWAL_PENALTY = 500;
@@ -35,9 +34,6 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     error ExceedsMax();
 
     constructor(address _pxCvx) ERC4626(ERC20(_pxCvx), "Union Pirex", "uCVX") {
-        if (_pxCvx == address(0)) revert ZeroAddress();
-        pxCvx = PxCvx(_pxCvx);
-
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
@@ -95,11 +91,11 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
 
         // Set new strategy contract and approve max allowance
         strategy = UnionPirexStaking(_strategy);
-        pxCvx.approve(_strategy, type(uint256).max);
+        asset.safeApprove(_strategy, type(uint256).max);
 
         // Set allowance of previous strategy to 0
         if (oldStrategy != address(0)) {
-            pxCvx.approve(oldStrategy, 0);
+            asset.safeApprove(oldStrategy, 0);
 
             // Migrate previous strategy balance to new strategy
             uint256 balance = UnionPirexStaking(oldStrategy).totalSupply();
@@ -193,7 +189,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         strategy.getReward();
 
         // Since we don't normally store pxCVX within the vault, a non-zero balance equals rewards
-        uint256 rewards = pxCvx.balanceOf(address(this));
+        uint256 rewards = asset.balanceOf(address(this));
 
         emit Harvest(msg.sender, rewards);
 
@@ -202,7 +198,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
             uint256 feeAmount = (rewards * platformFee) / FEE_DENOMINATOR;
 
             // Claimed rewards should be in pxCVX
-            ERC20(address(pxCvx)).safeTransfer(platform, feeAmount);
+            asset.safeTransfer(platform, feeAmount);
 
             // Deduct fee from reward balance and stake remainder
             rewards -= feeAmount;

@@ -125,8 +125,6 @@ describe('PirexCvx-Main', function () {
 
       await pCvx.lock();
 
-      console.log(events)
-
       const pxCvxMintEvent = parseLog(pxCvx, events[0]);
       const depositEvent = events[1];
       const pxCvxTransferEvent = parseLog(pxCvx, events[3]);
