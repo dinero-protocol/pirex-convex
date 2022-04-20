@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import "hardhat/console.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ERC4626} from "@rari-capital/solmate/src/mixins/ERC4626.sol";
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
@@ -299,6 +298,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         address owner
     ) public override nonReentrant returns (uint256 assets) {
         if (receiver == address(0)) revert ZeroAddress();
+        if (owner == address(0)) revert ZeroAddress();
 
         harvest();
 
