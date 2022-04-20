@@ -35,9 +35,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     error ZeroAddress();
     error ExceedsMax();
 
-    constructor(address _pxCvx)
-        ERC4626(ERC20(_pxCvx), "Union Pirex", "uCVX")
-    {
+    constructor(address _pxCvx) ERC4626(ERC20(_pxCvx), "Union Pirex", "uCVX") {
         if (_pxCvx == address(0)) revert ZeroAddress();
         pxCvx = PxCvx(_pxCvx);
 
@@ -46,24 +44,27 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
 
     // Harvest rewards before calling methods which rely on total assets (e.g. deposit)
     modifier harvest() {
-        uint256 rewardBalance = strategy.earned(address(this));
+        // Used for calculating the actual amount of rewards earned
+        uint256 balanceBefore = strategy.balanceOf(address(this));
 
         // Claim rewards
         strategy.getReward();
 
-        if (rewardBalance != 0) {
+        uint256 earned = strategy.balanceOf(address(this)) - balanceBefore;
+
+        if (earned != 0) {
             // Fee for platform
-            uint256 feeAmount = (rewardBalance * platformFee) / FEE_DENOMINATOR;
+            uint256 feeAmount = (earned * platformFee) / FEE_DENOMINATOR;
 
             // Claimed rewards should be in pxCVX
             ERC20(address(pxCvx)).safeTransfer(platform, feeAmount);
 
             // Deduct fee from reward balance and stake remainder
-            rewardBalance -= feeAmount;
+            earned -= feeAmount;
 
-            strategy.stake(rewardBalance);
+            strategy.stake(earned);
 
-            emit Harvest(msg.sender, rewardBalance);
+            emit Harvest(msg.sender, earned);
         }
 
         _;
