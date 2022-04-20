@@ -86,7 +86,88 @@ describe('PirexCvx-Union', function () {
     });
   });
 
+  describe('setWithdrawalPenalty', function () {
+    it('Should revert if withdrawal penalty is greater than max', async function () {
+      const max = await unionPirex.MAX_WITHDRAWAL_PENALTY();
+      const invalidPenalty = max.add(1);
+
+      await expect(
+        unionPirex.setWithdrawalPenalty(invalidPenalty)
+      ).to.be.revertedWith('ExceedsMax()');
+    });
+
+    it('Should revert if not called by owner', async function () {
+      const penalty = toBN(1);
+
+      await expect(
+        unionPirex.connect(notAdmin).setWithdrawalPenalty(penalty)
+      ).to.be.revertedWith(
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${await unionPirex.DEFAULT_ADMIN_ROLE()}`
+      );
+    });
+
+    it('Should set withdrawal penalty', async function () {
+      const penaltyBefore = await unionPirex.withdrawalPenalty();
+      const penalty = toBN(1);
+      const events = await callAndReturnEvents(
+        unionPirex.setWithdrawalPenalty,
+        [penalty]
+      );
+      const setEvent = events[0];
+      const penaltyAfter = await unionPirex.withdrawalPenalty();
+
+      expect(penaltyBefore).to.not.equal(penaltyAfter);
+      expect(penaltyAfter).to.equal(penalty);
+      validateEvent(setEvent, 'WithdrawalPenaltyUpdated(uint256)', {
+        _penalty: penalty,
+      });
+    });
+  });
+
+  describe('setPlatform', function () {
+    it('Should revert if platform is zero address', async function () {
+      const invalidPlatform = zeroAddress;
+
+      await expect(unionPirex.setPlatform(invalidPlatform)).to.be.revertedWith(
+        'ZeroAddress()'
+      );
+    });
+
+    it('Should revert if not called by owner', async function () {
+      const platform = admin.address;
+
+      await expect(
+        unionPirex.connect(notAdmin).setPlatform(platform)
+      ).to.be.revertedWith(
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${await unionPirex.DEFAULT_ADMIN_ROLE()}`
+      );
+    });
+
+    it('Should set platform', async function () {
+      const platformBefore = await unionPirex.platform();
+      const platform = admin.address;
+      const events = await callAndReturnEvents(unionPirex.setPlatform, [
+        platform,
+      ]);
+      const setEvent = events[0];
+      const platformAfter = await unionPirex.platform();
+
+      expect(platformBefore).to.not.equal(platformAfter);
+      expect(platformAfter).to.equal(platform);
+      validateEvent(setEvent, 'PlatformUpdated(address)', {
+        _platform: platform,
+      });
+    });
+  });
+
   describe('setStrategy', function () {
+    before(async function () {
+      const assets = toBN(1e18);
+
+      await cvx.approve(pCvx.address, assets);
+      await pCvx.deposit(assets, admin.address, true);
+    });
+
     it('Should revert if _strategy is zero address', async function () {
       const invalidStrategy = zeroAddress;
 

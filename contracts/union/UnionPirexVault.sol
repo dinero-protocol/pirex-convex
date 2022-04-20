@@ -18,12 +18,12 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     PxCvx public immutable pxCvx;
     UnionPirexStaking public strategy;
 
-    uint16 public constant MAX_WITHDRAWAL_PENALTY = 500;
-    uint16 public constant MAX_PLATFORM_FEE = 2000;
-    uint16 public constant FEE_DENOMINATOR = 10000;
+    uint256 public constant MAX_WITHDRAWAL_PENALTY = 500;
+    uint256 public constant MAX_PLATFORM_FEE = 2000;
+    uint256 public constant FEE_DENOMINATOR = 10000;
 
-    uint16 public withdrawalPenalty = 300;
-    uint16 public platformFee = 500;
+    uint256 public withdrawalPenalty = 300;
+    uint256 public platformFee = 500;
     address public platform;
 
     event Harvest(address indexed _caller, uint256 _value);
@@ -72,9 +72,9 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
 
     /**
         @notice Set the withdrawal penalty
-        @param _penalty  uint16  Withdrawal penalty
+        @param _penalty  uint256  Withdrawal penalty
      */
-    function setWithdrawalPenalty(uint16 _penalty)
+    function setWithdrawalPenalty(uint256 _penalty)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
@@ -87,7 +87,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         @notice Set the platform fee
         @param _fee  uint16  Platform fee
      */
-    function setPlatformFee(uint16 _fee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setPlatformFee(uint256 _fee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_fee > MAX_PLATFORM_FEE) revert ExceedsMax();
         platformFee = _fee;
         emit PlatformFeeUpdated(_fee);
