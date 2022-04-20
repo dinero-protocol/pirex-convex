@@ -125,11 +125,13 @@ describe('PirexCvx-Main', function () {
 
       await pCvx.lock();
 
+      console.log(events)
+
       const pxCvxMintEvent = parseLog(pxCvx, events[0]);
       const depositEvent = events[1];
-      const pxCvxTransferEvent = parseLog(pxCvx, events[2]);
-      const vaultMintEvent = parseLog(pxCvx, events[3]);
-      const cvxTransferEvent = parseLog(pxCvx, events[7]);
+      const pxCvxTransferEvent = parseLog(pxCvx, events[3]);
+      const vaultMintEvent = parseLog(pxCvx, events[4]);
+      const cvxTransferEvent = parseLog(pxCvx, events[8]);
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const lockedBalanceAfter = await cvxLocker.lockedBalanceOf(pCvx.address);
       const unionTotalAssetsAfter = await unionPirex.totalAssets();

@@ -8,7 +8,13 @@ import {
   UnionPirexVault,
   UnionPirexStrategy,
 } from '../typechain-types';
-import { callAndReturnEvents, toBN, toBN2, validateEvent } from './helpers';
+import {
+  callAndReturnEvents,
+  increaseBlockTimestamp,
+  toBN,
+  toBN2,
+  validateEvent,
+} from './helpers';
 
 // Tests foundational units outside of the actual deposit flow
 describe('PirexCvx-Union', function () {
@@ -118,6 +124,7 @@ describe('PirexCvx-Union', function () {
 
       expect(penaltyBefore).to.not.equal(penaltyAfter);
       expect(penaltyAfter).to.equal(penalty);
+      
       validateEvent(setEvent, 'WithdrawalPenaltyUpdated(uint256)', {
         _penalty: penalty,
       });
@@ -235,6 +242,7 @@ describe('PirexCvx-Union', function () {
           amount: oldStrategyAllowanceBefore,
         }
       );
+
       validateEvent(
         oldStrategyApprovalEvent,
         'Approval(address,address,uint256)',
@@ -244,6 +252,7 @@ describe('PirexCvx-Union', function () {
           amount: 0,
         }
       );
+
       validateEvent(
         oldStrategyWithdrawEvent,
         'Transfer(address,address,uint256)',
@@ -253,6 +262,7 @@ describe('PirexCvx-Union', function () {
           amount: oldStrategyBalanceBefore,
         }
       );
+
       validateEvent(
         newStrategyStakeEvent,
         'Transfer(address,address,uint256)',
@@ -262,6 +272,7 @@ describe('PirexCvx-Union', function () {
           amount: oldStrategyBalanceBefore,
         }
       );
+
       validateEvent(strategySetEvent, 'StrategySet(address)', {
         _strategy: unionPirexStrategy2.address,
       });
@@ -278,20 +289,22 @@ describe('PirexCvx-Union', function () {
       ).to.be.revertedWith('ZERO_SHARES');
     });
 
-    it('Should deposit pCVX', async function () {
+    it('Should deposit pxCVX', async function () {
       const assets = (await pxCvx.balanceOf(admin.address)).div(10);
       const receiver = admin.address;
       const totalAssetsBefore = await unionPirex.totalAssets();
       const sharesBefore = await unionPirex.balanceOf(receiver);
       const expectedShares = await unionPirex.previewDeposit(assets);
+      const earned = await unionPirexStrategy2.earned();
       const events = await callAndReturnEvents(unionPirex.deposit, [
         assets,
         receiver,
       ]);
-      const depositTransferEvent = events[0];
-      const sharesMintEvent = events[1];
-      const depositEvent = events[2];
-      const stakeTransferEvent = events[3];
+      const harvestEvent = events[0];
+      const depositTransferEvent = events[1];
+      const sharesMintEvent = events[2];
+      const depositEvent = events[3];
+      const stakeTransferEvent = events[4];
       const totalAssetsAfter = await unionPirex.totalAssets();
       const sharesAfter = await unionPirex.balanceOf(receiver);
 
@@ -299,26 +312,96 @@ describe('PirexCvx-Union', function () {
       expect(totalAssetsAfter).to.equal(totalAssetsBefore.add(assets));
       expect(sharesBefore).to.not.equal(sharesAfter);
       expect(sharesAfter).to.equal(sharesBefore.add(expectedShares));
+
+      validateEvent(harvestEvent, 'Harvest(address,uint256)', {
+        _caller: admin.address,
+        _value: earned,
+      });
+
       validateEvent(depositTransferEvent, 'Transfer(address,address,uint256)', {
         from: admin.address,
         to: unionPirex.address,
         amount: assets,
       });
+
       validateEvent(sharesMintEvent, 'Transfer(address,address,uint256)', {
         from: zeroAddress,
         to: receiver,
         amount: expectedShares,
       });
+
       validateEvent(depositEvent, 'Deposit(address,address,uint256,uint256)', {
         caller: admin.address,
         owner: receiver,
         assets,
         shares: expectedShares,
       });
+
       validateEvent(stakeTransferEvent, 'Transfer(address,address,uint256)', {
         from: unionPirex.address,
         to: unionPirexStrategy2.address,
         amount: assets,
+      });
+    });
+  });
+
+  describe('harvest', function () {
+    before(async function () {
+      const assets = toBN(1e18);
+
+      await cvx.approve(pCvx.address, assets);
+
+      // Get pxCVX and deposit as vault rewards
+      await pCvx.deposit(assets, admin.address, false);
+      await pxCvx.transfer(unionPirexStrategy2.address, assets);
+      await unionPirexStrategy2.notifyRewardAmount(assets);
+      await increaseBlockTimestamp(1209600);
+    });
+
+    it('Should harvest rewards', async function () {
+      // We can reliably count on `earned`'s result since the reward distribution is finished
+      const rewards = await unionPirexStrategy2.earned();
+      const platform = await unionPirex.platform();
+      const platformBalanceBefore = await pxCvx.balanceOf(platform);
+      const totalAssetsBefore = await unionPirex.totalAssets();
+      const events = await callAndReturnEvents(unionPirex.harvest, []);
+      const getRewardEvent = events[0];
+      const harvestEvent = events[2];
+      const feeTransferEvent = events[3];
+      const stakeTransferEvent = events[4];
+      const totalAssetsAfter = await unionPirex.totalAssets();
+      const platformBalanceAfter = await pxCvx.balanceOf(platform);
+      const feeAmount = platformBalanceAfter.sub(platformBalanceBefore);
+      const stakedAmount = totalAssetsAfter.sub(totalAssetsBefore);
+
+      // The staking contract's calculations works out to less than 1e18 (notified reward amount)
+      // Should still be greater than 99.5% of the notified reward amount
+      expect(rewards.gt(toBN(1e18).mul(995).div(1000))).to.equal(true);
+      expect(platformBalanceAfter.gt(platformBalanceBefore)).to.equal(true);
+      expect(totalAssetsAfter.gt(totalAssetsBefore)).to.equal(true);
+      expect(feeAmount.add(stakedAmount)).to.equal(rewards);
+
+      validateEvent(getRewardEvent, 'Transfer(address,address,uint256)', {
+        from: unionPirexStrategy2.address,
+        to: unionPirex.address,
+        amount: rewards,
+      });
+
+      validateEvent(harvestEvent, 'Harvest(address,uint256)', {
+        _caller: admin.address,
+        _value: feeAmount.add(stakedAmount),
+      });
+
+      validateEvent(feeTransferEvent, 'Transfer(address,address,uint256)', {
+        from: unionPirex.address,
+        to: platform,
+        amount: feeAmount,
+      });
+
+      validateEvent(stakeTransferEvent, 'Transfer(address,address,uint256)', {
+        from: unionPirex.address,
+        to: unionPirexStrategy2.address,
+        amount: stakedAmount,
       });
     });
   });

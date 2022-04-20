@@ -45,6 +45,11 @@ describe('PxCvx', function () {
   });
 
   describe('constructor', function () {
+    before(async function () {
+      // Take snapshot if one hasn't been taken (due to increasing block timestamp)
+      await pxCvx.takeEpochSnapshot();
+    });
+
     it('Should set up contract state', async function () {
       const { snapshotId } = await pxCvx.getEpoch(await pCvx.getCurrentEpoch());
       const _name = await pxCvx.name();

@@ -7,7 +7,6 @@ import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {ReentrancyGuard} from "@rari-capital/solmate/src/utils/ReentrancyGuard.sol";
 import {FixedPointMathLib} from "@rari-capital/solmate/src/utils/FixedPointMathLib.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
-import {PirexCvx} from "../PirexCvx.sol";
 import {PxCvx} from "../PxCvx.sol";
 import {UnionPirexStaking} from "./UnionPirexStaking.sol";
 
@@ -42,34 +41,6 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    // Harvest rewards before calling methods which rely on total assets (e.g. deposit)
-    modifier harvest() {
-        // Used for calculating the actual amount of rewards earned
-        uint256 balanceBefore = strategy.totalSupply();
-
-        // Claim rewards
-        strategy.getReward();
-
-        uint256 earned = strategy.totalSupply() - balanceBefore;
-
-        if (earned != 0) {
-            // Fee for platform
-            uint256 feeAmount = (earned * platformFee) / FEE_DENOMINATOR;
-
-            // Claimed rewards should be in pxCVX
-            ERC20(address(pxCvx)).safeTransfer(platform, feeAmount);
-
-            // Deduct fee from reward balance and stake remainder
-            earned -= feeAmount;
-
-            strategy.stake(earned);
-
-            emit Harvest(msg.sender, earned);
-        }
-
-        _;
-    }
-
     /**
         @notice Set the withdrawal penalty
         @param _penalty  uint256  Withdrawal penalty
@@ -87,7 +58,10 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         @notice Set the platform fee
         @param _fee  uint16  Platform fee
      */
-    function setPlatformFee(uint256 _fee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setPlatformFee(uint256 _fee)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         if (_fee > MAX_PLATFORM_FEE) revert ExceedsMax();
         platformFee = _fee;
         emit PlatformFeeUpdated(_fee);
@@ -212,15 +186,42 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     }
 
     /**
+        @notice Harvest rewards - should be called before any method relying on up-to-date total assets
+     */
+    function harvest() public {
+        // Claim rewards
+        strategy.getReward();
+
+        // Since we don't normally store pxCVX within the vault, a non-zero balance equals rewards
+        uint256 rewards = pxCvx.balanceOf(address(this));
+
+        emit Harvest(msg.sender, rewards);
+
+        if (rewards != 0) {
+            // Fee for platform
+            uint256 feeAmount = (rewards * platformFee) / FEE_DENOMINATOR;
+
+            // Claimed rewards should be in pxCVX
+            ERC20(address(pxCvx)).safeTransfer(platform, feeAmount);
+
+            // Deduct fee from reward balance and stake remainder
+            rewards -= feeAmount;
+
+            strategy.stake(rewards);
+        }
+    }
+
+    /**
         @notice Overridden solely to add harvest and nonReentrant modifiers 
      */
     function deposit(uint256 assets, address receiver)
         public
         override
-        harvest
         nonReentrant
         returns (uint256 shares)
     {
+        harvest();
+
         // Check for rounding error since we round down in previewDeposit.
         require((shares = previewDeposit(assets)) != 0, "ZERO_SHARES");
 
@@ -240,10 +241,11 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     function mint(uint256 shares, address receiver)
         public
         override
-        harvest
         nonReentrant
         returns (uint256 assets)
     {
+        harvest();
+
         assets = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
 
         // Need to transfer before minting or ERC777s could reenter.
@@ -263,7 +265,9 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         uint256 assets,
         address receiver,
         address owner
-    ) public override harvest nonReentrant returns (uint256 shares) {
+    ) public override nonReentrant returns (uint256 shares) {
+        harvest();
+
         shares = previewWithdraw(assets); // No need to check for rounding error, previewWithdraw rounds up.
 
         if (msg.sender != owner) {
@@ -289,7 +293,9 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         uint256 shares,
         address receiver,
         address owner
-    ) public override harvest nonReentrant returns (uint256 assets) {
+    ) public override nonReentrant returns (uint256 assets) {
+        harvest();
+
         if (msg.sender != owner) {
             uint256 allowed = allowance[owner][msg.sender]; // Saves gas for limited approvals.
 
