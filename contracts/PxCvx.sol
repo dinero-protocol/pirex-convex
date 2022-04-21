@@ -3,7 +3,7 @@ pragma solidity 0.8.12;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
-import {ERC20SnapshotSolmate} from "./ERC20SnapshotSolmate.sol";
+import {ERC20SnapshotSolmate} from "./tokens/ERC20SnapshotSolmate.sol";
 
 contract PxCvx is ERC20SnapshotSolmate("Pirex CVX", "pxCVX", 18), Ownable {
     /**

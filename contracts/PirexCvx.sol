@@ -5,13 +5,13 @@ import {ReentrancyGuard} from "@rari-capital/solmate/src/utils/ReentrancyGuard.s
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import {Bytes32AddressLib} from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
-import {ERC1155Solmate} from "./ERC1155Solmate.sol";
-import {ERC1155PresetMinterSupply} from "./ERC1155PresetMinterSupply.sol";
-import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 import {PirexCvxConvex} from "./PirexCvxConvex.sol";
 import {PxCvx} from "./PxCvx.sol";
 import {PirexFees} from "./PirexFees.sol";
-import {UnionPirexVault} from "./union/UnionPirexVault.sol";
+import {UnionPirexVault} from "./vault/UnionPirexVault.sol";
+import {ERC1155Solmate} from "./tokens/ERC1155Solmate.sol";
+import {ERC1155PresetMinterSupply} from "./tokens/ERC1155PresetMinterSupply.sol";
+import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 
 contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
