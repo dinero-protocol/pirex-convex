@@ -7,6 +7,8 @@ import {
   PirexCvx,
   UnionPirexVault,
   UnionPirexStrategy,
+  Crv,
+  MultiMerkleStash,
 } from '../typechain-types';
 import {
   callAndReturnEvents,
@@ -14,7 +16,9 @@ import {
   toBN,
   toBN2,
   validateEvent,
+  parseLog,
 } from './helpers';
+import { BalanceTree } from '../lib/merkle';
 
 // Tests foundational units outside of the actual deposit flow
 describe('PirexCvx-Union', function () {
@@ -26,8 +30,10 @@ describe('PirexCvx-Union', function () {
   let unionPirexStrategy: UnionPirexStrategy;
   let unionPirexStrategy2: UnionPirexStrategy;
   let cvx: ConvexToken;
+  let crv: Crv;
   let zeroAddress: string;
   let contractEnum: any;
+  let votiumMultiMerkleStash: MultiMerkleStash;
 
   before(async function () {
     ({
@@ -40,6 +46,8 @@ describe('PirexCvx-Union', function () {
       unionPirexStrategy,
       zeroAddress,
       contractEnum,
+      crv,
+      votiumMultiMerkleStash,
     } = this);
 
     if (await pCvx.paused()) await pCvx.setPauseState(false);
@@ -700,6 +708,127 @@ describe('PirexCvx-Union', function () {
         from: unionPirex.address,
         to: receiver,
         amount: expectedAssets,
+      });
+    });
+  });
+
+  describe('redeemRewards', function () {
+    before(async function () {
+      const cvxRewardDistribution = [
+        {
+          account: pCvx.address,
+          amount: toBN(2e18),
+        },
+      ];
+      const crvRewardDistribution = [
+        {
+          account: pCvx.address,
+          amount: toBN(2e18),
+        },
+      ];
+      const cvxTree = new BalanceTree(cvxRewardDistribution);
+      const crvTree = new BalanceTree(crvRewardDistribution);
+
+      await cvx.transfer(votiumMultiMerkleStash.address, toBN(2e18));
+      await crv.transfer(votiumMultiMerkleStash.address, toBN(2e18));
+      await votiumMultiMerkleStash.updateMerkleRoot(
+        cvx.address,
+        cvxTree.getHexRoot()
+      );
+      await votiumMultiMerkleStash.updateMerkleRoot(
+        crv.address,
+        crvTree.getHexRoot()
+      );
+
+      const tokens = [cvx.address, crv.address];
+      const indexes = [0, 0];
+      const amounts = [
+        cvxRewardDistribution[0].amount,
+        crvRewardDistribution[0].amount,
+      ];
+      const proofs = [
+        cvxTree.getProof(
+          indexes[0],
+          pCvx.address,
+          cvxRewardDistribution[0].amount
+        ),
+        crvTree.getProof(
+          indexes[1],
+          pCvx.address,
+          crvRewardDistribution[0].amount
+        ),
+      ];
+      const votiumRewards: any[] = [
+        [tokens[0], indexes[0], amounts[0], proofs[0]],
+        [tokens[1], indexes[1], amounts[1], proofs[1]],
+      ];
+
+      await pCvx.claimVotiumRewards(votiumRewards);
+    });
+
+    it('Should redeem rewards', async function () {
+      const currentEpoch = await pCvx.getCurrentEpoch();
+      const { snapshotId, snapshotRewards } = await pxCvx.getEpoch(
+        currentEpoch
+      );
+      const distributor = await unionPirexStrategy2.distributor();
+      const cvxBalanceBefore = await cvx.balanceOf(distributor);
+      const crvBalanceBefore = await crv.balanceOf(distributor);
+      const rewardIndexes = [0, 1];
+      const pxCvxBalanceAtSnapshot = await pxCvx.balanceOfAt(
+        unionPirexStrategy2.address,
+        snapshotId
+      );
+      const pxCvxSupplyAtSnapshot = await pxCvx.totalSupplyAt(snapshotId);
+      const cvxSnapshotRewards = snapshotRewards[0];
+      const crvSnapshotRewards = snapshotRewards[1];
+      const expectedCvxRewards = cvxSnapshotRewards
+        .mul(pxCvxBalanceAtSnapshot)
+        .div(pxCvxSupplyAtSnapshot);
+      const expectedCrvRewards = crvSnapshotRewards
+        .mul(pxCvxBalanceAtSnapshot)
+        .div(pxCvxSupplyAtSnapshot);
+      const events = await callAndReturnEvents(
+        unionPirexStrategy2.redeemRewards,
+        [currentEpoch, rewardIndexes]
+      );
+      const redeemEvent = parseLog(pCvx, events[0]);
+      const cvxTransferEvent = parseLog(cvx, events[1]);
+      const crvTransferEvent = parseLog(crv, events[2]);
+      const cvxBalanceAfter = await cvx.balanceOf(admin.address);
+      const crvBalanceAfter = await crv.balanceOf(admin.address);
+
+      expect(cvxBalanceAfter).to.not.equal(cvxBalanceBefore);
+      expect(cvxBalanceAfter).to.equal(
+        cvxBalanceBefore.add(expectedCvxRewards)
+      );
+      expect(crvBalanceAfter).to.not.equal(crvBalanceBefore);
+      expect(crvBalanceAfter).to.equal(
+        crvBalanceBefore.add(expectedCrvRewards)
+      );
+
+      validateEvent(
+        redeemEvent,
+        'RedeemSnapshotRewards(uint256,uint256[],address,uint256,uint256)',
+        {
+          epoch: currentEpoch,
+          rewardIndexes: rewardIndexes.map(i => toBN(i)),
+          receiver: distributor,
+          snapshotBalance: pxCvxBalanceAtSnapshot,
+          snapshotSupply: pxCvxSupplyAtSnapshot,
+        }
+      );
+
+      validateEvent(cvxTransferEvent, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: distributor,
+        value: expectedCvxRewards,
+      });
+
+      validateEvent(crvTransferEvent, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: distributor,
+        value: expectedCrvRewards,
       });
     });
   });
