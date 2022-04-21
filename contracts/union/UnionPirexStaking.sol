@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
@@ -21,7 +20,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
     - Update contract to support only the vault as a user
 */
 contract UnionPirexStaking is ReentrancyGuard, Ownable {
-    using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     /* ========== STATE VARIABLES ========== */
@@ -70,25 +68,19 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
             return rewardPerTokenStored;
         }
         return
-            rewardPerTokenStored.add(
-                lastTimeRewardApplicable()
-                    .sub(lastUpdateTime)
-                    .mul(rewardRate)
-                    .mul(1e18)
-                    .div(_totalSupply)
-            );
+            rewardPerTokenStored +
+            ((((lastTimeRewardApplicable() - lastUpdateTime) * rewardRate) *
+                1e18) / _totalSupply);
     }
 
     function earned() public view returns (uint256) {
         return
-            _totalSupply
-                .mul(rewardPerToken().sub(userRewardPerTokenPaid))
-                .div(1e18)
-                .add(rewards);
+            ((_totalSupply * (rewardPerToken() - userRewardPerTokenPaid)) /
+                1e18) + rewards;
     }
 
     function getRewardForDuration() external view returns (uint256) {
-        return rewardRate.mul(rewardsDuration);
+        return rewardRate * rewardsDuration;
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
@@ -100,7 +92,7 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         updateReward(vault)
     {
         require(amount > 0, "Cannot stake 0");
-        _totalSupply = _totalSupply.add(amount);
+        _totalSupply += amount;
         stakingToken.safeTransferFrom(vault, address(this), amount);
         emit Staked(amount);
     }
@@ -112,7 +104,7 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         updateReward(vault)
     {
         require(amount > 0, "Cannot withdraw 0");
-        _totalSupply = _totalSupply.sub(amount);
+        _totalSupply -= amount;
         stakingToken.safeTransfer(vault, amount);
         emit Withdrawn(amount);
     }
@@ -135,11 +127,11 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         updateReward(address(0))
     {
         if (block.timestamp >= periodFinish) {
-            rewardRate = reward.div(rewardsDuration);
+            rewardRate = reward / rewardsDuration;
         } else {
-            uint256 remaining = periodFinish.sub(block.timestamp);
-            uint256 leftover = remaining.mul(rewardRate);
-            rewardRate = reward.add(leftover).div(rewardsDuration);
+            uint256 remaining = periodFinish - block.timestamp;
+            uint256 leftover = remaining * rewardRate;
+            rewardRate = (reward + leftover) / rewardsDuration;
         }
 
         // Ensure the provided reward amount is not more than the balance in the contract.
@@ -148,12 +140,12 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
         uint256 balance = rewardsToken.balanceOf(address(this));
         require(
-            rewardRate <= balance.div(rewardsDuration),
+            rewardRate <= balance / rewardsDuration,
             "Provided reward too high"
         );
 
         lastUpdateTime = block.timestamp;
-        periodFinish = block.timestamp.add(rewardsDuration);
+        periodFinish = block.timestamp + rewardsDuration;
         emit RewardAdded(reward);
     }
 
