@@ -294,7 +294,7 @@ describe('PirexCvx-Union', function () {
       // Get pxCVX and deposit as vault rewards
       await pCvx.deposit(assets, admin.address, false);
       await pxCvx.transfer(unionPirexStrategy2.address, assets);
-      await unionPirexStrategy2.notifyRewardAmount(assets);
+      await unionPirexStrategy2.notifyRewardAmount();
       await increaseBlockTimestamp(1209600);
     });
 

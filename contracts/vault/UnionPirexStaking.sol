@@ -28,12 +28,12 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
     /* ========== STATE VARIABLES ========== */
 
     address public immutable vault;
+    uint256 public constant rewardsDuration = 14 days;
 
     ERC20 public token;
     address public distributor;
     uint256 public periodFinish;
     uint256 public rewardRate;
-    uint256 public rewardsDuration = 14 days;
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
     uint256 public userRewardPerTokenPaid;
@@ -121,11 +121,16 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
 
     /* ========== RESTRICTED FUNCTIONS ========== */
 
-    function notifyRewardAmount(uint256 reward)
+    function notifyRewardAmount()
         external
         onlyDistributor
         updateReward(address(0))
     {
+        // Rewards transferred directly to this contract are not added to _totalSupply
+        // To get the rewards w/o relying on a potentially incorrect passed in arg,
+        // we can use the difference between the token balance and _totalSupply
+        uint256 reward = token.balanceOf(address(this)) - _totalSupply;
+
         if (block.timestamp >= periodFinish) {
             rewardRate = reward / rewardsDuration;
         } else {
@@ -160,15 +165,6 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         );
         ERC20(tokenAddress).safeTransfer(owner(), tokenAmount);
         emit Recovered(tokenAddress, tokenAmount);
-    }
-
-    function setRewardsDuration(uint256 _rewardsDuration) external onlyOwner {
-        require(
-            block.timestamp > periodFinish,
-            "Previous rewards period must be complete before changing the duration for the new period"
-        );
-        rewardsDuration = _rewardsDuration;
-        emit RewardsDurationUpdated(rewardsDuration);
     }
 
     function setDistributor(address _distributor) external onlyOwner {
