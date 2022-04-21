@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
+import {ReentrancyGuard} from "@rari-capital/solmate/src/utils/ReentrancyGuard.sol";
+import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 // https://docs.synthetix.io/contracts/source/contracts/StakingRewards/
@@ -18,16 +18,18 @@ import "@openzeppelin/contracts/access/Ownable.sol";
     - Add `onlyVault` modifier to `stake` method
     - Change `rewardsDuration` to 14 days
     - Update contract to support only the vault as a user
+    - Remove SafeMath since pragma 0.8.0 has those checks built-in
+    - Replace OpenZeppelin ERC20, ReentrancyGuard, and SafeERC20 with Solmate v6 (audited)
 */
 contract UnionPirexStaking is ReentrancyGuard, Ownable {
-    using SafeERC20 for IERC20;
+    using SafeTransferLib for ERC20;
 
     /* ========== STATE VARIABLES ========== */
 
     address public immutable vault;
 
-    IERC20 public rewardsToken;
-    IERC20 public stakingToken;
+    ERC20 public rewardsToken;
+    ERC20 public stakingToken;
     address public distributor;
     uint256 public periodFinish = 0;
     uint256 public rewardRate = 0;
@@ -47,8 +49,8 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         address _distributor,
         address _vault
     ) {
-        rewardsToken = IERC20(_rewardsToken);
-        stakingToken = IERC20(_stakingToken);
+        rewardsToken = ERC20(_rewardsToken);
+        stakingToken = ERC20(_stakingToken);
         distributor = _distributor;
         vault = _vault;
     }
@@ -158,7 +160,7 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
             tokenAddress != address(stakingToken),
             "Cannot withdraw the staking token"
         );
-        IERC20(tokenAddress).safeTransfer(owner(), tokenAmount);
+        ERC20(tokenAddress).safeTransfer(owner(), tokenAmount);
         emit Recovered(tokenAddress, tokenAmount);
     }
 
