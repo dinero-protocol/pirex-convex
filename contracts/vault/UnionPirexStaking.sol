@@ -20,6 +20,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
     - Update contract to support only the vault as a user
     - Remove SafeMath since pragma 0.8.0 has those checks built-in
     - Replace OpenZeppelin ERC20, ReentrancyGuard, and SafeERC20 with Solmate v6 (audited)
+    - Consolidate `rewardsToken` and `stakingToken` since they're the same
 */
 contract UnionPirexStaking is ReentrancyGuard, Ownable {
     using SafeTransferLib for ERC20;
@@ -28,11 +29,10 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
 
     address public immutable vault;
 
-    ERC20 public rewardsToken;
-    ERC20 public stakingToken;
+    ERC20 public token;
     address public distributor;
-    uint256 public periodFinish = 0;
-    uint256 public rewardRate = 0;
+    uint256 public periodFinish;
+    uint256 public rewardRate;
     uint256 public rewardsDuration = 14 days;
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
@@ -44,13 +44,11 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
     /* ========== CONSTRUCTOR ========== */
 
     constructor(
-        address _rewardsToken,
-        address _stakingToken,
+        address _token,
         address _distributor,
         address _vault
     ) {
-        rewardsToken = ERC20(_rewardsToken);
-        stakingToken = ERC20(_stakingToken);
+        token = ERC20(_token);
         distributor = _distributor;
         vault = _vault;
     }
@@ -95,7 +93,7 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
     {
         require(amount > 0, "Cannot stake 0");
         _totalSupply += amount;
-        stakingToken.safeTransferFrom(vault, address(this), amount);
+        token.safeTransferFrom(vault, address(this), amount);
         emit Staked(amount);
     }
 
@@ -107,7 +105,7 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
     {
         require(amount > 0, "Cannot withdraw 0");
         _totalSupply -= amount;
-        stakingToken.safeTransfer(vault, amount);
+        token.safeTransfer(vault, amount);
         emit Withdrawn(amount);
     }
 
@@ -116,7 +114,7 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
 
         if (reward > 0) {
             rewards = 0;
-            rewardsToken.safeTransfer(vault, reward);
+            token.safeTransfer(vault, reward);
             emit RewardPaid(reward);
         }
     }
@@ -140,7 +138,7 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         // This keeps the reward rate in the right range, preventing overflows due to
         // very high values of rewardRate in the earned and rewardsPerToken functions;
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        uint256 balance = rewardsToken.balanceOf(address(this));
+        uint256 balance = token.balanceOf(address(this));
         require(
             rewardRate <= balance / rewardsDuration,
             "Provided reward too high"
@@ -157,7 +155,7 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         onlyOwner
     {
         require(
-            tokenAddress != address(stakingToken),
+            tokenAddress != address(token),
             "Cannot withdraw the staking token"
         );
         ERC20(tokenAddress).safeTransfer(owner(), tokenAmount);

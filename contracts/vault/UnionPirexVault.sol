@@ -7,7 +7,6 @@ import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {ReentrancyGuard} from "@rari-capital/solmate/src/utils/ReentrancyGuard.sol";
 import {FixedPointMathLib} from "@rari-capital/solmate/src/utils/FixedPointMathLib.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
-import {PxCvx} from "../PxCvx.sol";
 import {UnionPirexStaking} from "./UnionPirexStaking.sol";
 
 contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
@@ -208,7 +207,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     }
 
     /**
-        @notice Overridden solely to add harvest and nonReentrant modifiers 
+        @notice Overridden solely to add harvest call and nonReentrant modifier
      */
     function deposit(uint256 assets, address receiver)
         public
@@ -234,7 +233,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     }
 
     /**
-        @notice Overridden solely to add harvest and nonReentrant modifiers 
+        @notice Overridden solely to add harvest call and nonReentrant modifier
      */
     function mint(uint256 shares, address receiver)
         public
@@ -259,7 +258,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     }
 
     /**
-        @notice Overridden solely to add harvest and nonReentrant modifiers 
+        @notice Overridden solely to add harvest call and nonReentrant modifier
      */
     function withdraw(
         uint256 assets,
@@ -290,7 +289,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     }
 
     /**
-        @notice Overridden solely to add harvest and nonReentrant modifiers 
+        @notice Overridden solely to add harvest call and nonReentrant modifier
      */
     function redeem(
         uint256 shares,

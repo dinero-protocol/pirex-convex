@@ -1,18 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
+import {PirexCvx} from "../PirexCvx.sol";
 import {UnionPirexStaking} from "./UnionPirexStaking.sol";
 
-interface IPirexCvx {
-    function redeemSnapshotRewards(
-        uint256 epoch,
-        uint256[] calldata rewardIndexes,
-        address receiver
-    ) external;
-}
-
 contract UnionPirexStrategy is UnionPirexStaking {
-    IPirexCvx public immutable pirexCvx;
+    PirexCvx public immutable pirexCvx;
 
     error ZeroAddress();
 
@@ -21,9 +14,9 @@ contract UnionPirexStrategy is UnionPirexStaking {
         address _pxCVX,
         address _distributor,
         address _vault
-    ) UnionPirexStaking(_pxCVX, _pxCVX, _distributor, _vault) {
+    ) UnionPirexStaking(_pxCVX, _distributor, _vault) {
         if (_pirexCvx == address(0)) revert ZeroAddress();
-        pirexCvx = IPirexCvx(_pirexCvx);
+        pirexCvx = PirexCvx(_pirexCvx);
     }
 
     /**
