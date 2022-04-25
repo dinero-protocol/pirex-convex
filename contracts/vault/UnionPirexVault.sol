@@ -196,12 +196,13 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
             // Fee for platform
             uint256 feeAmount = (rewards * platformFee) / FEE_DENOMINATOR;
 
+            // Deduct fee from reward balance
+            rewards -= feeAmount;
+
             // Claimed rewards should be in pxCVX
             asset.safeTransfer(platform, feeAmount);
 
-            // Deduct fee from reward balance and stake remainder
-            rewards -= feeAmount;
-
+            // Stake rewards sans fee
             strategy.stake(rewards);
         }
     }
