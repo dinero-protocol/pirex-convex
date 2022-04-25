@@ -28,9 +28,10 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
     /* ========== STATE VARIABLES ========== */
 
     address public immutable vault;
+    ERC20 public immutable token;
+
     uint256 public constant rewardsDuration = 14 days;
 
-    ERC20 public token;
     address public distributor;
     uint256 public periodFinish;
     uint256 public rewardRate;
@@ -98,7 +99,7 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
     }
 
     function withdraw(uint256 amount)
-        public
+        external
         onlyVault
         nonReentrant
         updateReward(vault)
@@ -109,7 +110,7 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         emit Withdrawn(amount);
     }
 
-    function getReward() public onlyVault nonReentrant updateReward(vault) {
+    function getReward() external onlyVault nonReentrant updateReward(vault) {
         uint256 reward = rewards;
 
         if (reward > 0) {
@@ -190,7 +191,6 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
     event Staked(uint256 amount);
     event Withdrawn(uint256 amount);
     event RewardPaid(uint256 reward);
-    event RewardsDurationUpdated(uint256 newDuration);
     event Recovered(address token, uint256 amount);
 
     modifier onlyDistributor() {
