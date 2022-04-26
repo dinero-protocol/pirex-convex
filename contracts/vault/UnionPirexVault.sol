@@ -143,8 +143,10 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         // Calculate assets based on a user's % ownership of vault shares
         uint256 assets = convertToAssets(shares);
 
+        uint256 _totalSupply = totalSupply;
+
         // Calculate a penalty - zero if user is the last to withdraw
-        uint256 penalty = (totalSupply == 0 || totalSupply - shares == 0)
+        uint256 penalty = (_totalSupply == 0 || _totalSupply - shares == 0)
             ? 0
             : assets.mulDivDown(withdrawalPenalty, FEE_DENOMINATOR);
 
@@ -167,9 +169,12 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         // Calculate shares based on the specified assets' proportion of the pool
         uint256 shares = convertToShares(assets);
 
+        // Save 1 SLOAD
+        uint256 _totalSupply = totalSupply;
+
         // Factor in additional shares to fulfill withdrawal if user is not the last to withdraw
         return
-            (totalSupply == 0 || totalSupply - shares == 0)
+            (_totalSupply == 0 || _totalSupply - shares == 0)
                 ? shares
                 : (shares * FEE_DENOMINATOR) /
                     (FEE_DENOMINATOR - withdrawalPenalty);
