@@ -98,8 +98,8 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         @return uint256  Assets
      */
     function totalAssets() public view override returns (uint256) {
-        // Vault assets should always be stored in the staking contract until withdrawal-time
-        return strategy.totalSupply();
+        // Vault assets + rewards should always be stored in strategy until withdrawal-time
+        return strategy.totalSupply() + strategy.earned();
     }
 
     /**
@@ -191,119 +191,5 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
             // Stake rewards sans fee
             strategy.stake(rewards);
         }
-    }
-
-    /**
-        @notice Overridden solely to add harvest call and nonReentrant modifier
-     */
-    function deposit(uint256 assets, address receiver)
-        public
-        override
-        nonReentrant
-        returns (uint256 shares)
-    {
-        if (receiver == address(0)) revert ZeroAddress();
-
-        harvest();
-
-        // Check for rounding error since we round down in previewDeposit.
-        require((shares = previewDeposit(assets)) != 0, "ZERO_SHARES");
-
-        // Need to transfer before minting or ERC777s could reenter.
-        asset.safeTransferFrom(msg.sender, address(this), assets);
-
-        _mint(receiver, shares);
-
-        emit Deposit(msg.sender, receiver, assets, shares);
-
-        afterDeposit(assets, shares);
-    }
-
-    /**
-        @notice Overridden solely to add harvest call and nonReentrant modifier
-     */
-    function mint(uint256 shares, address receiver)
-        public
-        override
-        nonReentrant
-        returns (uint256 assets)
-    {
-        if (receiver == address(0)) revert ZeroAddress();
-
-        harvest();
-
-        assets = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
-
-        // Need to transfer before minting or ERC777s could reenter.
-        asset.safeTransferFrom(msg.sender, address(this), assets);
-
-        _mint(receiver, shares);
-
-        emit Deposit(msg.sender, receiver, assets, shares);
-
-        afterDeposit(assets, shares);
-    }
-
-    /**
-        @notice Overridden solely to add harvest call and nonReentrant modifier
-     */
-    function withdraw(
-        uint256 assets,
-        address receiver,
-        address owner
-    ) public override nonReentrant returns (uint256 shares) {
-        if (receiver == address(0)) revert ZeroAddress();
-        if (owner == address(0)) revert ZeroAddress();
-
-        harvest();
-
-        shares = previewWithdraw(assets); // No need to check for rounding error, previewWithdraw rounds up.
-
-        if (msg.sender != owner) {
-            uint256 allowed = allowance[owner][msg.sender]; // Saves gas for limited approvals.
-
-            if (allowed != type(uint256).max)
-                allowance[owner][msg.sender] = allowed - shares;
-        }
-
-        beforeWithdraw(assets, shares);
-
-        _burn(owner, shares);
-
-        emit Withdraw(msg.sender, receiver, owner, assets, shares);
-
-        asset.safeTransfer(receiver, assets);
-    }
-
-    /**
-        @notice Overridden solely to add harvest call and nonReentrant modifier
-     */
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) public override nonReentrant returns (uint256 assets) {
-        if (receiver == address(0)) revert ZeroAddress();
-        if (owner == address(0)) revert ZeroAddress();
-
-        harvest();
-
-        if (msg.sender != owner) {
-            uint256 allowed = allowance[owner][msg.sender]; // Saves gas for limited approvals.
-
-            if (allowed != type(uint256).max)
-                allowance[owner][msg.sender] = allowed - shares;
-        }
-
-        // Check for rounding error since we round down in previewRedeem.
-        require((assets = previewRedeem(shares)) != 0, "ZERO_ASSETS");
-
-        beforeWithdraw(assets, shares);
-
-        _burn(owner, shares);
-
-        emit Withdraw(msg.sender, receiver, owner, assets, shares);
-
-        asset.safeTransfer(receiver, assets);
     }
 }
