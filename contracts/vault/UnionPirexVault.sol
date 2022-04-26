@@ -98,8 +98,13 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         @return uint256  Assets
      */
     function totalAssets() public view override returns (uint256) {
+        // Used to calculate the exact rewards staked after fees are deducted when calling `harvest`
+        uint256 rewards = strategy.earned();
+
         // Vault assets + rewards should always be stored in strategy until withdrawal-time
-        return strategy.totalSupply() + strategy.earned();
+        return
+            strategy.totalSupply() +
+            (rewards - ((rewards * platformFee) / FEE_DENOMINATOR));
     }
 
     /**
@@ -108,6 +113,9 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         @param  shares  uint256  Shares
      */
     function beforeWithdraw(uint256 assets, uint256 shares) internal override {
+        // Harvest rewards in the event where there is not enough staked assets to cover the withdrawal
+        if (assets > strategy.totalSupply()) harvest();
+
         strategy.withdraw(assets);
     }
 
