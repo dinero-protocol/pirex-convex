@@ -31,6 +31,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
 
     error ZeroAddress();
     error ExceedsMax();
+    error AlreadySet();
 
     constructor(address _pxCvx) ERC4626(ERC20(_pxCvx), "Union Pirex", "uCVX") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -83,26 +84,11 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
-        if (_strategy == address(0)) revert ZeroAddress();
-
-        // Store old strategy to perform maintenance if needed
-        address oldStrategy = address(strategy);
+        if (address(strategy) != address(0)) revert AlreadySet();
 
         // Set new strategy contract and approve max allowance
         strategy = UnionPirexStaking(_strategy);
         asset.safeApprove(_strategy, type(uint256).max);
-
-        // Set allowance of previous strategy to 0
-        if (oldStrategy != address(0)) {
-            asset.safeApprove(oldStrategy, 0);
-
-            // Migrate previous strategy balance to new strategy
-            uint256 balance = UnionPirexStaking(oldStrategy).totalSupply();
-            if (balance != 0) {
-                UnionPirexStaking(oldStrategy).withdraw(balance);
-                strategy.stake(balance);
-            }
-        }
 
         emit StrategySet(_strategy);
     }

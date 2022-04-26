@@ -1,4 +1,3 @@
-import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import {
@@ -28,7 +27,6 @@ describe('PirexCvx-UnionPirex*', function () {
   let pxCvx: PxCvx;
   let unionPirex: UnionPirexVault;
   let unionPirexStrategy: UnionPirexStrategy;
-  let unionPirexStrategy2: UnionPirexStrategy;
   let cvx: ConvexToken;
   let crv: Crv;
   let zeroAddress: string;
@@ -64,10 +62,6 @@ describe('PirexCvx-UnionPirex*', function () {
 
     // For making pxCVX deposits outside of the pCvx.deposit flow
     await pxCvx.approve(unionPirex.address, toBN2(1000e18).toFixed(0));
-
-    unionPirexStrategy2 = await (
-      await ethers.getContractFactory('UnionPirexStrategy')
-    ).deploy(pCvx.address, pxCvx.address, admin.address, unionPirex.address);
   });
 
   describe('UnionPirexVault: initial state', function () {
@@ -96,12 +90,10 @@ describe('PirexCvx-UnionPirex*', function () {
 
   describe('UnionPirexVault: constructor', function () {
     it('Should set up contract state', async function () {
-      const strategy = await unionPirex.strategy();
       const asset = await unionPirex.asset();
       const name = await unionPirex.name();
       const symbol = await unionPirex.symbol();
 
-      expect(strategy).to.equal(unionPirexStrategy.address);
       expect(asset).to.equal(pxCvx.address);
       expect(name).to.equal('Union Pirex');
       expect(symbol).to.equal('uCVX');
@@ -114,10 +106,10 @@ describe('PirexCvx-UnionPirex*', function () {
       const vault = await unionPirexStrategy.vault();
       const token = await unionPirexStrategy.token();
       const distributor = await unionPirexStrategy.distributor();
-      const pirexCvx2 = await unionPirexStrategy2.pirexCvx();
-      const vault2 = await unionPirexStrategy2.vault();
-      const token2 = await unionPirexStrategy2.token();
-      const distributor2 = await unionPirexStrategy2.distributor();
+      const pirexCvx2 = await unionPirexStrategy.pirexCvx();
+      const vault2 = await unionPirexStrategy.vault();
+      const token2 = await unionPirexStrategy.token();
+      const distributor2 = await unionPirexStrategy.distributor();
 
       expect(pirexCvx).to.equal(pCvx.address);
       expect(vault).to.equal(unionPirex.address);
@@ -206,23 +198,8 @@ describe('PirexCvx-UnionPirex*', function () {
   });
 
   describe('UnionPirexVault: setStrategy', function () {
-    before(async function () {
-      const assets = toBN(1e18);
-
-      await cvx.approve(pCvx.address, assets);
-      await pCvx.deposit(assets, admin.address, true);
-    });
-
-    it('Should revert if _strategy is zero address', async function () {
-      const invalidStrategy = zeroAddress;
-
-      await expect(unionPirex.setStrategy(invalidStrategy)).to.be.revertedWith(
-        'ZeroAddress()'
-      );
-    });
-
     it('Should revert if not called by owner', async function () {
-      const strategy = unionPirexStrategy2.address;
+      const strategy = unionPirexStrategy.address;
 
       await expect(
         unionPirex.connect(notAdmin).setStrategy(strategy)
@@ -231,127 +208,45 @@ describe('PirexCvx-UnionPirex*', function () {
       );
     });
 
-    it('Should set a new strategy', async function () {
-      const getStrategyAllowance = async (strategy: string) =>
-        await pxCvx.allowance(unionPirex.address, strategy);
-      const oldStrategy = unionPirexStrategy.address;
-      const strategy = unionPirexStrategy2.address;
-      const oldStrategyBalanceBefore = await unionPirexStrategy.totalSupply();
-      const newStrategyBalanceBefore = await unionPirexStrategy2.totalSupply();
-      const oldStrategyAllowanceBefore = await getStrategyAllowance(
-        oldStrategy
+    it('Should revert if strategy is already set', async function () {
+      const strategy = unionPirexStrategy.address;
+
+      await expect(unionPirex.setStrategy(strategy)).to.be.revertedWith(
+        'AlreadySet()'
       );
-      const newStrategyAllowanceBefore = await getStrategyAllowance(strategy);
-      const events = await callAndReturnEvents(unionPirex.setStrategy, [
-        strategy,
-      ]);
-      const newStrategyApprovalEvent = events[0];
-      const oldStrategyApprovalEvent = events[1];
-      const oldStrategyTransferEvent = events[2];
-      const oldStrategyWithdrawEvent = parseLog(unionPirexStrategy, events[3]);
-      const newStrategyStakeEvent = events[4];
-      const strategySetEvent = events[events.length - 1];
-      const oldStrategyBalanceAfter = await unionPirexStrategy.totalSupply();
-      const newStrategyBalanceAfter = await unionPirexStrategy2.totalSupply();
-      const oldStrategyAllowanceAfter = await getStrategyAllowance(oldStrategy);
-      const newStrategyAllowanceAfter = await getStrategyAllowance(strategy);
-
-      expect(oldStrategyBalanceBefore).to.not.equal(newStrategyBalanceBefore);
-      expect(newStrategyBalanceBefore).to.equal(0);
-      expect(oldStrategyBalanceBefore).to.not.equal(0);
-      expect(oldStrategyBalanceAfter).to.not.equal(newStrategyBalanceAfter);
-      expect(oldStrategyBalanceAfter).to.equal(0);
-      expect(newStrategyBalanceAfter).to.equal(oldStrategyBalanceBefore);
-      expect(oldStrategyAllowanceBefore).to.not.equal(
-        newStrategyAllowanceBefore
-      );
-      expect(newStrategyAllowanceBefore).to.equal(0);
-      expect(oldStrategyAllowanceAfter).to.not.equal(newStrategyAllowanceAfter);
-      expect(oldStrategyAllowanceAfter).to.equal(0);
-
-      // Using `oldStrategyAllowanceBefore` as a proxy for uint256 max
-      expect(newStrategyAllowanceAfter).to.equal(oldStrategyAllowanceBefore);
-
-      validateEvent(
-        newStrategyApprovalEvent,
-        'Approval(address,address,uint256)',
-        {
-          owner: unionPirex.address,
-          spender: unionPirexStrategy2.address,
-          amount: oldStrategyAllowanceBefore,
-        }
-      );
-
-      validateEvent(
-        oldStrategyApprovalEvent,
-        'Approval(address,address,uint256)',
-        {
-          owner: unionPirex.address,
-          spender: unionPirexStrategy.address,
-          amount: 0,
-        }
-      );
-
-      validateEvent(
-        oldStrategyTransferEvent,
-        'Transfer(address,address,uint256)',
-        {
-          from: oldStrategy,
-          to: unionPirex.address,
-          amount: oldStrategyBalanceBefore,
-        }
-      );
-
-      validateEvent(oldStrategyWithdrawEvent, 'Withdrawn(uint256)', {
-        amount: oldStrategyBalanceBefore,
-      });
-
-      validateEvent(
-        newStrategyStakeEvent,
-        'Transfer(address,address,uint256)',
-        {
-          from: unionPirex.address,
-          to: strategy,
-          amount: oldStrategyBalanceBefore,
-        }
-      );
-
-      validateEvent(strategySetEvent, 'StrategySet(address)', {
-        _strategy: unionPirexStrategy2.address,
-      });
     });
   });
 
   describe('UnionPirexStrategy: notifyRewardAmount', function () {
     it('Should revert if not called by distributor', async function () {
-      const distributor = await unionPirexStrategy2.distributor();
+      const distributor = await unionPirexStrategy.distributor();
 
       expect(notAdmin.address).to.not.equal(distributor);
       await expect(
-        unionPirexStrategy2.connect(notAdmin).notifyRewardAmount()
+        unionPirexStrategy.connect(notAdmin).notifyRewardAmount()
       ).to.be.revertedWith('Distributor only');
     });
 
     it('Should set the reward distribution parameters', async function () {
       const reward = toBN(1e18);
-      const rewardRateBefore = await unionPirexStrategy2.rewardRate();
-      const lastUpdateTimeBefore = await unionPirexStrategy2.lastUpdateTime();
-      const periodFinishBefore = await unionPirexStrategy2.periodFinish();
+      const rewardRateBefore = await unionPirexStrategy.rewardRate();
+      const lastUpdateTimeBefore = await unionPirexStrategy.lastUpdateTime();
+      const periodFinishBefore = await unionPirexStrategy.periodFinish();
 
       await cvx.approve(pCvx.address, reward);
 
       // Get pxCVX and deposit as vault reward
       await pCvx.deposit(reward, admin.address, false);
-      await pxCvx.transfer(unionPirexStrategy2.address, reward);
+      await pxCvx.transfer(unionPirexStrategy.address, reward);
 
       const events = await callAndReturnEvents(
-        unionPirexStrategy2.notifyRewardAmount,
+        unionPirexStrategy.notifyRewardAmount,
         []
       );
       const rewardAddedEvent = events[0];
-      const rewardRateAfter = await unionPirexStrategy2.rewardRate();
-      const lastUpdateTimeAfter = await unionPirexStrategy2.lastUpdateTime();
-      const periodFinishAfter = await unionPirexStrategy2.periodFinish();
+      const rewardRateAfter = await unionPirexStrategy.rewardRate();
+      const lastUpdateTimeAfter = await unionPirexStrategy.lastUpdateTime();
+      const periodFinishAfter = await unionPirexStrategy.periodFinish();
 
       expect(rewardRateAfter).to.not.equal(rewardRateBefore);
       expect(lastUpdateTimeAfter).to.not.equal(lastUpdateTimeBefore);
@@ -366,24 +261,24 @@ describe('PirexCvx-UnionPirex*', function () {
 
   describe('UnionPirexStrategy: setDistributor', function () {
     it('Should revert if not called by owner', async function () {
-      const owner = await unionPirexStrategy2.owner();
+      const owner = await unionPirexStrategy.owner();
 
       expect(notAdmin.address).to.not.equal(owner);
       await expect(
-        unionPirexStrategy2.connect(notAdmin).setDistributor(notAdmin.address)
+        unionPirexStrategy.connect(notAdmin).setDistributor(notAdmin.address)
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('Should should set a new distributor', async function () {
-      const distributorBefore = await unionPirexStrategy2.distributor();
+      const distributorBefore = await unionPirexStrategy.distributor();
       const distributor = notAdmin.address;
 
-      await unionPirexStrategy2.setDistributor(distributor);
+      await unionPirexStrategy.setDistributor(distributor);
 
-      const distributorAfter = await unionPirexStrategy2.distributor();
+      const distributorAfter = await unionPirexStrategy.distributor();
 
       // Set back to original for testing convenience
-      await unionPirexStrategy2.setDistributor(admin.address);
+      await unionPirexStrategy.setDistributor(admin.address);
 
       expect(distributorBefore).to.not.equal(distributorAfter);
       expect(distributorBefore).to.equal(admin.address);
@@ -398,14 +293,14 @@ describe('PirexCvx-UnionPirex*', function () {
 
     it('Should harvest rewards', async function () {
       // We can reliably count on `earned`'s result since the reward distribution is finished
-      const rewards = await unionPirexStrategy2.earned();
+      const rewards = await unionPirexStrategy.earned();
       const platform = await unionPirex.platform();
       const platformBalanceBefore = await pxCvx.balanceOf(platform);
       const totalAssetsBefore = await unionPirex.totalAssets();
       const totalSupplyBefore = await unionPirex.totalSupply();
       const events = await callAndReturnEvents(unionPirex.harvest, []);
       const getRewardEvent = events[0];
-      const rewardPaidEvent = parseLog(unionPirexStrategy2, events[1]);
+      const rewardPaidEvent = parseLog(unionPirexStrategy, events[1]);
       const harvestEvent = events[2];
       const feeTransferEvent = events[3];
       const stakeTransferEvent = events[4];
@@ -424,7 +319,7 @@ describe('PirexCvx-UnionPirex*', function () {
       expect(totalSupplyAfter).to.equal(totalSupplyBefore);
 
       validateEvent(getRewardEvent, 'Transfer(address,address,uint256)', {
-        from: unionPirexStrategy2.address,
+        from: unionPirexStrategy.address,
         to: unionPirex.address,
         amount: rewards,
       });
@@ -446,7 +341,7 @@ describe('PirexCvx-UnionPirex*', function () {
 
       validateEvent(stakeTransferEvent, 'Transfer(address,address,uint256)', {
         from: unionPirex.address,
-        to: unionPirexStrategy2.address,
+        to: unionPirexStrategy.address,
         amount: stakedAmount,
       });
     });
@@ -478,7 +373,7 @@ describe('PirexCvx-UnionPirex*', function () {
       const totalSupplyBefore = await unionPirex.totalSupply();
       const sharesBefore = await unionPirex.balanceOf(receiver);
       const expectedShares = await unionPirex.previewDeposit(assets);
-      const earned = await unionPirexStrategy2.earned();
+      const earned = await unionPirexStrategy.earned();
       const events = await callAndReturnEvents(unionPirex.deposit, [
         assets,
         receiver,
@@ -525,7 +420,7 @@ describe('PirexCvx-UnionPirex*', function () {
 
       validateEvent(stakeTransferEvent, 'Transfer(address,address,uint256)', {
         from: unionPirex.address,
-        to: unionPirexStrategy2.address,
+        to: unionPirexStrategy.address,
         amount: assets,
       });
     });
@@ -557,7 +452,7 @@ describe('PirexCvx-UnionPirex*', function () {
       const totalSupplyBefore = await unionPirex.totalSupply();
       const sharesBefore = await unionPirex.balanceOf(receiver);
       const expectedAssets = await unionPirex.previewMint(shares);
-      const earned = await unionPirexStrategy2.earned();
+      const earned = await unionPirexStrategy.earned();
       const events = await callAndReturnEvents(unionPirex.mint, [
         shares,
         receiver,
@@ -604,7 +499,7 @@ describe('PirexCvx-UnionPirex*', function () {
 
       validateEvent(stakeTransferEvent, 'Transfer(address,address,uint256)', {
         from: unionPirex.address,
-        to: unionPirexStrategy2.address,
+        to: unionPirexStrategy.address,
         amount: expectedAssets,
       });
     });
@@ -649,7 +544,7 @@ describe('PirexCvx-UnionPirex*', function () {
       const totalSupplyBefore = await unionPirex.totalSupply();
       const sharesBefore = await unionPirex.balanceOf(receiver);
       const expectedShares = await unionPirex.previewWithdraw(assets);
-      const earned = await unionPirexStrategy2.earned();
+      const earned = await unionPirexStrategy.earned();
       const events = await callAndReturnEvents(unionPirex.withdraw, [
         assets,
         receiver,
@@ -657,7 +552,7 @@ describe('PirexCvx-UnionPirex*', function () {
       ]);
       const harvestEvent = events[0];
       const withdrawTransferEvent = events[1];
-      const withdrawnEvent = parseLog(unionPirexStrategy2, events[2]);
+      const withdrawnEvent = parseLog(unionPirexStrategy, events[2]);
       const sharesBurnEvent = events[3];
       const withdrawEvent = events[4];
       const pxCvxTransferEvent = events[5];
@@ -681,7 +576,7 @@ describe('PirexCvx-UnionPirex*', function () {
         withdrawTransferEvent,
         'Transfer(address,address,uint256)',
         {
-          from: unionPirexStrategy2.address,
+          from: unionPirexStrategy.address,
           to: unionPirex.address,
           amount: assets,
         }
@@ -756,7 +651,7 @@ describe('PirexCvx-UnionPirex*', function () {
       const totalSupplyBefore = await unionPirex.totalSupply();
       const sharesBefore = await unionPirex.balanceOf(receiver);
       const expectedAssets = await unionPirex.previewRedeem(shares);
-      const earned = await unionPirexStrategy2.earned();
+      const earned = await unionPirexStrategy.earned();
       const events = await callAndReturnEvents(unionPirex.redeem, [
         shares,
         receiver,
@@ -764,7 +659,7 @@ describe('PirexCvx-UnionPirex*', function () {
       ]);
       const harvestEvent = events[0];
       const withdrawTransferEvent = events[1];
-      const strategyWithdrawEvent = parseLog(unionPirexStrategy2, events[2]);
+      const strategyWithdrawEvent = parseLog(unionPirexStrategy, events[2]);
       const sharesBurnEvent = events[3];
       const withdrawEvent = events[4];
       const pxCvxTransferEvent = events[5];
@@ -789,7 +684,7 @@ describe('PirexCvx-UnionPirex*', function () {
         withdrawTransferEvent,
         'Transfer(address,address,uint256)',
         {
-          from: unionPirexStrategy2.address,
+          from: unionPirexStrategy.address,
           to: unionPirex.address,
           amount: expectedAssets,
         }
@@ -884,12 +779,12 @@ describe('PirexCvx-UnionPirex*', function () {
       const { snapshotId, snapshotRewards } = await pxCvx.getEpoch(
         currentEpoch
       );
-      const distributor = await unionPirexStrategy2.distributor();
+      const distributor = await unionPirexStrategy.distributor();
       const cvxBalanceBefore = await cvx.balanceOf(distributor);
       const crvBalanceBefore = await crv.balanceOf(distributor);
       const rewardIndexes = [0, 1];
       const pxCvxBalanceAtSnapshot = await pxCvx.balanceOfAt(
-        unionPirexStrategy2.address,
+        unionPirexStrategy.address,
         snapshotId
       );
       const pxCvxSupplyAtSnapshot = await pxCvx.totalSupplyAt(snapshotId);
@@ -902,7 +797,7 @@ describe('PirexCvx-UnionPirex*', function () {
         .mul(pxCvxBalanceAtSnapshot)
         .div(pxCvxSupplyAtSnapshot);
       const events = await callAndReturnEvents(
-        unionPirexStrategy2.redeemRewards,
+        unionPirexStrategy.redeemRewards,
         [currentEpoch, rewardIndexes]
       );
       const redeemEvent = parseLog(pCvx, events[0]);
@@ -948,7 +843,7 @@ describe('PirexCvx-UnionPirex*', function () {
 
   describe('UnionPirexStrategy: totalSupply', function () {
     it('Should equal the result of the vault totalAssets', async function () {
-      const totalSupply = await unionPirexStrategy2.totalSupply();
+      const totalSupply = await unionPirexStrategy.totalSupply();
       const totalAssets = await unionPirex.totalAssets();
 
       expect(totalSupply).to.equal(totalAssets);
@@ -957,25 +852,25 @@ describe('PirexCvx-UnionPirex*', function () {
 
   describe('UnionPirexStrategy: stake', function () {
     it('Should revert if not called by vault', async function () {
-      const vault = unionPirexStrategy2.vault();
+      const vault = unionPirexStrategy.vault();
       const amount = 1;
 
       expect(admin.address).to.not.equal(vault);
-      await expect(
-        unionPirexStrategy2.stake(amount)
-      ).to.be.revertedWith('Vault only');
+      await expect(unionPirexStrategy.stake(amount)).to.be.revertedWith(
+        'Vault only'
+      );
     });
   });
 
   describe('UnionPirexStrategy: withdraw', function () {
     it('Should revert if not called by vault', async function () {
-      const vault = unionPirexStrategy2.vault();
+      const vault = unionPirexStrategy.vault();
       const amount = 1;
 
       expect(admin.address).to.not.equal(vault);
-      await expect(
-        unionPirexStrategy2.withdraw(amount)
-      ).to.be.revertedWith('Vault only');
+      await expect(unionPirexStrategy.withdraw(amount)).to.be.revertedWith(
+        'Vault only'
+      );
     });
   });
 });
