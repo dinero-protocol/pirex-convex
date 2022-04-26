@@ -110,7 +110,7 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         emit Withdrawn(amount);
     }
 
-    function getReward() external onlyVault nonReentrant updateReward(vault) {
+    function getReward() external nonReentrant updateReward(vault) {
         uint256 reward = rewards;
 
         if (reward > 0) {
