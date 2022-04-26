@@ -293,7 +293,7 @@ describe('PirexCvx-UnionPirex*', function () {
 
     it('Should harvest rewards', async function () {
       // We can reliably count on `earned`'s result since the reward distribution is finished
-      const rewards = await unionPirexStrategy.earned();
+      const [, rewards] = await unionPirexStrategy.totalSupplyWithRewards();
       const platform = await unionPirex.platform();
       const platformBalanceBefore = await pxCvx.balanceOf(platform);
       const totalAssetsBefore = await unionPirex.totalAssets();
@@ -612,7 +612,7 @@ describe('PirexCvx-UnionPirex*', function () {
       const pxCvxBeforeReceiver = await pxCvx.balanceOf(receiver);
       const pxCvxBeforeDistributor = await pxCvx.balanceOf(distributor);
       const expectedAssets = await unionPirex.previewRedeem(sharesBefore);
-      const rewards = await unionPirexStrategy.earned();
+      const [, rewards] = await unionPirexStrategy.totalSupplyWithRewards();
       const feeAmount = rewards
         .mul(await unionPirex.platformFee())
         .div(await unionPirex.FEE_DENOMINATOR());

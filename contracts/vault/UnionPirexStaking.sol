@@ -2,7 +2,6 @@
 pragma solidity 0.8.12;
 
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
-import {ReentrancyGuard} from "@rari-capital/solmate/src/utils/ReentrancyGuard.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -21,8 +20,11 @@ import "@openzeppelin/contracts/access/Ownable.sol";
     - Remove SafeMath since pragma 0.8.0 has those checks built-in
     - Replace OpenZeppelin ERC20, ReentrancyGuard, and SafeERC20 with Solmate v6 (audited)
     - Consolidate `rewardsToken` and `stakingToken` since they're the same
+    - Remove `onlyVault` modifier from getReward
+    - Remove ReentrancyGuard as it is no longer needed
+    - Add `totalSupplyWithRewards` method to save gas as _totalSupply + rewards are accessed by vault
 */
-contract UnionPirexStaking is ReentrancyGuard, Ownable {
+contract UnionPirexStaking is Ownable {
     using SafeTransferLib for ERC20;
 
     /* ========== STATE VARIABLES ========== */
@@ -60,6 +62,15 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         return _totalSupply;
     }
 
+    function totalSupplyWithRewards() external view returns (uint256, uint256) {
+        uint256 t = _totalSupply;
+
+        return (
+            t,
+            ((t * (rewardPerToken() - userRewardPerTokenPaid)) / 1e18) + rewards
+        );
+    }
+
     function lastTimeRewardApplicable() public view returns (uint256) {
         return block.timestamp < periodFinish ? block.timestamp : periodFinish;
     }
@@ -68,6 +79,7 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
         if (_totalSupply == 0) {
             return rewardPerTokenStored;
         }
+
         return
             rewardPerTokenStored +
             ((((lastTimeRewardApplicable() - lastUpdateTime) * rewardRate) *
@@ -86,31 +98,21 @@ contract UnionPirexStaking is ReentrancyGuard, Ownable {
 
     /* ========== MUTATIVE FUNCTIONS ========== */
 
-    function stake(uint256 amount)
-        external
-        onlyVault
-        nonReentrant
-        updateReward(vault)
-    {
+    function stake(uint256 amount) external onlyVault updateReward(vault) {
         require(amount > 0, "Cannot stake 0");
         _totalSupply += amount;
         token.safeTransferFrom(vault, address(this), amount);
         emit Staked(amount);
     }
 
-    function withdraw(uint256 amount)
-        external
-        onlyVault
-        nonReentrant
-        updateReward(vault)
-    {
+    function withdraw(uint256 amount) external onlyVault updateReward(vault) {
         require(amount > 0, "Cannot withdraw 0");
         _totalSupply -= amount;
         token.safeTransfer(vault, amount);
         emit Withdrawn(amount);
     }
 
-    function getReward() external nonReentrant updateReward(vault) {
+    function getReward() external updateReward(vault) {
         uint256 reward = rewards;
 
         if (reward > 0) {
