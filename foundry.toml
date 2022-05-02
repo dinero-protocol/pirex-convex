@@ -1,0 +1,7 @@
+[default]
+src = "contracts"
+test = "test/foundry"
+out = "artifacts"
+remappings = ["contracts/=contracts/"]
+libs = ["lib", "node_modules"]
+verbosity = 2
