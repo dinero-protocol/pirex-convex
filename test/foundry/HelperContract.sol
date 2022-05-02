@@ -10,6 +10,7 @@ import {PirexFees} from "contracts/PirexFees.sol";
 import {ERC1155PresetMinterSupply} from "contracts/ERC1155PresetMinterSupply.sol";
 import {ERC1155Solmate} from "contracts/ERC1155Solmate.sol";
 import {UnionPirexVault} from "contracts/UnionPirexVault.sol";
+import {MultiMerkleStash} from "contracts/mocks/MultiMerkleStash.sol";
 
 interface IConvexToken {
     function mint(address _to, uint256 _amount) external;
@@ -25,6 +26,8 @@ abstract contract HelperContract is Test {
         0x469788fE6E9E9681C6ebF3bF78e7Fd26Fc015446;
     address public constant votiumMultiMerkleStash =
         0x378Ba9B73309bE80BF4C2c027aAD799766a7ED5A;
+    address public constant VOTIUM_OWNER =
+        0x9d37A22cEc2f6b3635c61C253D192E68e85b1790;
 
     function _deployPirex()
         internal
@@ -70,8 +73,11 @@ abstract contract HelperContract is Test {
         );
         pirexCvx.setPauseState(false);
         pxCvx.setOperator(address(pirexCvx));
+        spCvx.grantMinterRole(address(pirexCvx));
+        pirexFees.grantFeeDistributorRole(address(pirexCvx));
+        rpCvx.grantRole(keccak256("MINTER_ROLE"), address(pirexCvx));
 
-        // Update reductionPerCliff to ensure 100% amount is minted
+        // Update reductionPerCliff to ensure mint reduction is zero (still capped by maxSupply)
         vm.store(
             cvx,
             bytes32(uint256(9)),
@@ -84,5 +90,38 @@ abstract contract HelperContract is Test {
         vm.prank(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
 
         IConvexToken(cvx).mint(to, amount);
+    }
+
+    function _loadRewards(
+        address token,
+        uint256 amount,
+        bytes32 merkleRoot
+    ) internal {
+        // Transfer rewards to Votium
+        ERC20(token).transfer(votiumMultiMerkleStash, amount);
+
+        // Set reward merkle root
+        vm.prank(VOTIUM_OWNER);
+        MultiMerkleStash(votiumMultiMerkleStash).updateMerkleRoot(
+            cvx,
+            merkleRoot
+        );
+    }
+
+    function _claimSingleReward(
+        PirexCvx pirexCvx,
+        address token,
+        uint256 amount
+    ) internal {
+        // Claim rewards for snapshotted pxCVX holders
+        PirexCvx.VotiumReward memory votiumReward;
+        votiumReward.token = token;
+        votiumReward.index = 0;
+        votiumReward.amount = amount;
+        votiumReward.merkleProof = new bytes32[](0);
+        PirexCvx.VotiumReward[]
+            memory votiumRewards = new PirexCvx.VotiumReward[](1);
+        votiumRewards[0] = votiumReward;
+        pirexCvx.claimVotiumRewards(votiumRewards);
     }
 }
