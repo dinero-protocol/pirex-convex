@@ -35,6 +35,9 @@ contract PxCvx is ERC20SnapshotSolmate("Pirex CVX", "pxCVX", 18), Ownable {
     error Paused();
     error ZeroAddress();
     error ZeroAmount();
+    error ZeroEpoch();
+    error InvalidFuturesRewards();
+    error MismatchedFuturesRewards();
 
     modifier onlyOperator() {
         if (msg.sender != operator) revert NotAuthorized();
@@ -152,6 +155,23 @@ contract PxCvx is ERC20SnapshotSolmate("Pirex CVX", "pxCVX", 18), Ownable {
         uint256 redeemed
     ) external onlyOperator {
         epochs[epoch].redeemedSnapshotRewards[account] = redeemed;
+    }
+
+    /**
+        @notice Update epoch futures rewards to reflect amounts remaining after redemptions
+        @param  epoch          uint256    Epoch
+        @param  futureRewards  uint256[]  Future rewards
+     */
+    function updateEpochFutureRewards(
+        uint256 epoch,
+        uint256[] memory futureRewards
+    ) external onlyOperator {
+        if (epoch == 0) revert ZeroEpoch();
+        if (futureRewards.length == 0) revert InvalidFuturesRewards();
+        if (futureRewards.length != epochs[epoch].futuresRewards.length)
+            revert MismatchedFuturesRewards();
+
+        epochs[epoch].futuresRewards = futureRewards;
     }
 
     /** 

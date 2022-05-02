@@ -103,7 +103,7 @@ abstract contract HelperContract is Test {
         // Set reward merkle root
         vm.prank(VOTIUM_OWNER);
         MultiMerkleStash(votiumMultiMerkleStash).updateMerkleRoot(
-            cvx,
+            token,
             merkleRoot
         );
     }

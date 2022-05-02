@@ -740,6 +740,7 @@ describe('PirexCvx-Reward', function () {
       const epoch = snapshotRedeemEpoch;
       const receiver = admin.address;
       const rpCvx = await this.getRpCvx(await pCvx.rpCvx());
+      const { rewards, futuresRewards } = await pxCvx.getEpoch(epoch);
 
       // Transfer half to test correctness for partial reward redemptions
       await rpCvx.safeTransferFrom(
@@ -764,7 +765,6 @@ describe('PirexCvx-Reward', function () {
       const crvBalanceAfter = await crv.balanceOf(admin.address);
       const rpCvxBalanceAfter = await rpCvx.balanceOf(admin.address, epoch);
       const rpCvxSupplyAfter = await rpCvx.totalSupply(epoch);
-      const { rewards, futuresRewards } = await pxCvx.getEpoch(epoch);
       const expectedClaimAmounts = futuresRewards.map((amount: BigNumber) =>
         amount.mul(rpCvxBalanceBefore).div(rpCvxSupplyBefore)
       );
