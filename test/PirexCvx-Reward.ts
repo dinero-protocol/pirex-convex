@@ -742,6 +742,9 @@ describe('PirexCvx-Reward', function () {
       const rpCvx = await this.getRpCvx(await pCvx.rpCvx());
       const { rewards, futuresRewards } = await pxCvx.getEpoch(epoch);
 
+      console.log("rewards", rewards);
+      console.log("futuresRewards", futuresRewards);
+
       // Transfer half to test correctness for partial reward redemptions
       await rpCvx.safeTransferFrom(
         admin.address,
