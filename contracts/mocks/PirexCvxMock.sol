@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
+import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
+import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import {PirexCvx} from "../PirexCvx.sol";
 
 contract PirexCvxMock is PirexCvx {
+    using SafeTransferLib for ERC20;
+    
     event SetInitialFees(
         uint32 reward,
         uint32 redemptionMax,
@@ -81,5 +85,49 @@ contract PirexCvxMock is PirexCvx {
         fees[Fees.RedemptionMin] = redemptionMin;
 
         emit SetInitialFees(reward, redemptionMax, redemptionMin);
+    }
+
+    /**
+        @notice Redeem Futures rewards for rpCVX holders for an epoch
+        @param  epoch     uint256  Epoch (ERC1155 token id)
+        @param  receiver  address  Receives futures rewards
+    */
+    function redeemFuturesRewardsBugged(uint256 epoch, address receiver)
+        external
+        whenNotPaused
+        nonReentrant
+    {
+        if (epoch == 0) revert InvalidEpoch();
+        if (epoch > getCurrentEpoch()) revert InvalidEpoch();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        // Prevent users from burning their futures notes before rewards are claimed
+        (, bytes32[] memory rewards, , uint256[] memory futuresRewards) = pxCvx
+            .getEpoch(epoch);
+
+        if (rewards.length == 0) revert NoRewards();
+
+        emit RedeemFuturesRewards(epoch, receiver, rewards);
+
+        // Check sender rpCVX balance
+        uint256 rpCvxBalance = rpCvx.balanceOf(msg.sender, epoch);
+        if (rpCvxBalance == 0) revert InsufficientBalance();
+
+        // Store rpCVX total supply before burning
+        uint256 rpCvxTotalSupply = rpCvx.totalSupply(epoch);
+
+        // Burn rpCVX tokens
+        rpCvx.burn(msg.sender, epoch, rpCvxBalance);
+
+        uint256 rLen = rewards.length;
+
+        // Loop over rewards and transfer the amount entitled to the rpCVX token holder
+        for (uint256 i; i < rLen; ++i) {
+            // Proportionate to the % of rpCVX owned out of the rpCVX total supply
+            ERC20(address(uint160(bytes20(rewards[i])))).safeTransfer(
+                receiver,
+                (futuresRewards[i] * rpCvxBalance) / rpCvxTotalSupply
+            );
+        }
     }
 }
