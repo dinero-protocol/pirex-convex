@@ -88,7 +88,7 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
                 : rpCvx.balanceOf(PRIMARY_ACCOUNT, epoch);
             address tester = testers[i];
 
-            // Tally up the attempted redemptions amounts using the same variables as the method
+            // Cumulative attempted redemptions amounts using the same formula as `redeemFuturesRewards`
             totalAttemptedRedemptions +=
                 (currentFuturesRewards[0] * transferAmount) /
                 rpCvx.totalSupply(epoch);
@@ -115,12 +115,26 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         }
     }
 
-    function testRedeemFuturesRewards(
+    function _distributeEpochRewards(uint256 assets) internal {
+        // Mint TEST tokens
+        _mint(address(this), assets);
+
+        // Transfer to Votium and update metadata
+        _loadRewards(
+            address(this),
+            assets,
+            keccak256(abi.encodePacked(uint256(0), address(pirexCvx), assets))
+        );
+
+        // Claim reward for PirexCvx, resulting in reward data updating for token holders
+        _claimSingleReward(pirexCvx, address(this), assets);
+    }
+
+    function _redeemFuturesRewardsFuzzParameters(
         uint8 rounds,
         uint256 assets,
-        uint256 stakePercent,
-        bool testBugged
-    ) external {
+        uint256 stakePercent
+    ) internal {
         vm.assume(rounds != 0);
         vm.assume(rounds < 10);
         vm.assume(assets != 0);
@@ -128,6 +142,14 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         vm.assume(assets > 1e18);
         vm.assume(stakePercent != 0);
         vm.assume(stakePercent < 255);
+    }
+
+    function testRedeemFuturesRewards(
+        uint8 rounds,
+        uint256 assets,
+        uint256 stakePercent
+    ) external {
+        _redeemFuturesRewardsFuzzParameters(rounds, assets, stakePercent);
 
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
@@ -138,20 +160,7 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         vm.warp(block.timestamp + EPOCH_DURATION);
 
         for (uint256 i; i < rounds; ++i) {
-            // Mint TEST tokens
-            _mint(address(this), assets);
-
-            // Transfer to Votium and update metadata
-            _loadRewards(
-                address(this),
-                assets,
-                keccak256(
-                    abi.encodePacked(uint256(0), address(pirexCvx), assets)
-                )
-            );
-
-            // Claim reward for PirexCvx, resulting in reward data updating for token holders
-            _claimSingleReward(pirexCvx, address(this), assets);
+            _distributeEpochRewards(assets);
 
             // Distribute rpCVX to testers and redeem their futures rewards
             (
@@ -160,19 +169,47 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
                 uint256 totalAttemptedRedemptions
             ) = _distributeNotesRedeemRewards(
                     stakeAmount,
-                    testBugged
-                        ? pirexCvx.redeemFuturesRewardsBugged.selector
-                        : pirexCvx.redeemFuturesRewards.selector
+                    pirexCvx.redeemFuturesRewards.selector
                 );
 
-            if (testBugged) {
-                assertGt(totalAttemptedRedemptions, totalFuturesRewards);
-            } else {
-                assertEq(totalRedeemedRewards, totalFuturesRewards);
-                assertEq(totalAttemptedRedemptions, totalFuturesRewards);
-            }
+            assertEq(totalRedeemedRewards, totalFuturesRewards);
+            assertEq(totalAttemptedRedemptions, totalFuturesRewards);
 
             // Forward to the next block and repeat
+            vm.warp(block.timestamp + EPOCH_DURATION);
+        }
+    }
+
+    function testRedeemFuturesRewardsBugged(
+        uint8 rounds,
+        uint256 assets,
+        uint256 stakePercent
+    ) external {
+        _redeemFuturesRewardsFuzzParameters(rounds, assets, stakePercent);
+
+        uint256 stakeAmount = (assets * stakePercent) / 255;
+
+        _mintAndDepositCVX(assets, false);
+        _stakePxCvx(rounds, stakeAmount);
+
+        vm.warp(block.timestamp + EPOCH_DURATION);
+
+        for (uint256 i; i < rounds; ++i) {
+            _distributeEpochRewards(assets);
+
+            (
+                ,
+                uint256 totalFuturesRewards,
+                uint256 totalAttemptedRedemptions
+            ) = _distributeNotesRedeemRewards(
+                    stakeAmount,
+                    pirexCvx.redeemFuturesRewardsBugged.selector
+                );
+
+            // This assertion confirms that the calculated redemption amounts are invalid
+            // Attempted redemptions should never exceed the futures rewards for an index
+            assertGt(totalAttemptedRedemptions, totalFuturesRewards);
+
             vm.warp(block.timestamp + EPOCH_DURATION);
         }
     }
