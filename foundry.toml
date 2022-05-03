@@ -5,4 +5,4 @@ out = "artifacts"
 remappings = ["contracts/=contracts/"]
 libs = ["lib", "node_modules"]
 verbosity = 2
-fuzz_runs = 50 # Change as needed
+fuzz_runs = 5 # Change as needed

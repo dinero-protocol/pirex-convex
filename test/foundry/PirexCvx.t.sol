@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {PirexCvxMock} from "contracts/mocks/PirexCvxMock.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
+import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
 import {ERC1155PresetMinterSupply} from "contracts/ERC1155PresetMinterSupply.sol";
 import {ERC1155Solmate} from "contracts/ERC1155Solmate.sol";
@@ -209,6 +210,71 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
             // This assertion confirms that the calculated redemption amounts are invalid
             // Attempted redemptions should never exceed the futures rewards for an index
             assertGt(totalAttemptedRedemptions, totalFuturesRewards);
+
+            vm.warp(block.timestamp + EPOCH_DURATION);
+        }
+    }
+
+    function testCannotRedeemFuturesRewardsZeroEpoch() external {
+        vm.expectRevert(PirexCvx.InvalidEpoch.selector);
+
+        pirexCvx.redeemFuturesRewards(0, PRIMARY_ACCOUNT);
+    }
+
+    function testCannotRedeemFuturesRewardsInvalidEpoch(uint256 epoch)
+        external
+    {
+        vm.assume(epoch > pxCvx.getCurrentEpoch());
+        vm.expectRevert(PirexCvx.InvalidEpoch.selector);
+
+        pirexCvx.redeemFuturesRewards(epoch, PRIMARY_ACCOUNT);
+    }
+
+    function testCannotRedeemFuturesRewardsZeroAddress(uint256 epoch) external {
+        vm.assume(epoch != 0);
+        vm.assume(epoch <= pxCvx.getCurrentEpoch());
+        vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
+
+        pirexCvx.redeemFuturesRewards(epoch, address(0));
+    }
+
+    function testCannotRedeemFuturesRewardsNoRewards(uint256 epoch) external {
+        vm.assume(epoch != 0);
+        vm.assume(epoch <= pxCvx.getCurrentEpoch());
+        vm.expectRevert(PirexCvx.NoRewards.selector);
+
+        pirexCvx.redeemFuturesRewards(epoch, PRIMARY_ACCOUNT);
+    }
+
+    function testCannotRedeemFuturesRewardsInsufficientBalance(
+        uint8 rounds,
+        uint256 assets,
+        uint256 stakePercent
+    ) external {
+        _redeemFuturesRewardsFuzzParameters(rounds, assets, stakePercent);
+
+        uint256 stakeAmount = (assets * stakePercent) / 255;
+
+        _mintAndDepositCVX(assets, false);
+        _stakePxCvx(rounds, stakeAmount);
+
+        vm.warp(block.timestamp + EPOCH_DURATION);
+
+        for (uint256 i; i < rounds; ++i) {
+            _distributeEpochRewards(assets);
+
+            uint256 epoch = pxCvx.getCurrentEpoch();
+            uint256 tLen = testers.length;
+
+            for (uint256 j; j < tLen; ++j) {
+                address tester = testers[j];
+
+                vm.expectRevert(PirexCvx.InsufficientBalance.selector);
+                vm.prank(tester);
+
+                // Attempt redeeming rewards as the tester with zero balance
+                pirexCvx.redeemFuturesRewards(epoch, tester);
+            }
 
             vm.warp(block.timestamp + EPOCH_DURATION);
         }
