@@ -34,6 +34,7 @@ abstract contract HelperContract is Test {
         returns (
             PxCvx pxCvx,
             ERC1155Solmate spCvx,
+            ERC1155Solmate upCvx,
             ERC1155PresetMinterSupply vpCvx,
             ERC1155PresetMinterSupply rpCvx,
             PirexCvxMock pirexCvx
@@ -41,7 +42,6 @@ abstract contract HelperContract is Test {
     {
         pxCvx = new PxCvx();
 
-        ERC1155Solmate upCvx = new ERC1155Solmate();
         PirexFees pirexFees = new PirexFees(msg.sender, msg.sender);
         UnionPirexVault unionPirex = new UnionPirexVault(
             ERC20(address(pxCvx)),
@@ -50,6 +50,7 @@ abstract contract HelperContract is Test {
         );
 
         spCvx = new ERC1155Solmate();
+        upCvx = new ERC1155Solmate();
         vpCvx = new ERC1155PresetMinterSupply("");
         rpCvx = new ERC1155PresetMinterSupply("");
         pirexCvx = new PirexCvxMock(
@@ -75,7 +76,11 @@ abstract contract HelperContract is Test {
         pxCvx.setOperator(address(pirexCvx));
         spCvx.grantMinterRole(address(pirexCvx));
         pirexFees.grantFeeDistributorRole(address(pirexCvx));
-        rpCvx.grantRole(keccak256("MINTER_ROLE"), address(pirexCvx));
+
+        bytes32 minterRole = keccak256("MINTER_ROLE");
+
+        rpCvx.grantRole(minterRole, address(pirexCvx));
+        upCvx.grantRole(minterRole, address(pirexCvx));
 
         // Set reductionPerCliff to maxSupply to ensure mint amount is reduced by zero
         vm.store(cvx, bytes32(uint256(9)), vm.load(cvx, bytes32(uint256(7))));

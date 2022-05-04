@@ -17,6 +17,7 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
     ICvxLocker private immutable cvxLockerContract;
     PxCvx private immutable pxCvx;
     ERC1155Solmate private immutable spCvx;
+    ERC1155Solmate private immutable upCvx;
     ERC1155PresetMinterSupply private immutable rpCvx;
     PirexCvxMock private immutable pirexCvx;
     address private constant PRIMARY_ACCOUNT =
@@ -31,19 +32,24 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
     constructor() {
         CVX = ERC20(cvx);
         cvxLockerContract = ICvxLocker(cvxLocker);
-        (pxCvx, spCvx, , rpCvx, pirexCvx) = _deployPirex();
+        (pxCvx, spCvx, upCvx, , rpCvx, pirexCvx) = _deployPirex();
     }
 
     function _mintAndDepositCVX(
         uint256 assets,
         address receiver,
-        bool shouldCompound
+        bool shouldCompound,
+        bool lock
     ) internal {
         _mintCvx(receiver, assets);
         vm.startPrank(receiver);
         CVX.approve(address(pirexCvx), CVX.balanceOf(receiver));
         pirexCvx.deposit(assets, receiver, shouldCompound);
-        pirexCvx.lock();
+
+        if (lock) {
+            pirexCvx.lock();
+        }
+
         vm.stopPrank();
     }
 
@@ -191,7 +197,7 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
 
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
-        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false);
+        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
         _stakePxCvx(rounds, stakeAmount);
 
         // Forward 1 epoch, since rpCVX has claim to rewards in subsequent epochs
@@ -233,7 +239,7 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
 
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
-        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false);
+        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
         _stakePxCvx(rounds, stakeAmount);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
@@ -318,7 +324,7 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
 
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
-        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false);
+        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
         _stakePxCvx(rounds, stakeAmount);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
@@ -340,6 +346,93 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
             }
 
             vm.warp(block.timestamp + EPOCH_DURATION);
+        }
+    }
+
+    function testLock(
+        uint256 assets,
+        uint256 redemptionPercent,
+        uint256 pendingLockAmount
+    ) external {
+        vm.assume(assets != 0);
+        vm.assume(assets < 100e18);
+        vm.assume(redemptionPercent != 0);
+        vm.assume(redemptionPercent < 255);
+        vm.assume(pendingLockAmount != 0);
+        vm.assume(pendingLockAmount < 100e18);
+
+        uint256 tLen = testers.length;
+
+        // Warp to the next epoch
+        vm.warp(pxCvx.getCurrentEpoch() + EPOCH_DURATION);
+
+        for (uint256 i; i < tLen; ++i) {
+            address tester = testers[i];
+
+            // Deposit CVX so that we have locks to redeem
+            _mintAndDepositCVX(assets, tester, false, true);
+
+            uint256[] memory lockIndexes = new uint256[](1);
+            uint256[] memory _assets = new uint256[](1);
+
+            lockIndexes[0] = i;
+            _assets[0] = (pxCvx.balanceOf(tester) * redemptionPercent) / 255;
+
+            vm.prank(tester);
+            pirexCvx.initiateRedemptions(
+                lockIndexes,
+                PirexCvx.Futures.Reward,
+                _assets,
+                tester
+            );
+
+            // Warp forward to redeem from other lock indexes
+            vm.warp(block.timestamp + EPOCH_DURATION * (i + 1));
+        }
+
+        (, , , ICvxLocker.LockedBalance[] memory lockData) = cvxLockerContract
+            .lockedBalances(address(pirexCvx));
+
+        for (uint256 i; i < lockData.length; ++i) {
+            // Warp to the unlock timestamp
+            vm.warp(lockData[i].unlockTime);
+
+            address tester = testers[i];
+            (, uint256 unlockable, , ) = cvxLockerContract.lockedBalances(
+                address(pirexCvx)
+            );
+            uint256 upCvxBalance = upCvx.balanceOf(
+                tester,
+                lockData[i].unlockTime
+            );
+
+            // Deposit CVX without locking to ensure pendingLocks is non-zero
+            _mintAndDepositCVX(
+                pendingLockAmount,
+                PRIMARY_ACCOUNT,
+                false,
+                false
+            );
+
+            uint256 pendingLocks = pirexCvx.getPendingLocks();
+            uint256 outstandingRedemptions = pirexCvx
+                .getOutstandingRedemptions();
+
+            // Maximum amount of CVX that PirexCvx can have (balance and CVX's unlockable deducted by pendingLocks)
+            uint256 maxCvxBalance = CVX.balanceOf(address(pirexCvx)) +
+                unlockable -
+                pendingLocks;
+
+            // Actual amount of CVX that PirexCvx should have (anything above outstandingRedemptions is locked)
+            uint256 expectedCvxBalance = outstandingRedemptions > maxCvxBalance
+                ? maxCvxBalance
+                : outstandingRedemptions;
+
+            // Lock pendingLocks amount and anything over outstandingRedemptions
+            pirexCvx.lock();
+
+            // Confirm that balance is what's expected
+            assertEq(CVX.balanceOf(address(pirexCvx)), expectedCvxBalance);
         }
     }
 }

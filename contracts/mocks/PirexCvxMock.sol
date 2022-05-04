@@ -130,4 +130,12 @@ contract PirexCvxMock is PirexCvx {
             );
         }
     }
+
+    function getOutstandingRedemptions() external view returns (uint256) {
+        return outstandingRedemptions;
+    }
+
+    function getPendingLocks() external view returns (uint256) {
+        return pendingLocks;
+    }
 }
