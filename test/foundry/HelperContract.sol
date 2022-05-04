@@ -77,12 +77,8 @@ abstract contract HelperContract is Test {
         pirexFees.grantFeeDistributorRole(address(pirexCvx));
         rpCvx.grantRole(keccak256("MINTER_ROLE"), address(pirexCvx));
 
-        // Update reductionPerCliff to ensure mint reduction is zero (still capped by maxSupply)
-        vm.store(
-            cvx,
-            bytes32(uint256(9)),
-            bytes32(IConvexToken(cvx).totalSupply() + 10000e18)
-        );
+        // Set reductionPerCliff to maxSupply to ensure mint amount is reduced by zero
+        vm.store(cvx, bytes32(uint256(9)), vm.load(cvx, bytes32(uint256(7))));
     }
 
     /**
