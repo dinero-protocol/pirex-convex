@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
 import "forge-std/Test.sol";
@@ -10,13 +10,6 @@ import {PxCvx} from "contracts/PxCvx.sol";
 import {ERC1155PresetMinterSupply} from "contracts/ERC1155PresetMinterSupply.sol";
 import {ERC1155Solmate} from "contracts/ERC1155Solmate.sol";
 import {HelperContract} from "./HelperContract.sol";
-
-interface ICvxLocker {
-    function lockedBalanceOf(address _user)
-        external
-        view
-        returns (uint256 amount);
-}
 
 contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
     ERC20 private CVX;
@@ -48,6 +41,11 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         pirexCvx.lock();
     }
 
+    /**
+        @notice Stake pxCVX and mint rpCVX based on input parameters
+        @param  rounds  uint256  Rounds
+        @param  assets  uint256  pxCVX
+     */
     function _stakePxCvx(uint256 rounds, uint256 assets) internal {
         vm.prank(PRIMARY_ACCOUNT);
         pirexCvx.stake(
@@ -58,6 +56,12 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         );
     }
 
+    /**
+        @notice Transfer rpCVX to other receiver
+        @param  receiver  address  rpCVX receiver
+        @param  epoch     address  rpCVX id
+        @param  amount    uin256   rpCVX amount
+     */
     function _transferRpCvx(
         address receiver,
         uint256 epoch,
@@ -67,6 +71,14 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         rpCvx.safeTransferFrom(PRIMARY_ACCOUNT, receiver, epoch, amount, "");
     }
 
+    /**
+        @notice Transfer rpCVX to tester accounts and redeem rewards
+        @param  assets                     uint256  Total rpCVX to distribute to testers
+        @param  selector                   bytes4   Function select of a redeem futures rewards method
+        @return totalRedeemedRewards       uint256  Total amount of rewards that have been redeemed
+        @return totalFuturesRewards        uint256  The maximum amount of futures rewards (i.e. 1st element in this test)
+        @return totalAttemptedRedemptions  uint256  Total amount of attempted redemptions based on the reward redemption formula
+     */
     function _distributeNotesRedeemRewards(uint256 assets, bytes4 selector)
         internal
         returns (
@@ -84,6 +96,9 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
             (, , , uint256[] memory currentFuturesRewards) = pxCvx.getEpoch(
                 epoch
             );
+
+            // Different amounts of rpCVX distributed based on loop index and tester ordering
+            // If it's the last iteration, transfer the remaining balance to ensure all rewards redeemed
             uint256 transferAmount = (tLen - 1) != i
                 ? assets / (tLen - i)
                 : rpCvx.balanceOf(PRIMARY_ACCOUNT, epoch);
@@ -116,6 +131,10 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         }
     }
 
+    /**
+        @notice Mint reward assets, set merkle root, and claim rewards for Pirex token holders
+        @param  assets  uint256  Total reward assets to mint
+     */
     function _distributeEpochRewards(uint256 assets) internal {
         // Mint TEST tokens
         _mint(address(this), assets);
@@ -131,8 +150,14 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         _claimSingleReward(pirexCvx, address(this), assets);
     }
 
+    /**
+        @notice Guardrails for our fuzz test inputs
+        @param  rounds        uint256  Number of staking rounds
+        @param  assets        uint256  pxCVX amount
+        @param  stakePercent  uint256  Percent of pxCVX to stake (255 is denominator)
+     */
     function _redeemFuturesRewardsFuzzParameters(
-        uint8 rounds,
+        uint256 rounds,
         uint256 assets,
         uint256 stakePercent
     ) internal {
@@ -145,8 +170,14 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         vm.assume(stakePercent < 255);
     }
 
+    /**
+        @notice Fuzz the patched version of redeemFuturesRewards to verify now correctly implemented
+        @param  rounds        uint256  Number of staking rounds
+        @param  assets        uint256  pxCVX amount
+        @param  stakePercent  uint256  Percent of pxCVX to stake
+     */
     function testRedeemFuturesRewards(
-        uint8 rounds,
+        uint256 rounds,
         uint256 assets,
         uint256 stakePercent
     ) external {
@@ -157,7 +188,7 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         _mintAndDepositCVX(assets, false);
         _stakePxCvx(rounds, stakeAmount);
 
-        // Forward 1 epoch, since rpxCVX has claim to rewards in subsequent epochs
+        // Forward 1 epoch, since rpCVX has claim to rewards in subsequent epochs
         vm.warp(block.timestamp + EPOCH_DURATION);
 
         for (uint256 i; i < rounds; ++i) {
@@ -181,8 +212,14 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         }
     }
 
+    /**
+        @notice Fuzz the bugged version of redeemFuturesRewards to reproduce find
+        @param  rounds        uint256  Number of staking rounds
+        @param  assets        uint256  pxCVX amount
+        @param  stakePercent  uint256  Percent of pxCVX to stake
+     */
     function testRedeemFuturesRewardsBugged(
-        uint8 rounds,
+        uint256 rounds,
         uint256 assets,
         uint256 stakePercent
     ) external {
@@ -215,12 +252,18 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         }
     }
 
+    /**
+        @notice Test tx reversion if epoch is zero
+     */
     function testCannotRedeemFuturesRewardsZeroEpoch() external {
         vm.expectRevert(PirexCvx.InvalidEpoch.selector);
 
         pirexCvx.redeemFuturesRewards(0, PRIMARY_ACCOUNT);
     }
 
+    /**
+        @notice Fuzz to verify tx reverts if epoch greater than the current epoch
+     */
     function testCannotRedeemFuturesRewardsInvalidEpoch(uint256 epoch)
         external
     {
@@ -230,6 +273,10 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         pirexCvx.redeemFuturesRewards(epoch, PRIMARY_ACCOUNT);
     }
 
+    /**
+        @notice Fuzz to verify tx reverts if receiver is zero address
+        @param  epoch  uint256  Reward epoch
+     */
     function testCannotRedeemFuturesRewardsZeroAddress(uint256 epoch) external {
         vm.assume(epoch != 0);
         vm.assume(epoch <= pxCvx.getCurrentEpoch());
@@ -238,6 +285,10 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         pirexCvx.redeemFuturesRewards(epoch, address(0));
     }
 
+    /**
+        @notice Fuzz to verify tx reverts if epoch has no rewards
+        @param  epoch  uint256  Reward epoch
+     */
     function testCannotRedeemFuturesRewardsNoRewards(uint256 epoch) external {
         vm.assume(epoch != 0);
         vm.assume(epoch <= pxCvx.getCurrentEpoch());
@@ -246,8 +297,14 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         pirexCvx.redeemFuturesRewards(epoch, PRIMARY_ACCOUNT);
     }
 
+    /**
+        @notice Fuzz to verify tx reverts if receiver does not have any rpCVX
+        @param  rounds        uint256  Number of staking rounds
+        @param  assets        uint256  pxCVX amount
+        @param  stakePercent  uint256  Percent of pxCVX to stake
+     */
     function testCannotRedeemFuturesRewardsInsufficientBalance(
-        uint8 rounds,
+        uint256 rounds,
         uint256 assets,
         uint256 stakePercent
     ) external {

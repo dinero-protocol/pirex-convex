@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
 import "forge-std/Test.sol";
@@ -85,6 +85,11 @@ abstract contract HelperContract is Test {
         );
     }
 
+    /**
+        @notice Mint CVX for an address
+        @param  to      address  CVX receipient
+        @param  amount  uint256  CVX amount to mint
+     */
     function _mintCvx(address to, uint256 amount) internal {
         // Call mint as the operator
         vm.prank(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
@@ -92,6 +97,12 @@ abstract contract HelperContract is Test {
         IConvexToken(cvx).mint(to, amount);
     }
 
+    /**
+        @notice Set merkle root
+        @param  token       address  Reward token
+        @param  amount      uint256  Reward amount
+        @param  merkleRoot  bytes32  Reward claim root
+     */
     function _loadRewards(
         address token,
         uint256 amount,
@@ -108,6 +119,12 @@ abstract contract HelperContract is Test {
         );
     }
 
+    /**
+        @notice Claim a single reward for Pirex token holders
+        @param  pirexCvx  PirexCvx  PirexCvx contract instance
+        @param  token     address   Reward token
+        @param  amount    bytes32   Reward amount
+     */
     function _claimSingleReward(
         PirexCvx pirexCvx,
         address token,
