@@ -924,15 +924,24 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
         // Loop over rewards and transfer the amount entitled to the rpCVX token holder
         for (uint256 i; i < rLen; ++i) {
+            uint256 rewardAmount = (futuresRewards[i] * rpCvxBalance) /
+                rpCvxTotalSupply;
+
+            // Update reward amount by deducting the amount transferred to the receiver
+            futuresRewards[i] -= rewardAmount;
+
             // Proportionate to the % of rpCVX owned out of the rpCVX total supply
             ERC20(address(uint160(bytes20(rewards[i])))).safeTransfer(
                 receiver,
-                (futuresRewards[i] * rpCvxBalance) / rpCvxTotalSupply
+                rewardAmount
             );
         }
+
+        // Update future rewards to reflect the amounts remaining post-redemption
+        pxCvx.updateEpochFuturesRewards(epoch, futuresRewards);
     }
 
-    /**
+        /**
         @notice Exchange one futures token for another
         @param  epoch     uint256  Epoch (ERC1155 token id)
         @param  amount    uint256  Exchange amount

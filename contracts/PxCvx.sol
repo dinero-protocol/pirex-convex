@@ -30,11 +30,18 @@ contract PxCvx is ERC20SnapshotSolmate("Pirex CVX", "pxCVX", 18), Ownable {
     mapping(uint256 => Epoch) private epochs;
 
     event SetOperator(address operator);
+    event UpdateEpochFuturesRewards(
+        uint256 indexed epoch,
+        uint256[] futuresRewards
+    );
 
     error NotAuthorized();
     error Paused();
     error ZeroAddress();
     error ZeroAmount();
+    error InvalidEpoch();
+    error InvalidFuturesRewards();
+    error MismatchedFuturesRewards();
 
     modifier onlyOperator() {
         if (msg.sender != operator) revert NotAuthorized();
@@ -152,6 +159,28 @@ contract PxCvx is ERC20SnapshotSolmate("Pirex CVX", "pxCVX", 18), Ownable {
         uint256 redeemed
     ) external onlyOperator {
         epochs[epoch].redeemedSnapshotRewards[account] = redeemed;
+    }
+
+    /**
+        @notice Update epoch futures rewards to reflect amounts remaining after redemptions
+        @param  epoch           uint256    Epoch
+        @param  futuresRewards  uint256[]  Futures rewards
+     */
+    function updateEpochFuturesRewards(
+        uint256 epoch,
+        uint256[] memory futuresRewards
+    ) external onlyOperator {
+        if (epoch == 0) revert InvalidEpoch();
+
+        uint256 fLen = epochs[epoch].futuresRewards.length;
+
+        if (fLen == 0) revert InvalidEpoch();
+        if (futuresRewards.length == 0) revert InvalidFuturesRewards();
+        if (futuresRewards.length != fLen) revert MismatchedFuturesRewards();
+
+        epochs[epoch].futuresRewards = futuresRewards;
+
+        emit UpdateEpochFuturesRewards(epoch, futuresRewards);
     }
 
     /** 

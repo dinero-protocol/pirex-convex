@@ -740,6 +740,7 @@ describe('PirexCvx-Reward', function () {
       const epoch = snapshotRedeemEpoch;
       const receiver = admin.address;
       const rpCvx = await this.getRpCvx(await pCvx.rpCvx());
+      const { rewards, futuresRewards } = await pxCvx.getEpoch(epoch);
 
       // Transfer half to test correctness for partial reward redemptions
       await rpCvx.safeTransferFrom(
@@ -760,11 +761,19 @@ describe('PirexCvx-Reward', function () {
         receiver,
       ]);
       const redeemEvent = events[0];
+      const burnEvent = parseLog(rpCvx, events[1]);
+      const rewardTransferEvent1 = parseLog(cvx, events[2]);
+      const rewardTransferEvent2 = parseLog(crv, events[3]);
+      const rewardTransferEvent3 = parseLog(cvx, events[4]);
+      const rewardTransferEvent4 = parseLog(crv, events[5]);
+      const updateRewardsEvent = parseLog(pxCvx, events[6]);
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
       const crvBalanceAfter = await crv.balanceOf(admin.address);
       const rpCvxBalanceAfter = await rpCvx.balanceOf(admin.address, epoch);
       const rpCvxSupplyAfter = await rpCvx.totalSupply(epoch);
-      const { rewards, futuresRewards } = await pxCvx.getEpoch(epoch);
+      const { futuresRewards: updatedFuturesRewards } = await pxCvx.getEpoch(
+        epoch
+      );
       const expectedClaimAmounts = futuresRewards.map((amount: BigNumber) =>
         amount.mul(rpCvxBalanceBefore).div(rpCvxSupplyBefore)
       );
@@ -789,6 +798,19 @@ describe('PirexCvx-Reward', function () {
       expect(crvBalanceAfter).to.equal(
         crvBalanceBefore.add(totalExpectedCrvClaimAmounts)
       );
+      expect(futuresRewards[0].sub(expectedClaimAmounts[0])).to.equal(
+        updatedFuturesRewards[0]
+      );
+      expect(futuresRewards[1].sub(expectedClaimAmounts[1])).to.equal(
+        updatedFuturesRewards[1]
+      );
+      expect(futuresRewards[2].sub(expectedClaimAmounts[2])).to.equal(
+        updatedFuturesRewards[2]
+      );
+      expect(futuresRewards[3].sub(expectedClaimAmounts[3])).to.equal(
+        updatedFuturesRewards[3]
+      );
+
       validateEvent(
         redeemEvent,
         'RedeemFuturesRewards(uint256,address,bytes32[])',
@@ -796,6 +818,175 @@ describe('PirexCvx-Reward', function () {
           epoch,
           receiver,
           rewards,
+        }
+      );
+
+      validateEvent(
+        burnEvent,
+        'TransferSingle(address,address,address,uint256,uint256)',
+        {
+          operator: pCvx.address,
+          from: admin.address,
+          to: zeroAddress,
+          id: epoch,
+          value: rpCvxBalanceBefore,
+        }
+      );
+
+      validateEvent(rewardTransferEvent1, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: admin.address,
+        value: expectedClaimAmounts[0],
+      });
+
+      validateEvent(rewardTransferEvent2, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: admin.address,
+        value: expectedClaimAmounts[1],
+      });
+
+      validateEvent(rewardTransferEvent3, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: admin.address,
+        value: expectedClaimAmounts[2],
+      });
+
+      validateEvent(rewardTransferEvent4, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: admin.address,
+        value: expectedClaimAmounts[3],
+      });
+
+      validateEvent(
+        updateRewardsEvent,
+        'UpdateEpochFuturesRewards(uint256,uint256[])',
+        {
+          epoch,
+          futuresRewards: updatedFuturesRewards,
+        }
+      );
+    });
+
+    it('Should redeem the remaining futures rewards', async function () {
+      const cvxBalanceBefore = await cvx.balanceOf(notAdmin.address);
+      const crvBalanceBefore = await crv.balanceOf(notAdmin.address);
+      const epoch = snapshotRedeemEpoch;
+      const receiver = notAdmin.address;
+      const rpCvx = await this.getRpCvx(await pCvx.rpCvx());
+      const { rewards, futuresRewards } = await pxCvx.getEpoch(epoch);
+      const rpCvxBalanceBefore = await rpCvx.balanceOf(notAdmin.address, epoch);
+      const rpCvxSupplyBefore = await rpCvx.totalSupply(epoch);
+
+      await rpCvx.connect(notAdmin).setApprovalForAll(pCvx.address, true);
+
+      const events = await callAndReturnEvents(
+        pCvx.connect(notAdmin).redeemFuturesRewards,
+        [epoch, receiver]
+      );
+
+      const redeemEvent = events[0];
+      const burnEvent = parseLog(rpCvx, events[1]);
+      const rewardTransferEvent1 = parseLog(cvx, events[2]);
+      const rewardTransferEvent2 = parseLog(crv, events[3]);
+      const rewardTransferEvent3 = parseLog(cvx, events[4]);
+      const rewardTransferEvent4 = parseLog(crv, events[5]);
+      const updateRewardsEvent = parseLog(pxCvx, events[6]);
+      const cvxBalanceAfter = await cvx.balanceOf(notAdmin.address);
+      const crvBalanceAfter = await crv.balanceOf(notAdmin.address);
+      const rpCvxBalanceAfter = await rpCvx.balanceOf(notAdmin.address, epoch);
+      const rpCvxSupplyAfter = await rpCvx.totalSupply(epoch);
+      const { futuresRewards: updatedFuturesRewards } = await pxCvx.getEpoch(
+        epoch
+      );
+      const expectedClaimAmounts = futuresRewards.map((amount: BigNumber) =>
+        amount.mul(rpCvxBalanceBefore).div(rpCvxSupplyBefore)
+      );
+      const totalExpectedCvxClaimAmounts = expectedClaimAmounts[0].add(
+        expectedClaimAmounts[2]
+      );
+      const totalExpectedCrvClaimAmounts = expectedClaimAmounts[1].add(
+        expectedClaimAmounts[3]
+      );
+
+      expect(rpCvxBalanceAfter).to.not.equal(rpCvxBalanceBefore);
+      expect(rpCvxBalanceAfter).to.equal(0);
+      expect(rpCvxSupplyAfter).to.not.equal(rpCvxSupplyBefore);
+      expect(rpCvxSupplyAfter).to.equal(
+        rpCvxSupplyBefore.sub(rpCvxBalanceBefore)
+      );
+      expect(cvxBalanceAfter).to.not.equal(cvxBalanceBefore);
+      expect(cvxBalanceAfter).to.equal(
+        cvxBalanceBefore.add(totalExpectedCvxClaimAmounts)
+      );
+      expect(crvBalanceAfter).to.not.equal(crvBalanceBefore);
+      expect(crvBalanceAfter).to.equal(
+        crvBalanceBefore.add(totalExpectedCrvClaimAmounts)
+      );
+      expect(futuresRewards[0].sub(expectedClaimAmounts[0])).to.equal(
+        updatedFuturesRewards[0]
+      );
+      expect(futuresRewards[1].sub(expectedClaimAmounts[1])).to.equal(
+        updatedFuturesRewards[1]
+      );
+      expect(futuresRewards[2].sub(expectedClaimAmounts[2])).to.equal(
+        updatedFuturesRewards[2]
+      );
+      expect(futuresRewards[3].sub(expectedClaimAmounts[3])).to.equal(
+        updatedFuturesRewards[3]
+      );
+
+      validateEvent(
+        redeemEvent,
+        'RedeemFuturesRewards(uint256,address,bytes32[])',
+        {
+          epoch,
+          receiver,
+          rewards,
+        }
+      );
+
+      validateEvent(
+        burnEvent,
+        'TransferSingle(address,address,address,uint256,uint256)',
+        {
+          operator: pCvx.address,
+          from: notAdmin.address,
+          to: zeroAddress,
+          id: epoch,
+          value: rpCvxBalanceBefore,
+        }
+      );
+
+      validateEvent(rewardTransferEvent1, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: notAdmin.address,
+        value: expectedClaimAmounts[0],
+      });
+
+      validateEvent(rewardTransferEvent2, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: notAdmin.address,
+        value: expectedClaimAmounts[1],
+      });
+
+      validateEvent(rewardTransferEvent3, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: notAdmin.address,
+        value: expectedClaimAmounts[2],
+      });
+
+      validateEvent(rewardTransferEvent4, 'Transfer(address,address,uint256)', {
+        from: pCvx.address,
+        to: notAdmin.address,
+        value: expectedClaimAmounts[3],
+      });
+
+      validateEvent(
+        updateRewardsEvent,
+        'UpdateEpochFuturesRewards(uint256,uint256[])',
+        {
+          epoch,
+          futuresRewards: updatedFuturesRewards,
         }
       );
     });
