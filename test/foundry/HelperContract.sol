@@ -81,7 +81,7 @@ abstract contract HelperContract is Test {
         vm.store(
             cvx,
             bytes32(uint256(9)),
-            bytes32(IConvexToken(cvx).totalSupply() + 1)
+            bytes32(IConvexToken(cvx).totalSupply() + 10000e18)
         );
     }
 

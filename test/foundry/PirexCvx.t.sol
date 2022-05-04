@@ -10,9 +10,11 @@ import {PxCvx} from "contracts/PxCvx.sol";
 import {ERC1155PresetMinterSupply} from "contracts/ERC1155PresetMinterSupply.sol";
 import {ERC1155Solmate} from "contracts/ERC1155Solmate.sol";
 import {HelperContract} from "./HelperContract.sol";
+import {ICvxLocker} from "contracts/interfaces/ICvxLocker.sol";
 
 contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
     ERC20 private CVX;
+    ICvxLocker private immutable cvxLockerContract;
     PxCvx private immutable pxCvx;
     ERC1155Solmate private immutable spCvx;
     ERC1155PresetMinterSupply private immutable rpCvx;
@@ -28,17 +30,21 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
 
     constructor() {
         CVX = ERC20(cvx);
+        cvxLockerContract = ICvxLocker(cvxLocker);
         (pxCvx, spCvx, , rpCvx, pirexCvx) = _deployPirex();
-
-        vm.prank(PRIMARY_ACCOUNT);
-        CVX.approve(address(pirexCvx), type(uint256).max);
     }
 
-    function _mintAndDepositCVX(uint256 assets, bool shouldCompound) internal {
-        _mintCvx(PRIMARY_ACCOUNT, assets);
-        vm.prank(PRIMARY_ACCOUNT);
-        pirexCvx.deposit(assets, PRIMARY_ACCOUNT, shouldCompound);
+    function _mintAndDepositCVX(
+        uint256 assets,
+        address receiver,
+        bool shouldCompound
+    ) internal {
+        _mintCvx(receiver, assets);
+        vm.startPrank(receiver);
+        CVX.approve(address(pirexCvx), CVX.balanceOf(receiver));
+        pirexCvx.deposit(assets, receiver, shouldCompound);
         pirexCvx.lock();
+        vm.stopPrank();
     }
 
     /**
@@ -185,7 +191,7 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
 
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
-        _mintAndDepositCVX(assets, false);
+        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false);
         _stakePxCvx(rounds, stakeAmount);
 
         // Forward 1 epoch, since rpCVX has claim to rewards in subsequent epochs
@@ -227,7 +233,7 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
 
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
-        _mintAndDepositCVX(assets, false);
+        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false);
         _stakePxCvx(rounds, stakeAmount);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
@@ -312,7 +318,7 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
 
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
-        _mintAndDepositCVX(assets, false);
+        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false);
         _stakePxCvx(rounds, stakeAmount);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
