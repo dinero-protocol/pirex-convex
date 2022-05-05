@@ -12,44 +12,6 @@ import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
 import {HelperContract} from "./HelperContract.sol";
 
 contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
-    ERC20 private CVX;
-    PxCvx private immutable pxCvx;
-    ERC1155Solmate private immutable spCvx;
-    ERC1155PresetMinterSupply private immutable rpCvx;
-    PirexCvxMock private immutable pirexCvx;
-    
-    address private constant PRIMARY_ACCOUNT =
-        0x5409ED021D9299bf6814279A6A1411A7e866A631;
-    address[3] private testers = [
-        0x6Ecbe1DB9EF729CBe972C83Fb886247691Fb6beb,
-        0xE36Ea790bc9d7AB70C55260C66D52b1eca985f84,
-        0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
-    ];
-    uint256 private constant EPOCH_DURATION = 1209600;
-
-    constructor() {
-        CVX = ERC20(cvx);
-        (pxCvx, spCvx, , , rpCvx, pirexCvx) = _deployPirex();
-    }
-
-    function _mintAndDepositCVX(
-        uint256 assets,
-        address receiver,
-        bool shouldCompound,
-        bool lock
-    ) internal {
-        _mintCvx(receiver, assets);
-        vm.startPrank(receiver);
-        CVX.approve(address(pirexCvx), CVX.balanceOf(receiver));
-        pirexCvx.deposit(assets, receiver, shouldCompound);
-
-        if (lock) {
-            pirexCvx.lock();
-        }
-
-        vm.stopPrank();
-    }
-
     /**
         @notice Stake pxCVX and mint rpCVX based on input parameters
         @param  rounds  uint256  Rounds
@@ -81,8 +43,8 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
     }
 
     /**
-        @notice Transfer rpCVX to tester accounts and redeem rewards
-        @param  assets                     uint256  Total rpCVX to distribute to testers
+        @notice Transfer rpCVX to secondary accounts and redeem rewards
+        @param  assets                     uint256  Total rpCVX to distribute to secondaryAccounts
         @param  selector                   bytes4   Function select of a redeem futures rewards method
         @return totalRedeemedRewards       uint256  Total amount of rewards that have been redeemed
         @return totalFuturesRewards        uint256  The maximum amount of futures rewards (i.e. 1st element in this test)
@@ -96,7 +58,7 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
             uint256 totalAttemptedRedemptions
         )
     {
-        uint256 tLen = testers.length;
+        uint256 tLen = secondaryAccounts.length;
         uint256 epoch = pxCvx.getCurrentEpoch();
         (, , , uint256[] memory allFuturesRewards) = pxCvx.getEpoch(epoch);
         totalFuturesRewards = allFuturesRewards[0];
@@ -106,37 +68,37 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
                 epoch
             );
 
-            // Different amounts of rpCVX distributed based on loop index and tester ordering
+            // Different amounts of rpCVX distributed based on loop index and secondary account ordering
             // If it's the last iteration, transfer the remaining balance to ensure all rewards redeemed
             uint256 transferAmount = (tLen - 1) != i
                 ? assets / (tLen - i)
                 : rpCvx.balanceOf(PRIMARY_ACCOUNT, epoch);
-            address tester = testers[i];
+            address secondaryAccount = secondaryAccounts[i];
 
             // Cumulative attempted redemptions amounts using the same formula as `redeemFuturesRewards`
             totalAttemptedRedemptions +=
                 (currentFuturesRewards[0] * transferAmount) /
                 rpCvx.totalSupply(epoch);
 
-            // Transfer rpCVX so that tester can redeem futures rewards
-            _transferRpCvx(tester, epoch, transferAmount);
+            // Transfer rpCVX so that secondaryAccount can redeem futures rewards
+            _transferRpCvx(secondaryAccount, epoch, transferAmount);
 
-            // Impersonate tester and redeem futures rewards
-            vm.startPrank(tester);
+            // Impersonate secondaryAccount and redeem futures rewards
+            vm.startPrank(secondaryAccount);
             rpCvx.setApprovalForAll(address(pirexCvx), true);
 
             // Call either the patched or bugged redeemFuturesReward method
             // `success` inconsistently returns false for bugged method so is not checked
             address(pirexCvx).call(
-                abi.encodeWithSelector(selector, epoch, tester)
+                abi.encodeWithSelector(selector, epoch, secondaryAccount)
             );
             vm.stopPrank();
 
             // Total up redeemed reward amount to confirm whether redemption amount is correct
-            totalRedeemedRewards += balanceOf[tester];
+            totalRedeemedRewards += balanceOf[secondaryAccount];
 
-            // Set tester balance to zero so we can easily test future redeemed totals
-            balanceOf[tester] = 0;
+            // Set secondaryAccount balance to zero so we can easily test future redeemed totals
+            balanceOf[secondaryAccount] = 0;
         }
     }
 
@@ -156,7 +118,7 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         );
 
         // Claim reward for PirexCvx, resulting in reward data updating for token holders
-        _claimSingleReward(pirexCvx, address(this), assets);
+        _claimSingleReward(address(this), assets);
     }
 
     /**
@@ -203,7 +165,7 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
         for (uint256 i; i < rounds; ++i) {
             _distributeEpochRewards(assets);
 
-            // Distribute rpCVX to testers and redeem their futures rewards
+            // Distribute rpCVX to secondaryAccounts and redeem their futures rewards
             (
                 uint256 totalRedeemedRewards,
                 uint256 totalFuturesRewards,
@@ -330,16 +292,16 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
             _distributeEpochRewards(assets);
 
             uint256 epoch = pxCvx.getCurrentEpoch();
-            uint256 tLen = testers.length;
+            uint256 tLen = secondaryAccounts.length;
 
             for (uint256 j; j < tLen; ++j) {
-                address tester = testers[j];
+                address secondaryAccount = secondaryAccounts[j];
 
                 vm.expectRevert(PirexCvx.InsufficientBalance.selector);
-                vm.prank(tester);
+                vm.prank(secondaryAccount);
 
-                // Attempt redeeming rewards as the tester with zero balance
-                pirexCvx.redeemFuturesRewards(epoch, tester);
+                // Attempt redeeming rewards as the secondaryAccount with zero balance
+                pirexCvx.redeemFuturesRewards(epoch, secondaryAccount);
             }
 
             vm.warp(block.timestamp + EPOCH_DURATION);

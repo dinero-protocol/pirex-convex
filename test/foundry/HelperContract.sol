@@ -2,7 +2,7 @@
 pragma solidity 0.8.12;
 
 import "forge-std/Test.sol";
-import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {PirexCvxMock} from "contracts/mocks/PirexCvxMock.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
@@ -12,35 +12,44 @@ import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
 import {UnionPirexVault} from "contracts/vault/UnionPirexVault.sol";
 import {UnionPirexStrategy} from "contracts/vault/UnionPirexStrategy.sol";
 import {MultiMerkleStash} from "contracts/mocks/MultiMerkleStash.sol";
+import {ICvxLocker} from "contracts/interfaces/ICvxLocker.sol";
 
-interface IConvexToken {
+interface IConvexToken is IERC20 {
     function mint(address _to, uint256 _amount) external;
 
-    function totalSupply() external returns (uint256);
+    function totalSupply() external view override returns (uint256);
 }
 
 abstract contract HelperContract is Test {
-    address public constant cvx = 0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B;
-    address public constant cvxLocker =
-        0x72a19342e8F1838460eBFCCEf09F6585e32db86E;
-    address public constant cvxDelegateRegistry =
+    IConvexToken public constant CVX =
+        IConvexToken(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
+    ICvxLocker public constant CVX_LOCKER =
+        ICvxLocker(0x72a19342e8F1838460eBFCCEf09F6585e32db86E);
+
+    address public constant CVX_DELEGATE_REGISTRY =
         0x469788fE6E9E9681C6ebF3bF78e7Fd26Fc015446;
-    address public constant votiumMultiMerkleStash =
+    address public constant VOTIUM_MULTI_MERKLE_STASH =
         0x378Ba9B73309bE80BF4C2c027aAD799766a7ED5A;
     address public constant VOTIUM_OWNER =
         0x9d37A22cEc2f6b3635c61C253D192E68e85b1790;
+    address public constant PRIMARY_ACCOUNT =
+        0x5409ED021D9299bf6814279A6A1411A7e866A631;
+    uint256 public constant EPOCH_DURATION = 1209600;
 
-    function _deployPirex()
-        internal
-        returns (
-            PxCvx pxCvx,
-            ERC1155Solmate spCvx,
-            ERC1155Solmate upCvx,
-            ERC1155PresetMinterSupply vpCvx,
-            ERC1155PresetMinterSupply rpCvx,
-            PirexCvxMock pirexCvx
-        )
-    {
+    PirexCvxMock public immutable pirexCvx;
+    PxCvx public immutable pxCvx;
+    ERC1155Solmate public immutable spCvx;
+    ERC1155Solmate public immutable upCvx;
+    ERC1155PresetMinterSupply public immutable vpCvx;
+    ERC1155PresetMinterSupply public immutable rpCvx;
+
+    address[3] public secondaryAccounts = [
+        0x6Ecbe1DB9EF729CBe972C83Fb886247691Fb6beb,
+        0xE36Ea790bc9d7AB70C55260C66D52b1eca985f84,
+        0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
+    ];
+
+    constructor() {
         pxCvx = new PxCvx();
 
         PirexFees pirexFees = new PirexFees(msg.sender, msg.sender);
@@ -51,16 +60,16 @@ abstract contract HelperContract is Test {
         vpCvx = new ERC1155PresetMinterSupply("");
         rpCvx = new ERC1155PresetMinterSupply("");
         pirexCvx = new PirexCvxMock(
-            cvx,
-            cvxLocker,
-            cvxDelegateRegistry,
+            address(CVX),
+            address(CVX_LOCKER),
+            CVX_DELEGATE_REGISTRY,
             address(pxCvx),
             address(upCvx),
             address(spCvx),
             address(vpCvx),
             address(rpCvx),
             address(pirexFees),
-            votiumMultiMerkleStash
+            VOTIUM_MULTI_MERKLE_STASH
         );
 
         UnionPirexStrategy unionPirexStrategy = new UnionPirexStrategy(
@@ -89,7 +98,11 @@ abstract contract HelperContract is Test {
         unionPirex.setStrategy(address(unionPirexStrategy));
 
         // Set reductionPerCliff to maxSupply to ensure mint amount is reduced by zero
-        vm.store(cvx, bytes32(uint256(9)), vm.load(cvx, bytes32(uint256(7))));
+        vm.store(
+            address(CVX),
+            bytes32(uint256(9)),
+            vm.load(address(CVX), bytes32(uint256(7)))
+        );
     }
 
     /**
@@ -101,7 +114,32 @@ abstract contract HelperContract is Test {
         // Call mint as the operator
         vm.prank(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
 
-        IConvexToken(cvx).mint(to, amount);
+        CVX.mint(to, amount);
+    }
+
+    /**
+        @notice Mint and deposit CVX into PirexCvx
+        @param  assets          uint256  Amount of CVX to mint and deposit
+        @param  receiver        address  Recipient of pxCVX or uCVX
+        @param  shouldCompound  bool     Whether to compound with UnionPirexVault
+        @param  lock            bool     Whether to lock deposited CVX
+     */
+    function _mintAndDepositCVX(
+        uint256 assets,
+        address receiver,
+        bool shouldCompound,
+        bool lock
+    ) internal {
+        _mintCvx(receiver, assets);
+        vm.startPrank(receiver);
+        CVX.approve(address(pirexCvx), CVX.balanceOf(receiver));
+        pirexCvx.deposit(assets, receiver, shouldCompound);
+
+        if (lock) {
+            pirexCvx.lock();
+        }
+
+        vm.stopPrank();
     }
 
     /**
@@ -116,11 +154,11 @@ abstract contract HelperContract is Test {
         bytes32 merkleRoot
     ) internal {
         // Transfer rewards to Votium
-        ERC20(token).transfer(votiumMultiMerkleStash, amount);
+        IERC20(token).transfer(VOTIUM_MULTI_MERKLE_STASH, amount);
 
         // Set reward merkle root
         vm.prank(VOTIUM_OWNER);
-        MultiMerkleStash(votiumMultiMerkleStash).updateMerkleRoot(
+        MultiMerkleStash(VOTIUM_MULTI_MERKLE_STASH).updateMerkleRoot(
             token,
             merkleRoot
         );
@@ -128,15 +166,10 @@ abstract contract HelperContract is Test {
 
     /**
         @notice Claim a single reward for Pirex token holders
-        @param  pirexCvx  PirexCvx  PirexCvx contract instance
         @param  token     address   Reward token
         @param  amount    bytes32   Reward amount
      */
-    function _claimSingleReward(
-        PirexCvx pirexCvx,
-        address token,
-        uint256 amount
-    ) internal {
+    function _claimSingleReward(address token, uint256 amount) internal {
         // Claim rewards for snapshotted pxCVX holders
         PirexCvx.VotiumReward memory votiumReward;
         votiumReward.token = token;
