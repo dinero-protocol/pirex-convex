@@ -218,7 +218,6 @@ describe('PxCvx', function () {
 
   describe('updateEpochFuturesRewards', function () {
     before(async function () {
-      await pCvx.setPauseState(false);
       await pxCvx.setOperator(pCvx.address);
       await pCvx.stake(
         1,
