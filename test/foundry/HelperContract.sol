@@ -7,9 +7,10 @@ import {PirexCvxMock} from "contracts/mocks/PirexCvxMock.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
 import {PirexFees} from "contracts/PirexFees.sol";
-import {ERC1155PresetMinterSupply} from "contracts/ERC1155PresetMinterSupply.sol";
-import {ERC1155Solmate} from "contracts/ERC1155Solmate.sol";
-import {UnionPirexVault} from "contracts/UnionPirexVault.sol";
+import {ERC1155PresetMinterSupply} from "contracts/tokens/ERC1155PresetMinterSupply.sol";
+import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
+import {UnionPirexVault} from "contracts/vault/UnionPirexVault.sol";
+import {UnionPirexStrategy} from "contracts/vault/UnionPirexStrategy.sol";
 import {MultiMerkleStash} from "contracts/mocks/MultiMerkleStash.sol";
 
 interface IConvexToken {
@@ -43,11 +44,7 @@ abstract contract HelperContract is Test {
         pxCvx = new PxCvx();
 
         PirexFees pirexFees = new PirexFees(msg.sender, msg.sender);
-        UnionPirexVault unionPirex = new UnionPirexVault(
-            ERC20(address(pxCvx)),
-            "Pirex CVX",
-            "pxCVX"
-        );
+        UnionPirexVault unionPirex = new UnionPirexVault(address(pxCvx));
 
         spCvx = new ERC1155Solmate();
         upCvx = new ERC1155Solmate();
@@ -66,6 +63,13 @@ abstract contract HelperContract is Test {
             votiumMultiMerkleStash
         );
 
+        UnionPirexStrategy unionPirexStrategy = new UnionPirexStrategy(
+            address(pirexCvx),
+            address(pxCvx),
+            address(this),
+            address(unionPirex)
+        );
+
         // Configure contracts
         pirexCvx.setInitialFees(uint32(40000), uint32(50000), uint32(10000));
         pirexCvx.setContract(
@@ -81,6 +85,8 @@ abstract contract HelperContract is Test {
 
         rpCvx.grantRole(minterRole, address(pirexCvx));
         upCvx.grantRole(minterRole, address(pirexCvx));
+        unionPirex.setPlatform(address(this));
+        unionPirex.setStrategy(address(unionPirexStrategy));
 
         // Set reductionPerCliff to maxSupply to ensure mint amount is reduced by zero
         vm.store(cvx, bytes32(uint256(9)), vm.load(cvx, bytes32(uint256(7))));
