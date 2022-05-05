@@ -68,7 +68,7 @@ describe('PirexCvx-Base', function () {
   });
 
   describe('initial state', function () {
-    it('Should have predefined state variables', async function () {
+    it('Should have initialized state variables', async function () {
       const EPOCH_DURATION = await pCvx.EPOCH_DURATION();
       const FEE_DENOMINATOR = await pCvx.FEE_DENOMINATOR();
       const MAX_REDEMPTION_TIME = await pCvx.MAX_REDEMPTION_TIME();

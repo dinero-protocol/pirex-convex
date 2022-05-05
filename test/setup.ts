@@ -13,6 +13,7 @@ import {
   Crv,
   PirexFees,
   AddressRegistry,
+  UnionPirexStrategy,
   UnionPirexVault,
 } from '../typechain-types';
 
@@ -24,6 +25,7 @@ let pCvx: PirexCvx;
 let pxCvx: PxCvx;
 let pirexFees: PirexFees;
 let unionPirex: UnionPirexVault;
+let unionPirexStrategy: UnionPirexStrategy;
 let cvx: ConvexToken;
 let crv: Crv;
 let cvxLocker: CvxLockerV2;
@@ -158,11 +160,17 @@ before(async function () {
     vpCvx.address,
     rpCvx.address,
     pirexFees.address,
-    votiumMultiMerkleStash.address,
+    votiumMultiMerkleStash.address
   );
-  unionPirex = await (
-    await ethers.getContractFactory('UnionPirexVault')
-  ).deploy(pxCvx.address, 'Union Pirex Vault', 'pxCVX');
+  const unionPirexVault: any = await ethers.getContractFactory(
+    'UnionPirexVault'
+  );
+  unionPirex = await unionPirexVault.deploy(pxCvx.address);
+  unionPirexStrategy = await (
+    await ethers.getContractFactory('UnionPirexStrategy')
+  ).deploy(pCvx.address, pxCvx.address, admin.address, unionPirex.address);
+
+  await unionPirex.setStrategy(unionPirexStrategy.address);
 
   // Common addresses and contracts
   this.admin = admin;
@@ -181,6 +189,7 @@ before(async function () {
   this.pxCvx = pxCvx;
   this.pCvx = pCvx;
   this.unionPirex = unionPirex;
+  this.unionPirexStrategy = unionPirexStrategy;
 
   await this.pirexFees.grantFeeDistributorRole(pCvx.address);
 
