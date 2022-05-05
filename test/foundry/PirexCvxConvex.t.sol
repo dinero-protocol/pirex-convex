@@ -13,6 +13,32 @@ import {ICvxLocker} from "contracts/interfaces/ICvxLocker.sol";
 
 contract PirexCvxConvexTest is Test, HelperContract {
     /**
+        @notice Redeem CVX for the specified account and verify the subsequent balances
+        @param  account     address  Account redeeming CVX
+        @param  unlockTime  uint256  upCVX token id
+     */
+    function _redeemCVX(address account, uint256 unlockTime) internal {
+        uint256[] memory upCvxIds = new uint256[](1);
+        uint256[] memory redeemableAssets = new uint256[](1);
+
+        upCvxIds[0] = unlockTime;
+
+        uint256 upCvxBalanceBefore = upCvx.balanceOf(account, upCvxIds[0]);
+        uint256 cvxBalanceBefore = CVX.balanceOf(account);
+
+        redeemableAssets[0] = upCvxBalanceBefore;
+
+        vm.prank(account);
+        pirexCvx.redeem(upCvxIds, redeemableAssets, account);
+
+        // upCVX must be zero since we specified the balance
+        assertEq(upCvx.balanceOf(account, upCvxIds[0]), 0);
+
+        // CVX balance must have increased by the amount of upCVX burned as they are 1 to 1
+        assertEq(CVX.balanceOf(account), cvxBalanceBefore + upCvxBalanceBefore);
+    }
+
+    /**
         @notice Fuzz to verify only the correct amounts are locked and left unlocked
         @param  assets             uint256  CVX mint and deposit amount
         @param  redemptionAmount   uint256  Initiate redemption amount
@@ -46,16 +72,16 @@ contract PirexCvxConvexTest is Test, HelperContract {
             _mintAndDepositCVX(assets, secondaryAccount, false, true);
 
             uint256[] memory lockIndexes = new uint256[](1);
-            uint256[] memory _assets = new uint256[](1);
+            uint256[] memory lockableAssets = new uint256[](1);
 
             lockIndexes[0] = i;
-            _assets[0] = redemptionAmount;
+            lockableAssets[0] = redemptionAmount;
 
             vm.prank(secondaryAccount);
             pirexCvx.initiateRedemptions(
                 lockIndexes,
                 PirexCvx.Futures.Reward,
-                _assets,
+                lockableAssets,
                 secondaryAccount
             );
 
@@ -124,11 +150,16 @@ contract PirexCvxConvexTest is Test, HelperContract {
             // After accounting for unlocked amounts, the locked balance delta must be GTE to pendingLocks
             assertGe(lockedAfter, (lockedBefore - unlockable) + pendingLocks);
 
-            // The expected (i.e. post-lock) balance must be GTE to the minimum required
+            // // The expected (i.e. post-lock) balance must be GTE to the minimum required
             assertGe(expectedCvxBalance, minimumCvxBalanceRequired);
 
             // The post-lock balance must be LTE to what's necessary to fulfill redemptions
             assertLe(postLockCvxBalance, outstandingRedemptions);
+        }
+
+        // After checking that the appropriate amounts are locked, verify that the CVX is redeemable
+        for (uint256 i; i < lockLen; ++i) {
+            _redeemCVX(secondaryAccounts[i], lockData[i].unlockTime);
         }
     }
 }
