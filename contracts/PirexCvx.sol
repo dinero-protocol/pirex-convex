@@ -278,9 +278,10 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         }
 
         ERC20 pxCvxERC20 = ERC20(address(pxCvx));
+        address oldUnionPirex = address(unionPirex);
 
-        if (address(unionPirex) != address(0)) {
-            pxCvxERC20.safeApprove(address(unionPirex), 0);
+        if (oldUnionPirex != address(0)) {
+            pxCvxERC20.safeApprove(oldUnionPirex, 0);
         }
 
         unionPirex = UnionPirexVault(contractAddress);
