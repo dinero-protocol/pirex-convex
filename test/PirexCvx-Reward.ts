@@ -67,49 +67,6 @@ describe('PirexCvx-Reward', function () {
     } = this);
   });
 
-  describe('takeEpochSnapshot', function () {
-    it('Should take a snapshot', async function () {
-      const currentEpoch = await pCvx.getCurrentEpoch();
-      const epochBefore = await pxCvx.getEpoch(currentEpoch);
-      const snapshotIdBefore = await pxCvx.getCurrentSnapshotId();
-      const events = await callAndReturnEvents(pxCvx.takeEpochSnapshot, []);
-      const snapshotEvent = events[0];
-      const epochAfter = await pxCvx.getEpoch(currentEpoch);
-      const snapshotIdAfter = await pxCvx.getCurrentSnapshotId();
-
-      expect(epochBefore.snapshotId).to.equal(0);
-      expect(epochAfter.snapshotId).to.equal(snapshotIdAfter);
-      expect(snapshotIdAfter).to.not.equal(snapshotIdBefore);
-      expect(snapshotIdAfter).to.equal(snapshotIdBefore.add(1));
-      validateEvent(snapshotEvent, 'Snapshot(uint256)', {
-        id: snapshotIdAfter,
-      });
-    });
-
-    it('Should not take a snapshot if already taken for the epoch', async function () {
-      const currentEpoch = await pCvx.getCurrentEpoch();
-      const { snapshotId: snapshotIdBefore } = await pxCvx.getEpoch(
-        currentEpoch
-      );
-
-      await pxCvx.takeEpochSnapshot();
-
-      const { snapshotId: snapshotIdAfter } = await pxCvx.getEpoch(
-        currentEpoch
-      );
-
-      expect(snapshotIdAfter).to.equal(snapshotIdBefore);
-    });
-
-    it('should revert if the contract is paused', async function () {
-      await pCvx.setPauseState(true);
-
-      await expect(pxCvx.takeEpochSnapshot()).to.be.revertedWith('Paused()');
-
-      await pCvx.setPauseState(false);
-    });
-  });
-
   describe('claimVotiumRewards', function () {
     let cvxRewardDistribution: { account: string; amount: BigNumber }[];
     let crvRewardDistribution: { account: string; amount: BigNumber }[];
@@ -117,6 +74,8 @@ describe('PirexCvx-Reward', function () {
     let crvTree: BalanceTree;
 
     before(async function () {
+      await pxCvx.takeEpochSnapshot();
+
       // Provision rpCVX tokens for futures redemption later
       const assets = toBN(5e17);
 
