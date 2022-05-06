@@ -352,6 +352,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
      */
     function queueFee(Fees f, uint32 newFee) external onlyOwner {
         if (newFee > FEE_DENOMINATOR) revert InvalidNewFee();
+        if (newFee == fees[f]) revert InvalidNewFee();
 
         uint224 effectiveAfter = uint224(block.timestamp + EPOCH_DURATION);
 

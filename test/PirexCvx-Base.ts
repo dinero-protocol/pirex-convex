@@ -421,7 +421,16 @@ describe('PirexCvx-Base', function () {
       const f = feesEnum.reward;
       const invalidNewFee = toBN(await pCvx.FEE_DENOMINATOR()).add(1);
 
-      await expect(pCvx.queueFee(f, invalidNewFee)).to.be.reverted;
+      await expect(pCvx.queueFee(f, invalidNewFee)).to.be.reverted.revertedWith('InvalidNewFee()');
+    });
+
+    it('Should revert if newFee is equal to the existing fee of the same type', async function () {
+      const f = feesEnum.reward;
+      const existingFee = await pCvx.fees(f);
+      const invalidNewFee = existingFee;
+
+      expect(existingFee).to.equal(invalidNewFee);
+      await expect(pCvx.queueFee(f, invalidNewFee)).to.be.revertedWith('InvalidNewFee()');
     });
 
     it('Should revert if not owner', async function () {
