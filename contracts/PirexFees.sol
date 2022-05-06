@@ -19,7 +19,6 @@ contract PirexFees is AccessControl {
 
     // Configurable fee recipient percent-share
     uint8 public treasuryPercent = 75;
-    uint8 public contributorsPercent = 25;
 
     // Configurable fee recipient addresses
     address public treasury;
@@ -28,7 +27,7 @@ contract PirexFees is AccessControl {
     event GrantFeeDistributorRole(address distributor);
     event RevokeFeeDistributorRole(address distributor);
     event SetFeeRecipient(FeeRecipient f, address recipient);
-    event SetFeePercents(uint8 _treasuryPercent, uint8 _contributorsPercent);
+    event SetTreasuryPercent(uint8 _treasuryPercent);
     event DistributeFees(address token, uint256 amount);
 
     error ZeroAddress();
@@ -102,21 +101,19 @@ contract PirexFees is AccessControl {
     }
 
     /** 
-        @notice Set fee percents
-        @param  _treasuryPercent      uint8  Treasury fee percent
-        @param  _contributorsPercent  uint8  Contributors fee percent
+        @notice Set treasury fee percent
+        @param  _treasuryPercent  uint8  Treasury fee percent
      */
-    function setFeePercents(uint8 _treasuryPercent, uint8 _contributorsPercent)
+    function setTreasuryPercent(uint8 _treasuryPercent)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
-        if ((_treasuryPercent + _contributorsPercent) != 100)
-            revert InvalidFeePercent();
+        // Treasury fee percent should never exceed 75
+        if (_treasuryPercent > 75) revert InvalidFeePercent();
 
         treasuryPercent = _treasuryPercent;
-        contributorsPercent = _contributorsPercent;
 
-        emit SetFeePercents(_treasuryPercent, _contributorsPercent);
+        emit SetTreasuryPercent(_treasuryPercent);
     }
 
     /** 
@@ -133,18 +130,11 @@ contract PirexFees is AccessControl {
         emit DistributeFees(token, amount);
 
         ERC20 t = ERC20(token);
+        uint256 treasuryDistribution = (amount * treasuryPercent) /
+            PERCENT_DENOMINATOR;
 
         // Favoring push over pull to reduce accounting complexity for different tokens
-        t.safeTransferFrom(
-            from,
-            treasury,
-            (amount * treasuryPercent) / PERCENT_DENOMINATOR
-        );
-
-        t.safeTransferFrom(
-            from,
-            contributors,
-            (amount * contributorsPercent) / PERCENT_DENOMINATOR
-        );
+        t.safeTransferFrom(from, treasury, treasuryDistribution);
+        t.safeTransferFrom(from, contributors, amount - treasuryDistribution);
     }
 }

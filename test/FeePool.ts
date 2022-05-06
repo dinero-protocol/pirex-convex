@@ -11,6 +11,7 @@ describe('PirexFees', function () {
   let treasury: SignerWithAddress;
   let contributors: SignerWithAddress;
   let pirexFees: PirexFees;
+  let feePercentDenominator: number;
 
   let zeroAddress: string;
   let feeDistributorRole: string;
@@ -22,8 +23,15 @@ describe('PirexFees', function () {
   };
 
   before(async function () {
-    ({ admin, notAdmin, treasury, contributors, pirexFees, zeroAddress } =
-      this);
+    ({
+      admin,
+      notAdmin,
+      treasury,
+      contributors,
+      pirexFees,
+      feePercentDenominator,
+      zeroAddress,
+    } = this);
   });
 
   describe('initial state', function () {
@@ -31,14 +39,12 @@ describe('PirexFees', function () {
       feeDistributorRole = await pirexFees.FEE_DISTRIBUTOR_ROLE();
       const percentDenominator = await pirexFees.PERCENT_DENOMINATOR();
       const treasuryPercent = await pirexFees.treasuryPercent();
-      const contributorsPercent = await pirexFees.contributorsPercent();
 
-      expect(percentDenominator).to.equal(100);
+      expect(percentDenominator).to.equal(feePercentDenominator).to.equal(100);
       expect(feeDistributorRole).to.equal(
         ethers.utils.formatBytes32String('FEE_DISTRIBUTOR')
       );
       expect(treasuryPercent).to.equal(75);
-      expect(contributorsPercent).to.equal(25);
     });
   });
 
@@ -243,59 +249,38 @@ describe('PirexFees', function () {
     });
   });
 
-  describe('setFeePercent', function () {
-    it('Should revert if percents sum is not 100', async function () {
-      const invalidPercents = {
-        treasury: 1,
-        contributors: 100,
-      };
+  describe('setTreasuryPercent', function () {
+    it('Should revert if treasuryPercent is greater than 75', async function () {
+      const invalidTreasuryPercent = 76;
 
       await expect(
-        pirexFees.setFeePercents(
-          invalidPercents.treasury,
-          invalidPercents.contributors
-        )
+        pirexFees.setTreasuryPercent(invalidTreasuryPercent)
       ).to.be.revertedWith('InvalidFeePercent()');
     });
 
     it('Should revert if not called by admin', async function () {
-      const percents = {
-        treasury: 50,
-        contributors: 50,
-      };
+      const treasuryPercent = 50;
 
       await expect(
-        pirexFees
-          .connect(notAdmin)
-          .setFeePercents(percents.treasury, percents.contributors)
+        pirexFees.connect(notAdmin).setTreasuryPercent(treasuryPercent)
       ).to.be.revertedWith(
         `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${adminRole}`
       );
     });
 
     it('Should revert if not called by admin', async function () {
-      const percents = {
-        treasury: 50,
-        contributors: 50,
-      };
-      const percentsBefore = {
-        treasury: await pirexFees.treasuryPercent(),
-        contributors: await pirexFees.contributorsPercent(),
-      };
-      const [setEvent] = await callAndReturnEvents(pirexFees.setFeePercents, [
-        percents.treasury,
-        percents.contributors,
-      ]);
-      const percentsAfter = {
-        treasury: await pirexFees.treasuryPercent(),
-        contributors: await pirexFees.contributorsPercent(),
-      };
+      const treasuryPercent = 50;
+      const treasuryPercentBefore = await pirexFees.treasuryPercent();
+      const [setEvent] = await callAndReturnEvents(
+        pirexFees.setTreasuryPercent,
+        [treasuryPercent]
+      );
+      const treasuryPercentAfter = await pirexFees.treasuryPercent();
 
-      expect(percents).to.not.deep.equal(percentsBefore);
-      expect(percents).to.deep.equal(percentsAfter);
-      validateEvent(setEvent, 'SetFeePercents(uint8,uint8)', {
-        _treasuryPercent: percents.treasury,
-        _contributorsPercent: percents.contributors,
+      expect(treasuryPercentAfter).to.not.equal(treasuryPercentBefore);
+      expect(treasuryPercent).to.equal(treasuryPercentAfter);
+      validateEvent(setEvent, 'SetTreasuryPercent(uint8)', {
+        _treasuryPercent: treasuryPercent,
       });
     });
   });
