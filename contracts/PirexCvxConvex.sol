@@ -171,11 +171,11 @@ contract PirexCvxConvex is Ownable, Pausable {
         // Get claimable rewards
         ICvxLocker.EarnedData[] memory c = cvxLocker.claimableRewards(addr);
 
-        uint8 cLen = uint8(c.length);
+        uint256 cLen = c.length;
         rewards = new ConvexReward[](cLen);
 
         // Get the current balances for each token to calculate the amount received
-        for (uint8 i; i < cLen; ++i) {
+        for (uint256 i; i < cLen; ++i) {
             rewards[i] = ConvexReward({
                 token: c[i].token,
                 amount: c[i].amount,
