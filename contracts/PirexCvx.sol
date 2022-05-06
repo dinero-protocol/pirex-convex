@@ -277,11 +277,14 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
             return;
         }
 
+        ERC20 pxCvxERC20 = ERC20(address(pxCvx));
+
         if (address(unionPirex) != address(0)) {
-            pxCvx.approve(address(unionPirex), 0);
+            pxCvxERC20.safeApprove(address(unionPirex), 0);
         }
+
         unionPirex = UnionPirexVault(contractAddress);
-        pxCvx.approve(address(unionPirex), type(uint256).max);
+        pxCvxERC20.safeApprove(address(unionPirex), type(uint256).max);
     }
 
     /** 
@@ -941,7 +944,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         pxCvx.updateEpochFuturesRewards(epoch, futuresRewards);
     }
 
-        /**
+    /**
         @notice Exchange one futures token for another
         @param  epoch     uint256  Epoch (ERC1155 token id)
         @param  amount    uint256  Exchange amount
