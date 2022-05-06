@@ -66,14 +66,14 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         RedemptionMin
     }
 
-    // Seconds between Convex voting rounds (2 weeks)
-    uint32 public constant EPOCH_DURATION = 1_209_600;
+    // Convex voting round duration (1,209,600 seconds)
+    uint32 public constant EPOCH_DURATION = 2 weeks;
 
     // Fee denominator
     uint32 public constant FEE_DENOMINATOR = 1_000_000;
 
-    // Maximum wait time (seconds) for a CVX redemption (17 weeks)
-    uint32 public constant MAX_REDEMPTION_TIME = 10_281_600;
+    // Maximum wait time for a CVX redemption (10,281,600 seconds)
+    uint32 public constant MAX_REDEMPTION_TIME = 17 weeks;
 
     // Unused ERC1155 `data` param value
     bytes private constant UNUSED_1155_DATA = "";
