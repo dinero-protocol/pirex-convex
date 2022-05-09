@@ -33,15 +33,14 @@ describe('PirexCvx-Base', function () {
   let cvxLocker: CvxLockerV2;
   let cvxDelegateRegistry: DelegateRegistry;
   let votiumMultiMerkleStash: MultiMerkleStash;
-
   let zeroAddress: string;
   let epochDuration: BigNumber;
-
   let delegationSpace: string;
   let delegationSpaceBytes32: string;
   let contractEnum: any;
   let convexContractEnum: any;
   let feesEnum: any;
+  let defaultAdminRole: string;
 
   const { MaxUint256: uint256Max } = ethers.constants;
 
@@ -64,6 +63,7 @@ describe('PirexCvx-Base', function () {
       contractEnum,
       convexContractEnum,
       feesEnum,
+      defaultAdminRole,
     } = this);
   });
 
@@ -134,7 +134,9 @@ describe('PirexCvx-Base', function () {
 
       await expect(
         pCvx.connect(notAdmin).setContract(c, contractAddress)
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+      ).to.be.revertedWith(
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${defaultAdminRole}`
+      );
     });
 
     it('Should set pxCvx', async function () {
@@ -363,7 +365,9 @@ describe('PirexCvx-Base', function () {
 
       await expect(
         pCvx.connect(notAdmin).setConvexContract(c, contractAddress)
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+      ).to.be.revertedWith(
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${defaultAdminRole}`
+      );
     });
 
     it('Should set cvxLocker', async function () {
@@ -421,7 +425,9 @@ describe('PirexCvx-Base', function () {
       const f = feesEnum.reward;
       const invalidNewFee = toBN(await pCvx.FEE_DENOMINATOR()).add(1);
 
-      await expect(pCvx.queueFee(f, invalidNewFee)).to.be.reverted.revertedWith('InvalidNewFee()');
+      await expect(pCvx.queueFee(f, invalidNewFee)).to.be.reverted.revertedWith(
+        'InvalidNewFee()'
+      );
     });
 
     it('Should revert if newFee is equal to the existing fee of the same type', async function () {
@@ -430,7 +436,9 @@ describe('PirexCvx-Base', function () {
       const invalidNewFee = existingFee;
 
       expect(existingFee).to.equal(invalidNewFee);
-      await expect(pCvx.queueFee(f, invalidNewFee)).to.be.revertedWith('InvalidNewFee()');
+      await expect(pCvx.queueFee(f, invalidNewFee)).to.be.revertedWith(
+        'InvalidNewFee()'
+      );
     });
 
     it('Should revert if not owner', async function () {
@@ -439,7 +447,9 @@ describe('PirexCvx-Base', function () {
 
       await expect(
         pCvx.connect(notAdmin).queueFee(f, newFee)
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+      ).to.be.revertedWith(
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${defaultAdminRole}`
+      );
     });
 
     it('Should queue a fee change for Fee.Reward', async function () {
@@ -514,7 +524,7 @@ describe('PirexCvx-Base', function () {
       const f = feesEnum.reward;
 
       await expect(pCvx.connect(notAdmin).setFee(f)).to.be.revertedWith(
-        'Ownable: caller is not the owner'
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${defaultAdminRole}`
       );
     });
 
@@ -606,7 +616,9 @@ describe('PirexCvx-Base', function () {
     it('Should revert if not called by owner', async function () {
       await expect(
         pCvx.connect(notAdmin).setDelegationSpace(delegationSpace)
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+      ).to.be.revertedWith(
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${defaultAdminRole}`
+      );
     });
 
     it('Should update delegationSpace', async function () {
@@ -643,7 +655,9 @@ describe('PirexCvx-Base', function () {
 
       await expect(
         pCvx.connect(notAdmin).setVoteDelegate(voteDelegate)
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+      ).to.be.revertedWith(
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${defaultAdminRole}`
+      );
     });
 
     it('Should set voteDelegate', async function () {
@@ -675,7 +689,9 @@ describe('PirexCvx-Base', function () {
     it('Should revert if not called by owner', async function () {
       await expect(
         pCvx.connect(notAdmin).clearVoteDelegate()
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+      ).to.be.revertedWith(
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${defaultAdminRole}`
+      );
     });
 
     it('Should remove voteDelegate', async function () {
@@ -716,7 +732,9 @@ describe('PirexCvx-Base', function () {
     it('Should revert if not called by owner', async function () {
       await expect(
         pCvx.connect(notAdmin).setPauseState(true)
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+      ).to.be.revertedWith(
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${defaultAdminRole}`
+      );
     });
 
     it('Should pause the contract', async function () {

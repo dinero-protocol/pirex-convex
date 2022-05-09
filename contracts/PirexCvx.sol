@@ -241,7 +241,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
      */
     function setContract(Contract c, address contractAddress)
         external
-        onlyOwner
+        onlyRole(DEFAULT_ADMIN_ROLE)
     {
         if (contractAddress == address(0)) revert ZeroAddress();
 
@@ -294,7 +294,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
      */
     function setPirexCvxMigration(address _pirexCvxMigration)
         external
-        onlyOwner
+        onlyRole(DEFAULT_ADMIN_ROLE)
         whenPaused
     {
         if (_pirexCvxMigration == address(0)) revert ZeroAddress();
@@ -310,7 +310,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
      */
     function emergencyMigrateTokens(address[] calldata tokens)
         external
-        onlyOwner
+        onlyRole(DEFAULT_ADMIN_ROLE)
         whenPaused
     {
         if (pirexCvxMigration == address(0)) revert ZeroAddress();
@@ -340,7 +340,11 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @notice Set whether the currently set upCvx is deprecated or not
         @param  state  bool  Deprecation state
      */
-    function setUpCvxDeprecated(bool state) external onlyOwner whenPaused {
+    function setUpCvxDeprecated(bool state)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        whenPaused
+    {
         upCvxDeprecated = state;
 
         emit SetUpCvxDeprecated(state);
@@ -351,7 +355,10 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @param  f       enum    Fee
         @param  newFee  uint32  New fee
      */
-    function queueFee(Fees f, uint32 newFee) external onlyOwner {
+    function queueFee(Fees f, uint32 newFee)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         if (newFee > FEE_DENOMINATOR) revert InvalidNewFee();
         if (newFee == fees[f]) revert InvalidNewFee();
 
@@ -368,7 +375,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @notice Set fee
         @param  f  enum  Fee
      */
-    function setFee(Fees f) external onlyOwner {
+    function setFee(Fees f) external onlyRole(DEFAULT_ADMIN_ROLE) {
         QueuedFee memory q = queuedFees[f];
 
         if (q.effectiveAfter > block.timestamp)

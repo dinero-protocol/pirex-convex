@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 import {ICvxDelegateRegistry} from "./interfaces/ICvxDelegateRegistry.sol";
 
-contract PirexCvxConvex is Ownable, Pausable {
+contract PirexCvxConvex is AccessControl, Pausable {
     using SafeTransferLib for ERC20;
 
     /**
@@ -70,13 +70,15 @@ contract PirexCvxConvex is Ownable, Pausable {
 
         // Max allowance for cvxLocker
         CVX.safeApprove(address(cvxLocker), type(uint256).max);
+
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     /** 
         @notice Only for emergency purposes when we need to resume/halt all user actions
         @param state  bool  Pause state
     */
-    function setPauseState(bool state) external onlyOwner {
+    function setPauseState(bool state) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (state) {
             _pause();
         } else {
@@ -91,7 +93,7 @@ contract PirexCvxConvex is Ownable, Pausable {
      */
     function setConvexContract(ConvexContract c, address contractAddress)
         external
-        onlyOwner
+        onlyRole(DEFAULT_ADMIN_ROLE)
     {
         if (contractAddress == address(0)) revert ZeroAddress();
 
@@ -198,7 +200,7 @@ contract PirexCvxConvex is Ownable, Pausable {
      */
     function setDelegationSpace(string memory _delegationSpace)
         external
-        onlyOwner
+        onlyRole(DEFAULT_ADMIN_ROLE)
     {
         bytes memory d = bytes(_delegationSpace);
         if (d.length == 0) revert EmptyString();
@@ -211,7 +213,10 @@ contract PirexCvxConvex is Ownable, Pausable {
         @notice Set vote delegate
         @param  voteDelegate  address  Account to delegate votes to
      */
-    function setVoteDelegate(address voteDelegate) external onlyOwner {
+    function setVoteDelegate(address voteDelegate)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         if (voteDelegate == address(0)) revert ZeroAddress();
 
         emit SetVoteDelegate(voteDelegate);
@@ -222,7 +227,7 @@ contract PirexCvxConvex is Ownable, Pausable {
     /**
         @notice Remove vote delegate
      */
-    function clearVoteDelegate() external onlyOwner {
+    function clearVoteDelegate() external onlyRole(DEFAULT_ADMIN_ROLE) {
         emit ClearVoteDelegate();
 
         cvxDelegateRegistry.clearDelegate(delegationSpace);
@@ -231,14 +236,14 @@ contract PirexCvxConvex is Ownable, Pausable {
     /**
         @notice Only for emergency purposes in the case of a forced-unlock by Convex
      */
-    function unlock() external whenPaused onlyOwner {
+    function unlock() external whenPaused onlyRole(DEFAULT_ADMIN_ROLE) {
         _unlock();
     }
 
     /**
         @notice Only for emergency purposes in the case of a forced-unlock by Convex
      */
-    function pausedRelock() external whenPaused onlyOwner {
+    function pausedRelock() external whenPaused onlyRole(DEFAULT_ADMIN_ROLE) {
         _lock();
     }
 }

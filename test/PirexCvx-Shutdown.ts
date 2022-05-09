@@ -37,6 +37,7 @@ describe('PirexCvx-Shutdown', function () {
   let votiumMultiMerkleStash: MultiMerkleStash;
   let zeroAddress: string;
   let oldUpCvx: ERC1155Solmate;
+  let defaultAdminRole: string;
 
   before(async function () {
     ({
@@ -52,6 +53,7 @@ describe('PirexCvx-Shutdown', function () {
       votiumMultiMerkleStash,
       zeroAddress,
       pirexFees,
+      defaultAdminRole,
     } = this);
 
     const oldUpCvxAddress = await pCvx.upCvx();
@@ -65,20 +67,24 @@ describe('PirexCvx-Shutdown', function () {
 
     it('Should revert if not called by owner', async function () {
       await expect(pCvx.connect(notAdmin).pausedRelock()).to.be.revertedWith(
-        'Ownable: caller is not the owner'
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${defaultAdminRole}`
       );
 
       await expect(pCvx.connect(notAdmin).unlock()).to.be.revertedWith(
-        'Ownable: caller is not the owner'
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${defaultAdminRole}`
       );
 
       await expect(
         pCvx.connect(notAdmin).setPirexCvxMigration(zeroAddress)
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+      ).to.be.revertedWith(
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${defaultAdminRole}`
+      );
 
       await expect(
         pCvx.connect(notAdmin).emergencyMigrateTokens([zeroAddress])
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+      ).to.be.revertedWith(
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${defaultAdminRole}`
+      );
     });
 
     it('Should revert if not paused', async function () {
@@ -116,7 +122,9 @@ describe('PirexCvx-Shutdown', function () {
       const spCvxAddress = await pCvx.spCvx();
       const rpCvxAddress = await pCvx.rpCvx();
       const vpCvxAddress = await pCvx.vpCvx();
-      pCvxNew = await (await ethers.getContractFactory('PirexCvx')).deploy(
+      pCvxNew = await (
+        await ethers.getContractFactory('PirexCvx')
+      ).deploy(
         cvx.address,
         cvxLockerNew.address,
         cvxDelegateRegistry.address,
@@ -193,7 +201,9 @@ describe('PirexCvx-Shutdown', function () {
     it('Should revert if not owner', async function () {
       await expect(
         pCvx.connect(notAdmin).setUpCvxDeprecated(true)
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+      ).to.be.revertedWith(
+        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${defaultAdminRole}`
+      );
     });
 
     it('Should set upCvx deprecation state by owner', async function () {
