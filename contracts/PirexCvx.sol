@@ -42,6 +42,20 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         bytes32[] merkleProof;
     }
 
+    /**
+        @notice Data pertaining to a token migration (in the event of emergencies)
+        @param  executor   address    Non-Pirex multisig which has authority to fulfill the migration
+        @param  recipient  address    Recipient of the tokens (e.g. new PirexCvx contract)
+        @param  tokens     address[]  Token addresses
+        @param  amounts    uint256[]  Token amounts
+     */
+    struct Migration {
+        address executor;
+        address recipient;
+        address[] tokens;
+        uint256[] amounts;
+    }
+
     // Users can choose between the two futures tokens when staking or initiating a redemption
     enum Futures {
         Vote,
@@ -96,8 +110,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     // Queued fees which will take effective after 1 epoch (2 weeks)
     mapping(Fees => QueuedFee) public queuedFees;
 
-    // Address of the new PirexCvx contract in the case of emergency redeployment
-    address public pirexCvxMigration;
+    // Token migration data
+    Migration public migration;
 
     // In the case of a mass unlock by Convex, the current upCvx would be deprecated
     // and should allow holders to immediately redeem their CVX by burning upCvx
@@ -160,7 +174,12 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         address indexed receiver,
         Futures f
     );
-    event SetPirexCvxMigration(address migrationAddress);
+    event SetMigration(
+        address executor,
+        address recipient,
+        address[] tokens,
+        uint256[] amounts
+    );
     event SetUpCvxDeprecated(bool state);
     event MigrateTokens(
         address migrationAddress,
@@ -289,51 +308,26 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     }
 
     /** 
-        @notice Set pirexCvxMigration address
-        @param  _pirexCvxMigration  address  PirexCvxMigration address
+        @notice Initialize the migration executor address
+        @param  executor  address  Non-Pirex multisig which has authority to fulfill the migration
      */
-    function setPirexCvxMigration(address _pirexCvxMigration)
+    function setMigrationExecutor(address executor)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
         whenPaused
     {
-        if (_pirexCvxMigration == address(0)) revert ZeroAddress();
+        // NOTE: May be necessary to revert if executor is already set, otherwise it kind of defeats
+        // the purpose of all this, since the Pirex multisig can just set to a different address
+        if (executor == address(0)) revert ZeroAddress();
 
-        pirexCvxMigration = _pirexCvxMigration;
+        migration.executor = executor;
 
-        emit SetPirexCvxMigration(pirexCvxMigration);
-    }
-
-    /**
-        @notice Withdraw ERC20 tokens to the pirexCvxMigration address in case of emergency
-        @param  tokens  address[]  Token addresses
-     */
-    function emergencyMigrateTokens(address[] calldata tokens)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-        whenPaused
-    {
-        if (pirexCvxMigration == address(0)) revert ZeroAddress();
-
-        uint256 tLen = tokens.length;
-        if (tLen == 0) revert EmptyArray();
-        uint256[] memory amounts = new uint256[](tLen);
-
-        for (uint256 i; i < tLen; ++i) {
-            uint256 amount = ERC20(tokens[i]).balanceOf(address(this));
-
-            // If it's CVX, make sure we take into account the outstandingRedemptions
-            if (tokens[i] == address(CVX)) {
-                amount -= outstandingRedemptions;
-            }
-
-            if (amount == 0) revert ZeroAmount();
-
-            amounts[i] = amount;
-            ERC20(tokens[i]).safeTransfer(pirexCvxMigration, amount);
-        }
-
-        emit MigrateTokens(pirexCvxMigration, tokens, amounts);
+        emit SetMigration(
+            executor,
+            migration.recipient,
+            migration.tokens,
+            migration.amounts
+        );
     }
 
     /**

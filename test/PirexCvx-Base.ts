@@ -95,7 +95,6 @@ describe('PirexCvx-Base', function () {
       const paused = await pCvx.paused();
       const outstandingRedemptions = await pCvx.outstandingRedemptions();
       const upCvxDeprecated = await pCvx.upCvxDeprecated();
-      const pirexCvxMigration = await pCvx.pirexCvxMigration();
 
       expect(_CVX).to.equal(cvx.address);
       expect(_CVX).to.not.equal(zeroAddress);
@@ -114,7 +113,6 @@ describe('PirexCvx-Base', function () {
       expect(paused).to.be.true;
       expect(outstandingRedemptions).to.equal(0);
       expect(upCvxDeprecated).to.be.false;
-      expect(pirexCvxMigration).to.equal(zeroAddress);
     });
   });
 
