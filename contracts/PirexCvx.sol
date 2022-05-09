@@ -44,13 +44,11 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
     /**
         @notice Data pertaining to a token migration (in the event of emergencies)
-        @param  executor   address    Non-Pirex multisig which has authority to fulfill the migration
         @param  recipient  address    Recipient of the tokens (e.g. new PirexCvx contract)
         @param  tokens     address[]  Token addresses
         @param  amounts    uint256[]  Token amounts
      */
     struct Migration {
-        address executor;
         address recipient;
         address[] tokens;
         uint256[] amounts;
@@ -113,6 +111,9 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     // Token migration data
     Migration public migration;
 
+    // Non-Pirex multisig which has authority to call various emergency methods
+    address public emergencyExecutor;
+
     // In the case of a mass unlock by Convex, the current upCvx would be deprecated
     // and should allow holders to immediately redeem their CVX by burning upCvx
     bool public upCvxDeprecated;
@@ -174,12 +175,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         address indexed receiver,
         Futures f
     );
-    event SetMigration(
-        address executor,
-        address recipient,
-        address[] tokens,
-        uint256[] amounts
-    );
+    event SetEmergencyExecutor(address _emergencyExecutor);
     event SetUpCvxDeprecated(bool state);
     event MigrateTokens(
         address migrationAddress,
@@ -309,25 +305,20 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     }
 
     /** 
-        @notice Initialize the migration executor address
-        @param  executor  address  Non-Pirex multisig which has authority to fulfill the migration
+        @notice Initialize the emergency executor address
+        @param  _emergencyExecutor  address  Non-Pirex multisig with authority to fulfill emergency procedures
      */
-    function setMigrationExecutor(address executor)
+    function setEmergencyExecutor(address _emergencyExecutor)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
         whenPaused
     {
-        if (executor == address(0)) revert ZeroAddress();
-        if (migration.executor != address(0)) revert AlreadySet();
+        if (_emergencyExecutor == address(0)) revert ZeroAddress();
+        if (emergencyExecutor != address(0)) revert AlreadySet();
 
-        migration.executor = executor;
+        emergencyExecutor = _emergencyExecutor;
 
-        emit SetMigration(
-            executor,
-            migration.recipient,
-            migration.tokens,
-            migration.amounts
-        );
+        emit SetEmergencyExecutor(_emergencyExecutor);
     }
 
     /**

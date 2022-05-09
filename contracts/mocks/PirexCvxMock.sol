@@ -155,21 +155,19 @@ contract PirexCvxMock is PirexCvx {
         );
     }
 
+    function getEmergencyExecutor() external view returns (address) {
+        return emergencyExecutor;
+    }
+
     function getMigration()
         external
         view
         returns (
-            address executor,
             address recipient,
             address[] memory tokens,
             uint256[] memory amounts
         )
     {
-        return (
-            migration.executor,
-            migration.recipient,
-            migration.tokens,
-            migration.amounts
-        );
+        return (migration.recipient, migration.tokens, migration.amounts);
     }
 }

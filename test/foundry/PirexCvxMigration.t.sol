@@ -12,73 +12,64 @@ import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
 import {HelperContract} from "./HelperContract.sol";
 
 contract PirexCvxMigration is Test, HelperContract {
-    event SetMigration(
-        address executor,
-        address recipient,
-        address[] tokens,
-        uint256[] amounts
-    );
+    event SetEmergencyExecutor(address _emergencyExecutor);
 
     /**
         @notice Test tx reversion if caller is not authorized
      */
-    function testCannotSetMigrationExecutorNotAuthorized() external {
+    function testCannotSetEmergencyExecutorNotAuthorized() external {
         vm.expectRevert(
             "AccessControl: account 0x6ecbe1db9ef729cbe972c83fb886247691fb6beb is missing role 0x0000000000000000000000000000000000000000000000000000000000000000"
         );
         vm.prank(0x6Ecbe1DB9EF729CBe972C83Fb886247691Fb6beb);
-        pirexCvx.setMigrationExecutor(address(this));
+        pirexCvx.setEmergencyExecutor(address(this));
     }
 
     /**
         @notice Test tx reversion if contract is not paused
      */
-    function testCannotSetMigrationExecutorNotPaused() external {
+    function testCannotSetEmergencyExecutorNotPaused() external {
+        assertTrue(pirexCvx.paused() == false);
+
         vm.expectRevert(bytes("Pausable: not paused"));
-        pirexCvx.setMigrationExecutor(address(0));
+        pirexCvx.setEmergencyExecutor(address(0));
     }
 
     /**
         @notice Test tx reversion if executor is the zero address
      */
-    function testCannotSetMigrationExecutorZeroAddress() external {
+    function testCannotSetEmergencyExecutorZeroAddress() external {
         pirexCvx.setPauseState(true);
         vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
-        pirexCvx.setMigrationExecutor(address(0));
+        pirexCvx.setEmergencyExecutor(address(0));
     }
 
     /**
         @notice Test tx reversion if executor is already set
      */
-    function testCannotSetMigrationExecutorAlreadySet() external {
+    function testCannotSetEmergencyExecutorAlreadySet() external {
         pirexCvx.setPauseState(true);
-        pirexCvx.setMigrationExecutor(address(this));
+        pirexCvx.setEmergencyExecutor(address(this));
+
+        assertTrue(pirexCvx.getEmergencyExecutor() != address(0));
+
         vm.expectRevert(PirexCvx.AlreadySet.selector);
-        pirexCvx.setMigrationExecutor(address(this));
+        pirexCvx.setEmergencyExecutor(address(this));
     }
 
     /**
         @notice Test setting the migration executor
      */
-    function testSetMigrationExecutor() external {
-        address expectedExector = address(this);
-        address[] memory expectedTokens = new address[](0);
-        uint256[] memory expectedAmounts = new uint256[](0);
+    function testSetEmergencyExecutor() external {
+        address emergencyExecutor = address(this);
 
         vm.expectEmit(false, false, false, true);
 
-        emit SetMigration(
-            expectedExector,
-            address(0),
-            expectedTokens,
-            expectedAmounts
-        );
+        emit SetEmergencyExecutor(emergencyExecutor);
 
         pirexCvx.setPauseState(true);
-        pirexCvx.setMigrationExecutor(expectedExector);
+        pirexCvx.setEmergencyExecutor(emergencyExecutor);
 
-        (address executor, , , ) = pirexCvx.getMigration();
-
-        assertEq(executor, expectedExector);
+        assertEq(pirexCvx.getEmergencyExecutor(), emergencyExecutor);
     }
 }
