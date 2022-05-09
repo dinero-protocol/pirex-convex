@@ -48,6 +48,16 @@ contract PirexCvxMigration is Test, HelperContract {
     }
 
     /**
+        @notice Test tx reversion if executor is already set
+     */
+    function testCannotSetMigrationExecutorAlreadySet() external {
+        pirexCvx.setPauseState(true);
+        pirexCvx.setMigrationExecutor(address(this));
+        vm.expectRevert(PirexCvx.AlreadySet.selector);
+        pirexCvx.setMigrationExecutor(address(this));
+    }
+
+    /**
         @notice Test setting the migration executor
      */
     function testSetMigrationExecutor() external {

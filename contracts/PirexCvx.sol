@@ -201,6 +201,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     error MismatchedArrayLengths();
     error NoRewards();
     error RedeemClosed();
+    error AlreadySet();
 
     /**
         @param  _CVX                     address  CVX address    
@@ -316,9 +317,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         onlyRole(DEFAULT_ADMIN_ROLE)
         whenPaused
     {
-        // NOTE: May be necessary to revert if executor is already set, otherwise it kind of defeats
-        // the purpose of all this, since the Pirex multisig can just set to a different address
         if (executor == address(0)) revert ZeroAddress();
+        if (migration.executor != address(0)) revert AlreadySet();
 
         migration.executor = executor;
 
