@@ -306,55 +306,6 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     }
 
     /** 
-        @notice Initialize the emergency executor address
-        @param  _emergencyExecutor  address  Non-Pirex multisig with authority to fulfill emergency procedures
-     */
-    function setEmergencyExecutor(address _emergencyExecutor)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-        whenPaused
-    {
-        if (_emergencyExecutor == address(0)) revert ZeroAddress();
-        if (emergencyExecutor != address(0)) revert AlreadySet();
-
-        emergencyExecutor = _emergencyExecutor;
-
-        emit SetEmergencyExecutor(_emergencyExecutor);
-    }
-
-    /** 
-        @notice Set the emergency migration data
-        @param  _emergencyMigration  EmergencyMigration  Emergency migration data
-     */
-    function setEmergencyMigration(
-        EmergencyMigration calldata _emergencyMigration
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) whenPaused {
-        if (emergencyExecutor == address(0)) revert NoEmergencyExecutor();
-        if (_emergencyMigration.recipient == address(0))
-            revert InvalidEmergencyMigration();
-        if (_emergencyMigration.tokens.length == 0)
-            revert InvalidEmergencyMigration();
-
-        emergencyMigration = _emergencyMigration;
-
-        emit SetEmergencyMigration(_emergencyMigration);
-    }
-
-    /**
-        @notice Set whether the currently set upCvx is deprecated or not
-        @param  state  bool  Deprecation state
-     */
-    function setUpCvxDeprecated(bool state)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-        whenPaused
-    {
-        upCvxDeprecated = state;
-
-        emit SetUpCvxDeprecated(state);
-    }
-
-    /** 
         @notice Queue fee
         @param  f       enum    Fee
         @param  newFee  uint32  New fee
@@ -679,21 +630,6 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     }
 
     /**
-        @notice Redeem CVX for deprecated upCvx holders if enabled
-        @param  unlockTimes  uint256[]  CVX unlock timestamps
-        @param  assets       uint256[]  upCVX amounts
-        @param  receiver     address    Receives CVX
-     */
-    function redeemLegacy(
-        uint256[] calldata unlockTimes,
-        uint256[] calldata assets,
-        address receiver
-    ) external whenPaused nonReentrant {
-        if (!upCvxDeprecated) revert RedeemClosed();
-        _redeem(unlockTimes, assets, receiver, true);
-    }
-
-    /**
         @notice Stake pCVX
         @param  rounds    uint256    Rounds (i.e. Convex voting rounds)
         @param  f         enum     Futures enum
@@ -987,5 +923,73 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
         // Validates `to`
         futuresOut.mint(receiver, epoch, amount, UNUSED_1155_DATA);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        EMERGENCY/MIGRATION LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /** 
+        @notice Initialize the emergency executor address
+        @param  _emergencyExecutor  address  Non-Pirex multisig with authority to fulfill emergency procedures
+     */
+    function setEmergencyExecutor(address _emergencyExecutor)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        whenPaused
+    {
+        if (_emergencyExecutor == address(0)) revert ZeroAddress();
+        if (emergencyExecutor != address(0)) revert AlreadySet();
+
+        emergencyExecutor = _emergencyExecutor;
+
+        emit SetEmergencyExecutor(_emergencyExecutor);
+    }
+
+    /** 
+        @notice Set the emergency migration data
+        @param  _emergencyMigration  EmergencyMigration  Emergency migration data
+     */
+    function setEmergencyMigration(
+        EmergencyMigration calldata _emergencyMigration
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) whenPaused {
+        if (emergencyExecutor == address(0)) revert NoEmergencyExecutor();
+        if (_emergencyMigration.recipient == address(0))
+            revert InvalidEmergencyMigration();
+        if (_emergencyMigration.tokens.length == 0)
+            revert InvalidEmergencyMigration();
+
+        emergencyMigration = _emergencyMigration;
+
+        emit SetEmergencyMigration(_emergencyMigration);
+    }
+
+    /**
+        @notice Set whether the currently set upCvx is deprecated or not
+        @param  state  bool  Deprecation state
+     */
+    function setUpCvxDeprecated(bool state)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        whenPaused
+    {
+        upCvxDeprecated = state;
+
+        emit SetUpCvxDeprecated(state);
+    }
+
+    /**
+        @notice Redeem CVX for deprecated upCvx holders if enabled
+        @param  unlockTimes  uint256[]  CVX unlock timestamps
+        @param  assets       uint256[]  upCVX amounts
+        @param  receiver     address    Receives CVX
+     */
+    function redeemLegacy(
+        uint256[] calldata unlockTimes,
+        uint256[] calldata assets,
+        address receiver
+    ) external whenPaused nonReentrant {
+        if (!upCvxDeprecated) revert RedeemClosed();
+        _redeem(unlockTimes, assets, receiver, true);
     }
 }

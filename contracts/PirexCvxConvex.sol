@@ -75,18 +75,6 @@ contract PirexCvxConvex is AccessControl, Pausable {
     }
 
     /** 
-        @notice Only for emergency purposes when we need to resume/halt all user actions
-        @param state  bool  Pause state
-    */
-    function setPauseState(bool state) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (state) {
-            _pause();
-        } else {
-            _unpause();
-        }
-    }
-
-    /** 
         @notice Set a contract address
         @param  c                enum     Contract enum
         @param  contractAddress  address  Contract address    
@@ -233,15 +221,31 @@ contract PirexCvxConvex is AccessControl, Pausable {
         cvxDelegateRegistry.clearDelegate(delegationSpace);
     }
 
+    /*//////////////////////////////////////////////////////////////
+                        EMERGENCY/MIGRATION LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /** 
+        @notice Set the contract's pause state
+        @param state  bool  Pause state
+    */
+    function setPauseState(bool state) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (state) {
+            _pause();
+        } else {
+            _unpause();
+        }
+    }
+
     /**
-        @notice Only for emergency purposes in the case of a forced-unlock by Convex
+        @notice Unlock CVX and prepare for migration (e.g. in the event of a mass CVX unlock)
      */
     function unlock() external whenPaused onlyRole(DEFAULT_ADMIN_ROLE) {
         _unlock();
     }
 
     /**
-        @notice Only for emergency purposes in the case of a forced-unlock by Convex
+        @notice Relock CVX with a new CvxLocker contract (if possible)
      */
     function pausedRelock() external whenPaused onlyRole(DEFAULT_ADMIN_ROLE) {
         _lock();
