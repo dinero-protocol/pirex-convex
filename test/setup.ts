@@ -225,7 +225,6 @@ before(async function () {
     redemptionMax: 1,
     redemptionMin: 2,
   };
-  this.defaultAdminRole = await pCvx.DEFAULT_ADMIN_ROLE();
 
   // Enable minting rights for PirexCvx contract
   const minterRole = await vpCvx.MINTER_ROLE();

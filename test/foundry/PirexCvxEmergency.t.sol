@@ -8,11 +8,6 @@ import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
 import {HelperContract} from "./HelperContract.sol";
 
 contract PirexCvxEmergency is Test, ERC20("Test", "TEST", 18), HelperContract {
-    address private notAdmin = 0x6Ecbe1DB9EF729CBe972C83Fb886247691Fb6beb;
-    bytes private notAuthorizedErrorMsg =
-        bytes(
-            "AccessControl: account 0x6ecbe1db9ef729cbe972c83fb886247691fb6beb is missing role 0x0000000000000000000000000000000000000000000000000000000000000000"
-        );
     PirexCvx.EmergencyMigration private e;
 
     event SetEmergencyExecutor(address _emergencyExecutor);
@@ -28,8 +23,8 @@ contract PirexCvxEmergency is Test, ERC20("Test", "TEST", 18), HelperContract {
         @notice Test tx reversion if caller is not authorized
      */
     function testCannotSetEmergencyExecutorNotAuthorized() external {
-        vm.expectRevert(notAuthorizedErrorMsg);
-        vm.prank(notAdmin);
+        vm.expectRevert(bytes("Ownable: caller is not the owner"));
+        vm.prank(secondaryAccounts[0]);
         pirexCvx.setEmergencyExecutor(address(this));
     }
 
@@ -89,8 +84,8 @@ contract PirexCvxEmergency is Test, ERC20("Test", "TEST", 18), HelperContract {
         @notice Test tx reversion if caller is not authorized
      */
     function testCannotSetEmergencyMigrationNotAuthorized() external {
-        vm.expectRevert(notAuthorizedErrorMsg);
-        vm.prank(notAdmin);
+        vm.expectRevert(bytes("Ownable: caller is not the owner"));
+        vm.prank(secondaryAccounts[0]);
         pirexCvx.setEmergencyMigration(e);
     }
 
@@ -210,7 +205,8 @@ contract PirexCvxEmergency is Test, ERC20("Test", "TEST", 18), HelperContract {
         pirexCvx.setPauseState(true);
         pirexCvx.setEmergencyExecutor(address(this));
 
-        e.recipient = notAdmin;
+        address recipient = secondaryAccounts[0];
+        e.recipient = recipient;
         e.tokens = new address[](2);
         e.tokens[0] = address(CVX);
         e.tokens[1] = address(this);
@@ -232,19 +228,19 @@ contract PirexCvxEmergency is Test, ERC20("Test", "TEST", 18), HelperContract {
         assertEq(CVX.balanceOf(address(pirexCvx)), tokenMintAmount);
         assertEq(balanceOf[address(pirexCvx)], tokenMintAmount);
 
-        // Ensure that notAdmin's balance for CVX and TEST are both 0 prior to the migration
-        assertEq(CVX.balanceOf(notAdmin), 0);
-        assertEq(balanceOf[notAdmin], 0);
+        // Ensure that the recipient's balance for CVX and TEST are both 0 prior to the migration
+        assertEq(CVX.balanceOf(recipient), 0);
+        assertEq(balanceOf[recipient], 0);
 
         pirexCvx.setEmergencyMigration(e);
         pirexCvx.executeEmergencyMigration();
 
         assertEq(CVX.balanceOf(address(pirexCvx)), expectedRemainingCvx);
         assertEq(
-            CVX.balanceOf(notAdmin),
+            CVX.balanceOf(recipient),
             tokenMintAmount - expectedRemainingCvx
         );
         assertEq(balanceOf[address(pirexCvx)], 0);
-        assertEq(balanceOf[notAdmin], tokenMintAmount);
+        assertEq(balanceOf[recipient], tokenMintAmount);
     }
 }

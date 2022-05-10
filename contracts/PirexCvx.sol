@@ -255,7 +255,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
      */
     function setContract(Contract c, address contractAddress)
         external
-        onlyRole(DEFAULT_ADMIN_ROLE)
+        onlyOwner
     {
         if (contractAddress == address(0)) revert ZeroAddress();
 
@@ -307,10 +307,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @param  f       enum    Fee
         @param  newFee  uint32  New fee
      */
-    function queueFee(Fees f, uint32 newFee)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
+    function queueFee(Fees f, uint32 newFee) external onlyOwner {
         if (newFee > FEE_DENOMINATOR) revert InvalidNewFee();
         if (newFee == fees[f]) revert InvalidNewFee();
 
@@ -327,7 +324,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @notice Set fee
         @param  f  enum  Fee
      */
-    function setFee(Fees f) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFee(Fees f) external onlyOwner {
         QueuedFee memory q = queuedFees[f];
 
         if (q.effectiveAfter > block.timestamp)
@@ -932,7 +929,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
      */
     function setEmergencyExecutor(address _emergencyExecutor)
         external
-        onlyRole(DEFAULT_ADMIN_ROLE)
+        onlyOwner
         whenPaused
     {
         if (_emergencyExecutor == address(0)) revert ZeroAddress();
@@ -949,7 +946,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
      */
     function setEmergencyMigration(
         EmergencyMigration calldata _emergencyMigration
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) whenPaused {
+    ) external onlyOwner whenPaused {
         if (emergencyExecutor == address(0)) revert NoEmergencyExecutor();
         if (_emergencyMigration.recipient == address(0))
             revert InvalidEmergencyMigration();
@@ -998,11 +995,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @notice Set whether the currently set upCvx is deprecated or not
         @param  state  bool  Deprecation state
      */
-    function setUpCvxDeprecated(bool state)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-        whenPaused
-    {
+    function setUpCvxDeprecated(bool state) external onlyOwner whenPaused {
         upCvxDeprecated = state;
 
         emit SetUpCvxDeprecated(state);
