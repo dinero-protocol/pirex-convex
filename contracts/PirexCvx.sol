@@ -624,6 +624,21 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     }
 
     /**
+        @notice Redeem CVX for deprecated upCvx holders if enabled
+        @param  unlockTimes  uint256[]  CVX unlock timestamps
+        @param  assets       uint256[]  upCVX amounts
+        @param  receiver     address    Receives CVX
+     */
+    function redeemLegacy(
+        uint256[] calldata unlockTimes,
+        uint256[] calldata assets,
+        address receiver
+    ) external whenPaused nonReentrant {
+        if (!upCvxDeprecated) revert RedeemClosed();
+        _redeem(unlockTimes, assets, receiver, true);
+    }
+
+    /**
         @notice Stake pCVX
         @param  rounds    uint256    Rounds (i.e. Convex voting rounds)
         @param  f         enum     Futures enum
@@ -999,20 +1014,5 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         upCvxDeprecated = state;
 
         emit SetUpCvxDeprecated(state);
-    }
-
-    /**
-        @notice Redeem CVX for deprecated upCvx holders if enabled
-        @param  unlockTimes  uint256[]  CVX unlock timestamps
-        @param  assets       uint256[]  upCVX amounts
-        @param  receiver     address    Receives CVX
-     */
-    function redeemLegacy(
-        uint256[] calldata unlockTimes,
-        uint256[] calldata assets,
-        address receiver
-    ) external whenPaused nonReentrant {
-        if (!upCvxDeprecated) revert RedeemClosed();
-        _redeem(unlockTimes, assets, receiver, true);
     }
 }
