@@ -43,15 +43,13 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     }
 
     /**
-        @notice Data pertaining to a token migration (in the event of emergencies)
-        @param  recipient  address    Recipient of the tokens (e.g. new PirexCvx contract)
+        @notice Data pertaining to an emergency migration
+        @param  recipient  address    Recipient of the tokens (e.g. ideally new PirexCvx contract)
         @param  tokens     address[]  Token addresses
-        @param  amounts    uint256[]  Token amounts
      */
-    struct Migration {
+    struct EmergencyMigration {
         address recipient;
         address[] tokens;
-        uint256[] amounts;
     }
 
     // Users can choose between the two futures tokens when staking or initiating a redemption
@@ -108,8 +106,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     // Queued fees which will take effective after 1 epoch (2 weeks)
     mapping(Fees => QueuedFee) public queuedFees;
 
-    // Token migration data
-    Migration public migration;
+    // Emergency migration data
+    EmergencyMigration public emergencyMigration;
 
     // Non-Pirex multisig which has authority to call various emergency methods
     address public emergencyExecutor;
@@ -176,6 +174,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         Futures f
     );
     event SetEmergencyExecutor(address _emergencyExecutor);
+    event SetEmergencyMigration(EmergencyMigration _emergencyMigration);
     event SetUpCvxDeprecated(bool state);
     event MigrateTokens(
         address migrationAddress,
@@ -198,6 +197,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     error NoRewards();
     error RedeemClosed();
     error AlreadySet();
+    error NoEmergencyExecutor();
+    error InvalidEmergencyMigration();
 
     /**
         @param  _CVX                     address  CVX address    
@@ -319,6 +320,24 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         emergencyExecutor = _emergencyExecutor;
 
         emit SetEmergencyExecutor(_emergencyExecutor);
+    }
+
+    /** 
+        @notice Set the emergency migration data
+        @param  _emergencyMigration  EmergencyMigration  Emergency migration data
+     */
+    function setEmergencyMigration(
+        EmergencyMigration calldata _emergencyMigration
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) whenPaused {
+        if (emergencyExecutor == address(0)) revert NoEmergencyExecutor();
+        if (_emergencyMigration.recipient == address(0))
+            revert InvalidEmergencyMigration();
+        if (_emergencyMigration.tokens.length == 0)
+            revert InvalidEmergencyMigration();
+
+        emergencyMigration = _emergencyMigration;
+
+        emit SetEmergencyMigration(_emergencyMigration);
     }
 
     /**
