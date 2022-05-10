@@ -176,11 +176,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     event SetEmergencyExecutor(address _emergencyExecutor);
     event SetEmergencyMigration(EmergencyMigration _emergencyMigration);
     event SetUpCvxDeprecated(bool state);
-    event MigrateTokens(
-        address migrationAddress,
-        address[] tokens,
-        uint256[] amounts
-    );
+    event ExecuteEmergencyMigration(address recipient, address[] tokens);
 
     error ZeroAmount();
     error BeforeUnlock();
@@ -199,6 +195,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     error AlreadySet();
     error NoEmergencyExecutor();
     error InvalidEmergencyMigration();
+    error NotAuthorized();
 
     /**
         @param  _CVX                     address  CVX address    
@@ -962,6 +959,39 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         emergencyMigration = _emergencyMigration;
 
         emit SetEmergencyMigration(_emergencyMigration);
+    }
+
+    /** 
+        @notice Carry out the emergency migration according to the data set by Pirex multisig
+     */
+    function executeEmergencyMigration() external whenPaused {
+        if (msg.sender != emergencyExecutor) revert NotAuthorized();
+
+        address migrationRecipient = emergencyMigration.recipient;
+        if (migrationRecipient == address(0))
+            revert InvalidEmergencyMigration();
+
+        uint256 tLen = emergencyMigration.tokens.length;
+        if (tLen == 0) revert InvalidEmergencyMigration();
+
+        for (uint256 i; i < tLen; ++i) {
+            ERC20 token = ERC20(emergencyMigration.tokens[i]);
+            uint256 balance = token.balanceOf(address(this));
+
+            // Only transfer the positive difference between the CVX balance and outstandingRemptions (if any)
+            if (token == CVX) {
+                balance = balance > outstandingRedemptions
+                    ? balance - outstandingRedemptions
+                    : 0;
+            }
+
+            token.safeTransfer(migrationRecipient, balance);
+        }
+
+        emit ExecuteEmergencyMigration(
+            migrationRecipient,
+            emergencyMigration.tokens
+        );
     }
 
     /**

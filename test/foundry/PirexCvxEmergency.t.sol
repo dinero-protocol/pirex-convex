@@ -7,7 +7,7 @@ import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
 import {HelperContract} from "./HelperContract.sol";
 
-contract PirexCvxEmergency is Test, HelperContract {
+contract PirexCvxEmergency is Test, ERC20("Test", "TEST", 18), HelperContract {
     address private notAdmin = 0x6Ecbe1DB9EF729CBe972C83Fb886247691Fb6beb;
     bytes private notAuthorizedErrorMsg =
         bytes(
@@ -19,6 +19,10 @@ contract PirexCvxEmergency is Test, HelperContract {
     event SetEmergencyMigration(
         PirexCvx.EmergencyMigration _emergencyMigration
     );
+
+    /*//////////////////////////////////////////////////////////////
+                        setEmergencyExecutor TESTS
+    //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion if caller is not authorized
@@ -76,6 +80,10 @@ contract PirexCvxEmergency is Test, HelperContract {
 
         assertEq(pirexCvx.getEmergencyExecutor(), emergencyExecutor);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        setEmergencyMigration TESTS
+    //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion if caller is not authorized
@@ -155,5 +163,88 @@ contract PirexCvxEmergency is Test, HelperContract {
         assertEq(recipient, e.recipient);
         assertEq(tokens[0], e.tokens[0]);
         assertEq(tokens.length, e.tokens.length);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        executeEmergencyMigration TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if contract is not paused
+     */
+    function testCannotExecuteEmergencyMigrationNotPaused() external {
+        assertEq(pirexCvx.paused(), false);
+
+        vm.expectRevert(bytes("Pausable: not paused"));
+        pirexCvx.executeEmergencyMigration();
+    }
+
+    /**
+        @notice Test tx reversion if caller is not the emergency executor
+     */
+    function testCannotExecuteEmergencyMigrationNotExecutor() external {
+        pirexCvx.setPauseState(true);
+        vm.expectRevert(PirexCvx.NotAuthorized.selector);
+        pirexCvx.executeEmergencyMigration();
+    }
+
+    /**
+        @notice Test tx reversion if migration recipient is the zero address
+     */
+    function testCannotExecuteEmergencyMigrationNoRecipient() external {
+        pirexCvx.setPauseState(true);
+        pirexCvx.setEmergencyExecutor(address(this));
+
+        (address recipient, ) = pirexCvx.getEmergencyMigration();
+
+        assertEq(recipient, address(0));
+
+        vm.expectRevert(PirexCvx.InvalidEmergencyMigration.selector);
+        pirexCvx.executeEmergencyMigration();
+    }
+
+    /**
+        @notice Test executing the emergency migration
+     */
+    function testExecuteEmergencyMigration() external {
+        pirexCvx.setPauseState(true);
+        pirexCvx.setEmergencyExecutor(address(this));
+
+        e.recipient = notAdmin;
+        e.tokens = new address[](2);
+        e.tokens[0] = address(CVX);
+        e.tokens[1] = address(this);
+
+        uint256 tokenMintAmount = 1e18;
+        uint256 expectedRemainingCvx = 5e17;
+
+        // Manipulate `outstandingRedemptions` and test if migration leaves the amount in-contract
+        vm.store(
+            address(pirexCvx),
+            bytes32(uint256(5)),
+            bytes32(expectedRemainingCvx)
+        );
+
+        // // Mint tokens for PirexCvx contract
+        _mintCvx(address(pirexCvx), tokenMintAmount);
+        _mint(address(pirexCvx), tokenMintAmount);
+
+        assertEq(CVX.balanceOf(address(pirexCvx)), tokenMintAmount);
+        assertEq(balanceOf[address(pirexCvx)], tokenMintAmount);
+
+        // Ensure that notAdmin's balance for CVX and TEST are both 0 prior to the migration
+        assertEq(CVX.balanceOf(notAdmin), 0);
+        assertEq(balanceOf[notAdmin], 0);
+
+        pirexCvx.setEmergencyMigration(e);
+        pirexCvx.executeEmergencyMigration();
+
+        assertEq(CVX.balanceOf(address(pirexCvx)), expectedRemainingCvx);
+        assertEq(
+            CVX.balanceOf(notAdmin),
+            tokenMintAmount - expectedRemainingCvx
+        );
+        assertEq(balanceOf[address(pirexCvx)], 0);
+        assertEq(balanceOf[notAdmin], tokenMintAmount);
     }
 }
