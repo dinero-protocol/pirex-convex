@@ -86,7 +86,7 @@ contract PirexCvxConvex is Ownable, Pausable {
 
     /** 
         @notice Set a contract address
-        @param  c                enum     Contract enum
+        @param  c                enum     ConvexContract enum
         @param  contractAddress  address  Contract address    
      */
     function setConvexContract(ConvexContract c, address contractAddress)
@@ -105,10 +105,7 @@ contract PirexCvxConvex is Ownable, Pausable {
             return;
         }
 
-        if (c == ConvexContract.CvxDelegateRegistry) {
-            cvxDelegateRegistry = ICvxDelegateRegistry(contractAddress);
-            return;
-        }
+        cvxDelegateRegistry = ICvxDelegateRegistry(contractAddress);
     }
 
     /**
