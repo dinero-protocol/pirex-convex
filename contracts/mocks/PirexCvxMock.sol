@@ -7,7 +7,7 @@ import {PirexCvx} from "../PirexCvx.sol";
 
 contract PirexCvxMock is PirexCvx {
     using SafeTransferLib for ERC20;
-    
+
     event SetInitialFees(
         uint32 reward,
         uint32 redemptionMax,
@@ -129,5 +129,29 @@ contract PirexCvxMock is PirexCvx {
                 (futuresRewards[i] * rpCvxBalance) / rpCvxTotalSupply
             );
         }
+    }
+
+    function getOutstandingRedemptions() external view returns (uint256) {
+        return outstandingRedemptions;
+    }
+
+    function getPendingLocks() external view returns (uint256) {
+        return pendingLocks;
+    }
+
+    function getFees()
+        external
+        view
+        returns (
+            uint32,
+            uint32,
+            uint32
+        )
+    {
+        return (
+            fees[Fees.Reward],
+            fees[Fees.RedemptionMax],
+            fees[Fees.RedemptionMin]
+        );
     }
 }

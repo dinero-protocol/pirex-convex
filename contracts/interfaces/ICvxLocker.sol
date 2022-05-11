@@ -36,4 +36,9 @@ interface ICvxLocker {
         returns (EarnedData[] memory userRewards);
 
     function getReward(address _account, bool _stake) external;
+
+    function lockedBalanceOf(address _user)
+        external
+        view
+        returns (uint256 amount);
 }
