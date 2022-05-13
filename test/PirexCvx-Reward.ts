@@ -67,49 +67,6 @@ describe('PirexCvx-Reward', function () {
     } = this);
   });
 
-  describe('takeEpochSnapshot', function () {
-    it('Should take a snapshot', async function () {
-      const currentEpoch = await pCvx.getCurrentEpoch();
-      const epochBefore = await pxCvx.getEpoch(currentEpoch);
-      const snapshotIdBefore = await pxCvx.getCurrentSnapshotId();
-      const events = await callAndReturnEvents(pxCvx.takeEpochSnapshot, []);
-      const snapshotEvent = events[0];
-      const epochAfter = await pxCvx.getEpoch(currentEpoch);
-      const snapshotIdAfter = await pxCvx.getCurrentSnapshotId();
-
-      expect(epochBefore.snapshotId).to.equal(0);
-      expect(epochAfter.snapshotId).to.equal(snapshotIdAfter);
-      expect(snapshotIdAfter).to.not.equal(snapshotIdBefore);
-      expect(snapshotIdAfter).to.equal(snapshotIdBefore.add(1));
-      validateEvent(snapshotEvent, 'Snapshot(uint256)', {
-        id: snapshotIdAfter,
-      });
-    });
-
-    it('Should not take a snapshot if already taken for the epoch', async function () {
-      const currentEpoch = await pCvx.getCurrentEpoch();
-      const { snapshotId: snapshotIdBefore } = await pxCvx.getEpoch(
-        currentEpoch
-      );
-
-      await pxCvx.takeEpochSnapshot();
-
-      const { snapshotId: snapshotIdAfter } = await pxCvx.getEpoch(
-        currentEpoch
-      );
-
-      expect(snapshotIdAfter).to.equal(snapshotIdBefore);
-    });
-
-    it('should revert if the contract is paused', async function () {
-      await pCvx.setPauseState(true);
-
-      await expect(pxCvx.takeEpochSnapshot()).to.be.revertedWith('Paused()');
-
-      await pCvx.setPauseState(false);
-    });
-  });
-
   describe('claimVotiumRewards', function () {
     let cvxRewardDistribution: { account: string; amount: BigNumber }[];
     let crvRewardDistribution: { account: string; amount: BigNumber }[];
@@ -117,6 +74,8 @@ describe('PirexCvx-Reward', function () {
     let crvTree: BalanceTree;
 
     before(async function () {
+      await pxCvx.takeEpochSnapshot();
+
       // Provision rpCVX tokens for futures redemption later
       const assets = toBN(5e17);
 
@@ -214,7 +173,6 @@ describe('PirexCvx-Reward', function () {
       const snapshotSupply = await pxCvx.totalSupplyAt(snapshotId);
       const votiumSnapshotRewards = snapshotRewards;
       const votiumFuturesRewards = futuresRewards;
-
       const expectedVotiumSnapshotRewards = {
         amounts: amounts.map((amount: BigNumber) => {
           const feeAmount = amount.mul(rewardFee).div(feeDenominator);
@@ -244,20 +202,27 @@ describe('PirexCvx-Reward', function () {
       const contributorsCrvBalanceAfter = await crv.balanceOf(
         contributors.address
       );
+      const treasuryCrvReceived = treasuryCrvBalanceAfter.sub(
+        treasuryCrvBalanceBefore
+      );
+      const treasuryCvxReceived = treasuryCvxBalanceAfter.sub(
+        treasuryCvxBalanceBefore
+      );
+      const contributorsCrvReceived = contributorsCrvBalanceAfter.sub(
+        contributorsCrvBalanceBefore
+      );
+      const contributorsCvxReceived = contributorsCvxBalanceAfter.sub(
+        contributorsCvxBalanceBefore
+      );
       const treasuryPercent = await pirexFees.treasuryPercent();
-      const contributorsPercent = await pirexFees.contributorsPercent();
       const expectedTreasuryCvxFees = cvxFee
         .mul(treasuryPercent)
         .div(feePercentDenominator);
-      const expectedContributorsCvxFees = cvxFee
-        .mul(contributorsPercent)
-        .div(feePercentDenominator);
+      const expectedContributorsCvxFees = cvxFee.sub(expectedTreasuryCvxFees);
       const expectedTreasuryCrvFees = crvFee
         .mul(treasuryPercent)
         .div(feePercentDenominator);
-      const expectedContributorsCrvFees = crvFee
-        .mul(contributorsPercent)
-        .div(feePercentDenominator);
+      const expectedContributorsCrvFees = crvFee.sub(expectedTreasuryCrvFees);
       const parsedRewards = rewards.map((r) => r.slice(0, 42));
 
       expect(parsedRewards.includes(tokens[0].toLowerCase())).to.equal(true);
@@ -288,6 +253,12 @@ describe('PirexCvx-Reward', function () {
       expect(contributorsCrvBalanceAfter).to.equal(
         contributorsCrvBalanceBefore.add(expectedContributorsCrvFees)
       );
+      expect(cvxFee).to.equal(treasuryCvxReceived.add(contributorsCvxReceived));
+      expect(crvFee).to.equal(treasuryCrvReceived.add(contributorsCrvReceived));
+      expect(treasuryCrvReceived).to.equal(expectedTreasuryCrvFees);
+      expect(treasuryCvxReceived).to.equal(expectedTreasuryCvxFees);
+      expect(contributorsCrvReceived).to.equal(expectedContributorsCrvFees);
+      expect(contributorsCvxReceived).to.equal(expectedContributorsCvxFees);
 
       validateEvent(
         cvxVotiumRewardClaimEvent,
@@ -395,6 +366,8 @@ describe('PirexCvx-Reward', function () {
       const [claimableCrv, claimableCvxCrv] = await cvxLocker.claimableRewards(
         pCvx.address
       );
+      const crvBalanceBefore = await crv.balanceOf(pCvx.address);
+      const cvxCrvBalanceBefore = await cvxCrvToken.balanceOf(pCvx.address);
       const events = await callAndReturnEvents(pCvx.claimMiscRewards, []);
       const claimEvent = events[0];
       const treasuryCrvBalanceAfter = await crv.balanceOf(treasury.address);
@@ -408,7 +381,7 @@ describe('PirexCvx-Reward', function () {
         contributors.address
       );
       const treasuryPercent = await pirexFees.treasuryPercent();
-      const contributorsPercent = await pirexFees.contributorsPercent();
+      const contributorsPercent = feePercentDenominator - treasuryPercent;
       const expectedTreasuryCrvFees = claimableCrv.amount
         .mul(treasuryPercent)
         .div(feePercentDenominator);
@@ -421,6 +394,8 @@ describe('PirexCvx-Reward', function () {
       const expectedContributorsCvxCrvFees = claimableCvxCrv.amount
         .mul(contributorsPercent)
         .div(feePercentDenominator);
+      const crvBalanceAfter = await crv.balanceOf(pCvx.address);
+      const cvxCrvBalanceAfter = await cvxCrvToken.balanceOf(pCvx.address);
 
       expect(treasuryCrvBalanceAfter).to.not.equal(treasuryCrvBalanceBefore);
       expect(
@@ -484,6 +459,11 @@ describe('PirexCvx-Reward', function () {
             .div(100)
         )
       ).to.equal(true);
+
+      // All misc rewards need to be distributed to stakeholders, no remainder
+      expect(crvBalanceAfter).to.equal(crvBalanceBefore);
+      expect(cvxCrvBalanceAfter).to.equal(cvxCrvBalanceBefore);
+
       validateEvent(
         claimEvent,
         'ClaimMiscRewards(uint256,(address,uint256,uint256)[])',

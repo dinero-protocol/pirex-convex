@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 
 import {Arrays} from "@openzeppelin/contracts/utils/Arrays.sol";
 import {Counters} from "@openzeppelin/contracts/utils/Counters.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /// @notice Modern and gas efficient ERC20 + EIP-2612 implementation.
 /// @author Solmate (https://github.com/Rari-Capital/solmate/blob/main/src/tokens/ERC20.sol)
@@ -159,7 +160,7 @@ abstract contract ERC20 {
         // Unchecked because the only math done is incrementing
         // the owner's nonce which cannot realistically overflow.
         unchecked {
-            address recoveredAddress = ecrecover(
+            address recoveredAddress = ECDSA.recover(
                 keccak256(
                     abi.encodePacked(
                         "\x19\x01",
@@ -483,10 +484,12 @@ contract ERC20SnapshotSolmate is ERC20 {
         view
         returns (uint256)
     {
-        if (ids.length == 0) {
+        uint256 idsLen = ids.length;
+
+        if (idsLen == 0) {
             return 0;
         } else {
-            return ids[ids.length - 1];
+            return ids[idsLen - 1];
         }
     }
 }

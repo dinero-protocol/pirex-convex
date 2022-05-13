@@ -66,14 +66,14 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         RedemptionMin
     }
 
-    // Seconds between Convex voting rounds (2 weeks)
-    uint32 public constant EPOCH_DURATION = 1209600;
+    // Convex voting round duration (1,209,600 seconds)
+    uint32 public constant EPOCH_DURATION = 2 weeks;
 
     // Fee denominator
-    uint32 public constant FEE_DENOMINATOR = 1000000;
+    uint32 public constant FEE_DENOMINATOR = 1_000_000;
 
-    // Maximum wait time (seconds) for a CVX redemption (17 weeks)
-    uint32 public constant MAX_REDEMPTION_TIME = 10281600;
+    // Maximum wait time for a CVX redemption (10,281,600 seconds)
+    uint32 public constant MAX_REDEMPTION_TIME = 17 weeks;
 
     // Unused ERC1155 `data` param value
     bytes private constant UNUSED_1155_DATA = "";
@@ -277,11 +277,15 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
             return;
         }
 
-        if (address(unionPirex) != address(0)) {
-            pxCvx.approve(address(unionPirex), 0);
+        ERC20 pxCvxERC20 = ERC20(address(pxCvx));
+        address oldUnionPirex = address(unionPirex);
+
+        if (oldUnionPirex != address(0)) {
+            pxCvxERC20.safeApprove(oldUnionPirex, 0);
         }
+
         unionPirex = UnionPirexVault(contractAddress);
-        pxCvx.approve(address(unionPirex), type(uint256).max);
+        pxCvxERC20.safeApprove(address(unionPirex), type(uint256).max);
     }
 
     /** 
@@ -349,6 +353,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
      */
     function queueFee(Fees f, uint32 newFee) external onlyOwner {
         if (newFee > FEE_DENOMINATOR) revert InvalidNewFee();
+        if (newFee == fees[f]) revert InvalidNewFee();
 
         uint224 effectiveAfter = uint224(block.timestamp + EPOCH_DURATION);
 
@@ -941,7 +946,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         pxCvx.updateEpochFuturesRewards(epoch, futuresRewards);
     }
 
-        /**
+    /**
         @notice Exchange one futures token for another
         @param  epoch     uint256  Epoch (ERC1155 token id)
         @param  amount    uint256  Exchange amount

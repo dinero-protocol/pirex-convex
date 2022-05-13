@@ -29,6 +29,7 @@ describe('PxCvx', function () {
   let votiumMultiMerkleStash: MultiMerkleStash;
   let futuresEnum: any;
   let zeroAddress: string;
+  let epochDuration: BigNumber;
 
   before(async function () {
     ({
@@ -41,6 +42,7 @@ describe('PxCvx', function () {
       votiumMultiMerkleStash,
       zeroAddress,
       futuresEnum,
+      epochDuration,
     } = this);
   });
 
@@ -351,12 +353,89 @@ describe('PxCvx', function () {
   });
 
   describe('takeEpochSnapshot', function () {
-    it('Should revert if not called by operator', async function () {
+    it('Should revert if operator is not set', async function () {
+      const newPxCvx = await (
+        await ethers.getContractFactory('PxCvx')
+      ).deploy();
+
+      await expect(newPxCvx.takeEpochSnapshot()).to.be.revertedWith(
+        'NoOperator()'
+      );
+    });
+
+    it('Should revert if msg.sender is not operator and operator is paused', async function () {
+      await pxCvx.setOperator(pCvx.address);
+      await pCvx.setPauseState(true);
+
+      const operatorPaused = await pCvx.paused();
+
+      expect(operatorPaused).to.equal(true);
       await expect(
-        pxCvx
-          .connect(notAdmin)
-          .setEpochRedeemedSnapshotRewards(admin.address, 0, 0)
-      ).to.be.revertedWith('NotAuthorized()');
+        pxCvx.connect(notAdmin).takeEpochSnapshot()
+      ).to.be.revertedWith('Paused()');
+
+      await pCvx.setPauseState(false);
+    });
+
+    // If sender is the operator then `paused` won't be called (would revert if operator is admin EOA)
+    it('Should take a snapshot if msg.sender is operator and paused is uncallable/falsy', async function () {
+      await pxCvx.setOperator(admin.address);
+
+      const currentEpochBefore = await pCvx.getCurrentEpoch();
+      const epochBefore = await pxCvx.getEpoch(currentEpochBefore);
+      const snapshotIdBefore = await pxCvx.getCurrentSnapshotId();
+
+      await increaseBlockTimestamp(epochDuration.toNumber());
+
+      const events = await callAndReturnEvents(pxCvx.takeEpochSnapshot, []);
+      const snapshotEvent = events[0];
+      const currentEpochAfter = await pCvx.getCurrentEpoch();
+      const epochAfter = await pxCvx.getEpoch(currentEpochAfter);
+      const snapshotIdAfter = await pxCvx.getCurrentSnapshotId();
+
+      expect(currentEpochAfter).to.equal(currentEpochBefore.add(epochDuration));
+      expect(epochBefore.snapshotId).to.equal(snapshotIdBefore);
+      expect(epochAfter.snapshotId).to.equal(snapshotIdAfter);
+      expect(snapshotIdAfter).to.not.equal(snapshotIdBefore);
+      expect(snapshotIdAfter).to.equal(snapshotIdBefore.add(1));
+
+      validateEvent(snapshotEvent, 'Snapshot(uint256)', {
+        id: snapshotIdAfter,
+      });
+    });
+
+    it('Should take a snapshot if not operator and operator is unpaused', async function () {
+      await pxCvx.setOperator(pCvx.address);
+
+      const snapshotIdBefore = await pxCvx.getCurrentSnapshotId();
+      const operatorPaused = await pCvx.paused();
+
+      await increaseBlockTimestamp(epochDuration.toNumber());
+
+      const events = await callAndReturnEvents(
+        pxCvx.connect(notAdmin).takeEpochSnapshot,
+        []
+      );
+      const snapshotEvent = events[0];
+      const snapshotIdAfter = await pxCvx.getCurrentSnapshotId();
+
+      expect(operatorPaused).to.equal(false);
+      expect(snapshotIdAfter).to.not.equal(snapshotIdBefore);
+      expect(snapshotIdAfter).to.equal(snapshotIdBefore.add(1));
+
+      validateEvent(snapshotEvent, 'Snapshot(uint256)', {
+        id: snapshotIdAfter,
+      });
+    });
+
+    it('Should not take a snapshot if already taken for the epoch', async function () {
+      const snapshotIdBefore = await pxCvx.getCurrentSnapshotId();
+
+      await pxCvx.takeEpochSnapshot();
+
+      const snapshotIdAfter = await pxCvx.getCurrentSnapshotId();
+
+      expect(snapshotIdAfter).to.equal(snapshotIdBefore);
     });
   });
 });

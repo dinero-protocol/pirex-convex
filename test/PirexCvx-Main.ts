@@ -37,6 +37,7 @@ describe('PirexCvx-Main', function () {
 
   let futuresEnum: any;
   let feesEnum: any;
+  let feePercentDenominator: number;
   let stakeExpiry: BigNumber;
 
   before(async function () {
@@ -53,6 +54,7 @@ describe('PirexCvx-Main', function () {
       redemptionUnlockTime1,
       epochDuration,
       futuresEnum,
+      feePercentDenominator,
       feesEnum,
     } = this);
   });
@@ -382,6 +384,8 @@ describe('PirexCvx-Main', function () {
       const totalAssets = assets[0].add(assets[1]);
       const totalFeeAmounts = feeAmount1.add(feeAmount2);
       const totalPostFeeAmounts = postFeeAmount1.add(postFeeAmount2);
+      const feeTreasuryPercent = await pirexFees.treasuryPercent();
+      const feeContributorPercent = feePercentDenominator - feeTreasuryPercent;
 
       expect(pxCvxBalanceAfter).to.equal(pxCvxBalanceBefore.sub(totalAssets));
       expect(outstandingRedemptionsAfter).to.equal(
@@ -393,6 +397,7 @@ describe('PirexCvx-Main', function () {
       expect(upCvxBalanceAfter2).to.equal(
         upCvxBalanceBefore2.add(postFeeAmount2)
       );
+      
       validateEvent(burnEvent, 'Transfer(address,address,uint256)', {
         from: msgSender,
         to: zeroAddress,
@@ -449,8 +454,8 @@ describe('PirexCvx-Main', function () {
           from: msgSender,
           to: await pirexFees.treasury(),
           amount: totalFeeAmounts
-            .mul(await pirexFees.treasuryPercent())
-            .div(await pirexFees.PERCENT_DENOMINATOR()),
+            .mul(feeTreasuryPercent)
+            .div(feePercentDenominator),
         }
       );
       validateEvent(
@@ -460,8 +465,8 @@ describe('PirexCvx-Main', function () {
           from: msgSender,
           to: await pirexFees.contributors(),
           amount: totalFeeAmounts
-            .mul(await pirexFees.contributorsPercent())
-            .div(await pirexFees.PERCENT_DENOMINATOR()),
+            .mul(feeContributorPercent)
+            .div(feePercentDenominator),
         }
       );
       expect(

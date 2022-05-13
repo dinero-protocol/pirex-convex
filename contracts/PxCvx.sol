@@ -36,6 +36,7 @@ contract PxCvx is ERC20SnapshotSolmate("Pirex CVX", "pxCVX", 18), Ownable {
     );
 
     error NotAuthorized();
+    error NoOperator();
     error Paused();
     error ZeroAddress();
     error ZeroAmount();
@@ -49,8 +50,13 @@ contract PxCvx is ERC20SnapshotSolmate("Pirex CVX", "pxCVX", 18), Ownable {
     }
 
     modifier onlyOperatorOrNotPaused() {
+        address _operator = operator;
+
+        // Ensure an operator is set
+        if (_operator == address(0)) revert NoOperator();
+
         // This contract shares the same pause state as the operator
-        if (msg.sender != operator && Pausable(operator).paused())
+        if (msg.sender != _operator && Pausable(_operator).paused())
             revert Paused();
         _;
     }

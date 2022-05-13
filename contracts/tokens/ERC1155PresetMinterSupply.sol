@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts (last updated v4.5.0) (token/ERC1155/presets/ERC1155PresetMinterPauser.sol)
 
 pragma solidity 0.8.12;
 
@@ -19,11 +18,8 @@ import {Context} from "@openzeppelin/contracts/utils/Context.sol";
  * This contract uses {AccessControl} to lock permissioned functions using the
  * different roles - head to its documentation for details.
  *
- * The account that deploys the contract will be granted the minter and pauser
- * roles, as well as the default admin role, which will let it grant both minter
- * and pauser roles to other accounts.
- *
- * _Deprecated in favor of https://wizard.openzeppelin.com/[Contracts Wizard]._
+ * The account that deploys the contract will be granted the minter role as well
+ * as the default admin role, which will let it grant the minter role to other accounts.
  */
 contract ERC1155PresetMinterSupply is
     Context,
@@ -34,7 +30,7 @@ contract ERC1155PresetMinterSupply is
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /**
-     * @dev Grants `DEFAULT_ADMIN_ROLE`, `MINTER_ROLE`, and `PAUSER_ROLE` to the account that
+     * @dev Grants `DEFAULT_ADMIN_ROLE` and `MINTER_ROLE` to the account that
      * deploys the contract.
      */
     constructor(string memory uri) ERC1155(uri) {
