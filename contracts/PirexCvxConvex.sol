@@ -236,14 +236,14 @@ contract PirexCvxConvex is Ownable, Pausable {
     }
 
     /**
-        @notice Unlock CVX and prepare for migration (e.g. in the event of a mass CVX unlock)
+        @notice Manually unlock CVX in the case of a mass unlock
      */
     function unlock() external whenPaused onlyOwner {
         _unlock();
     }
 
     /**
-        @notice Relock CVX with a new CvxLocker contract (if possible)
+        @notice Manually relock CVX with a new CvxLocker contract
      */
     function pausedRelock() external whenPaused onlyOwner {
         _lock();

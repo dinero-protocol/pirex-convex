@@ -10,68 +10,68 @@ import {HelperContract} from "./HelperContract.sol";
 contract PirexCvxEmergency is Test, ERC20("Test", "TEST", 18), HelperContract {
     PirexCvx.EmergencyMigration private e;
 
-    event SetEmergencyExecutor(address _emergencyExecutor);
+    event InitializeEmergencyExecutor(address _emergencyExecutor);
     event SetEmergencyMigration(
         PirexCvx.EmergencyMigration _emergencyMigration
     );
 
     /*//////////////////////////////////////////////////////////////
-                        setEmergencyExecutor TESTS
+                        initializeEmergencyExecutor TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion if caller is not authorized
      */
-    function testCannotSetEmergencyExecutorNotAuthorized() external {
+    function testCannotInitializeEmergencyExecutorNotAuthorized() external {
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
         vm.prank(secondaryAccounts[0]);
-        pirexCvx.setEmergencyExecutor(address(this));
+        pirexCvx.initializeEmergencyExecutor(address(this));
     }
 
     /**
         @notice Test tx reversion if contract is not paused
      */
-    function testCannotSetEmergencyExecutorNotPaused() external {
+    function testCannotInitializeEmergencyExecutorNotPaused() external {
         assertEq(pirexCvx.paused(), false);
 
         vm.expectRevert(bytes("Pausable: not paused"));
-        pirexCvx.setEmergencyExecutor(address(0));
+        pirexCvx.initializeEmergencyExecutor(address(0));
     }
 
     /**
         @notice Test tx reversion if executor is the zero address
      */
-    function testCannotSetEmergencyExecutorZeroAddress() external {
+    function testCannotInitializeEmergencyExecutorZeroAddress() external {
         pirexCvx.setPauseState(true);
         vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
-        pirexCvx.setEmergencyExecutor(address(0));
+        pirexCvx.initializeEmergencyExecutor(address(0));
     }
 
     /**
-        @notice Test tx reversion if executor is already set
+        @notice Test tx reversion if executor is already initialized
      */
-    function testCannotSetEmergencyExecutorAlreadySet() external {
+    function testCannotInitializeEmergencyExecutorAlreadyInitialized() external {
         pirexCvx.setPauseState(true);
-        pirexCvx.setEmergencyExecutor(address(this));
+        pirexCvx.initializeEmergencyExecutor(address(this));
 
         assertEq(pirexCvx.getEmergencyExecutor(), address(this));
 
-        vm.expectRevert(PirexCvx.AlreadySet.selector);
-        pirexCvx.setEmergencyExecutor(address(this));
+        vm.expectRevert(PirexCvx.AlreadyInitialized.selector);
+        pirexCvx.initializeEmergencyExecutor(address(this));
     }
 
     /**
         @notice Test setting the emergency executor
      */
-    function testSetEmergencyExecutor() external {
+    function testInitializeEmergencyExecutor() external {
         address emergencyExecutor = address(this);
 
         vm.expectEmit(false, false, false, true);
 
-        emit SetEmergencyExecutor(emergencyExecutor);
+        emit InitializeEmergencyExecutor(emergencyExecutor);
 
         pirexCvx.setPauseState(true);
-        pirexCvx.setEmergencyExecutor(emergencyExecutor);
+        pirexCvx.initializeEmergencyExecutor(emergencyExecutor);
 
         assertEq(pirexCvx.getEmergencyExecutor(), emergencyExecutor);
     }
@@ -117,7 +117,7 @@ contract PirexCvxEmergency is Test, ERC20("Test", "TEST", 18), HelperContract {
         assertEq(e.recipient, address(0));
 
         pirexCvx.setPauseState(true);
-        pirexCvx.setEmergencyExecutor(address(this));
+        pirexCvx.initializeEmergencyExecutor(address(this));
         vm.expectRevert(PirexCvx.InvalidEmergencyMigration.selector);
         pirexCvx.setEmergencyMigration(e);
     }
@@ -131,7 +131,7 @@ contract PirexCvxEmergency is Test, ERC20("Test", "TEST", 18), HelperContract {
         e.recipient = address(this);
 
         pirexCvx.setPauseState(true);
-        pirexCvx.setEmergencyExecutor(address(this));
+        pirexCvx.initializeEmergencyExecutor(address(this));
         vm.expectRevert(PirexCvx.InvalidEmergencyMigration.selector);
         pirexCvx.setEmergencyMigration(e);
     }
@@ -149,7 +149,7 @@ contract PirexCvxEmergency is Test, ERC20("Test", "TEST", 18), HelperContract {
         emit SetEmergencyMigration(e);
 
         pirexCvx.setPauseState(true);
-        pirexCvx.setEmergencyExecutor(address(this));
+        pirexCvx.initializeEmergencyExecutor(address(this));
         pirexCvx.setEmergencyMigration(e);
 
         (address recipient, address[] memory tokens) = pirexCvx
@@ -188,7 +188,7 @@ contract PirexCvxEmergency is Test, ERC20("Test", "TEST", 18), HelperContract {
      */
     function testCannotExecuteEmergencyMigrationNoRecipient() external {
         pirexCvx.setPauseState(true);
-        pirexCvx.setEmergencyExecutor(address(this));
+        pirexCvx.initializeEmergencyExecutor(address(this));
 
         (address recipient, ) = pirexCvx.getEmergencyMigration();
 
@@ -203,7 +203,7 @@ contract PirexCvxEmergency is Test, ERC20("Test", "TEST", 18), HelperContract {
      */
     function testExecuteEmergencyMigration() external {
         pirexCvx.setPauseState(true);
-        pirexCvx.setEmergencyExecutor(address(this));
+        pirexCvx.initializeEmergencyExecutor(address(this));
 
         address recipient = secondaryAccounts[0];
         e.recipient = recipient;

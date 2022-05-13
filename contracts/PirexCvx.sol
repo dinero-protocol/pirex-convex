@@ -44,7 +44,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
     /**
         @notice Data pertaining to an emergency migration
-        @param  recipient  address    Recipient of the tokens (e.g. ideally new PirexCvx contract)
+        @param  recipient  address    Recipient of the tokens (e.g. new PirexCvx contract)
         @param  tokens     address[]  Token addresses
      */
     struct EmergencyMigration {
@@ -109,7 +109,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     // Emergency migration data
     EmergencyMigration public emergencyMigration;
 
-    // Non-Pirex multisig which has authority to call various emergency methods
+    // Non-Pirex multisig which has authority to fulfill emergency procedures
     address public emergencyExecutor;
 
     // In the case of a mass unlock by Convex, the current upCvx would be deprecated
@@ -173,7 +173,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         address indexed receiver,
         Futures f
     );
-    event SetEmergencyExecutor(address _emergencyExecutor);
+    event InitializeEmergencyExecutor(address _emergencyExecutor);
     event SetEmergencyMigration(EmergencyMigration _emergencyMigration);
     event SetUpCvxDeprecated(bool state);
     event ExecuteEmergencyMigration(address recipient, address[] tokens);
@@ -192,7 +192,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     error MismatchedArrayLengths();
     error NoRewards();
     error RedeemClosed();
-    error AlreadySet();
+    error AlreadyInitialized();
     error NoEmergencyExecutor();
     error InvalidEmergencyMigration();
     error NotAuthorized();
@@ -940,19 +940,19 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
     /** 
         @notice Initialize the emergency executor address
-        @param  _emergencyExecutor  address  Non-Pirex multisig with authority to fulfill emergency procedures
+        @param  _emergencyExecutor  address  Non-Pirex multisig
      */
-    function setEmergencyExecutor(address _emergencyExecutor)
+    function initializeEmergencyExecutor(address _emergencyExecutor)
         external
         onlyOwner
         whenPaused
     {
         if (_emergencyExecutor == address(0)) revert ZeroAddress();
-        if (emergencyExecutor != address(0)) revert AlreadySet();
+        if (emergencyExecutor != address(0)) revert AlreadyInitialized();
 
         emergencyExecutor = _emergencyExecutor;
 
-        emit SetEmergencyExecutor(_emergencyExecutor);
+        emit InitializeEmergencyExecutor(_emergencyExecutor);
     }
 
     /** 
@@ -974,7 +974,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     }
 
     /** 
-        @notice Carry out the emergency migration according to the data set by Pirex multisig
+        @notice Execute the emergency migration
      */
     function executeEmergencyMigration() external whenPaused {
         if (msg.sender != emergencyExecutor) revert NotAuthorized();
@@ -983,27 +983,25 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         if (migrationRecipient == address(0))
             revert InvalidEmergencyMigration();
 
-        uint256 tLen = emergencyMigration.tokens.length;
+        address[] memory migrationTokens = emergencyMigration.tokens;
+        uint256 tLen = migrationTokens.length;
         if (tLen == 0) revert InvalidEmergencyMigration();
 
+        uint256 o = outstandingRedemptions;
+
         for (uint256 i; i < tLen; ++i) {
-            ERC20 token = ERC20(emergencyMigration.tokens[i]);
+            ERC20 token = ERC20(migrationTokens[i]);
             uint256 balance = token.balanceOf(address(this));
 
-            // Only transfer the positive difference between the CVX balance and outstandingRemptions (if any)
             if (token == CVX) {
-                balance = balance > outstandingRedemptions
-                    ? balance - outstandingRedemptions
-                    : 0;
+                // Transfer the diff between CVX balance and outstandingRedemptions
+                balance = balance > o ? balance - o : 0;
             }
 
             token.safeTransfer(migrationRecipient, balance);
         }
 
-        emit ExecuteEmergencyMigration(
-            migrationRecipient,
-            emergencyMigration.tokens
-        );
+        emit ExecuteEmergencyMigration(migrationRecipient, migrationTokens);
     }
 
     /**
