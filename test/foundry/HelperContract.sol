@@ -10,7 +10,7 @@ import {PirexFees} from "contracts/PirexFees.sol";
 import {ERC1155PresetMinterSupply} from "contracts/tokens/ERC1155PresetMinterSupply.sol";
 import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
 import {UnionPirexVault} from "contracts/vault/UnionPirexVault.sol";
-import {UnionPirexStrategy} from "contracts/vault/UnionPirexStrategy.sol";
+import {UnionPirexStrategyMock} from "contracts/mocks/UnionPirexStrategyMock.sol";
 import {MultiMerkleStash} from "contracts/mocks/MultiMerkleStash.sol";
 import {ICvxLocker} from "contracts/interfaces/ICvxLocker.sol";
 
@@ -42,6 +42,7 @@ abstract contract HelperContract is Test {
     ERC1155Solmate public immutable upCvx;
     ERC1155PresetMinterSupply public immutable vpCvx;
     ERC1155PresetMinterSupply public immutable rpCvx;
+    UnionPirexStrategyMock public immutable unionPirexStrategy;
 
     address[3] public secondaryAccounts = [
         0x6Ecbe1DB9EF729CBe972C83Fb886247691Fb6beb,
@@ -72,7 +73,7 @@ abstract contract HelperContract is Test {
             VOTIUM_MULTI_MERKLE_STASH
         );
 
-        UnionPirexStrategy unionPirexStrategy = new UnionPirexStrategy(
+        unionPirexStrategy = new UnionPirexStrategyMock(
             address(pirexCvx),
             address(pxCvx),
             address(this),

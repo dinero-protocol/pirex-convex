@@ -42,7 +42,7 @@ contract UnionPirexStaking is Ownable {
     uint256 public userRewardPerTokenPaid;
     uint256 public rewards;
 
-    uint256 private _totalSupply;
+    uint256 internal _totalSupply;
 
     /* ========== CONSTRUCTOR ========== */
 
