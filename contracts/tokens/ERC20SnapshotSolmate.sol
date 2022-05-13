@@ -484,10 +484,12 @@ contract ERC20SnapshotSolmate is ERC20 {
         view
         returns (uint256)
     {
-        if (ids.length == 0) {
+        uint256 idsLen = ids.length;
+
+        if (idsLen == 0) {
             return 0;
         } else {
-            return ids[ids.length - 1];
+            return ids[idsLen - 1];
         }
     }
 }

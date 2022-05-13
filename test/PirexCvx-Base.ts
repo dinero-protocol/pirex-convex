@@ -597,34 +597,66 @@ describe('PirexCvx-Base', function () {
   describe('setDelegationSpace', function () {
     it('Should revert if _delegationSpace is an empty string', async function () {
       const invalidDelegationSpace = '';
+      const shouldClear = false;
 
       await expect(
-        pCvx.setDelegationSpace(invalidDelegationSpace)
+        pCvx.setDelegationSpace(invalidDelegationSpace, shouldClear)
       ).to.be.revertedWith('EmptyString()');
     });
 
     it('Should revert if not called by owner', async function () {
+      const shouldClear = false;
+
       await expect(
-        pCvx.connect(notAdmin).setDelegationSpace(delegationSpace)
+        pCvx.connect(notAdmin).setDelegationSpace(delegationSpace, shouldClear)
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('Should update delegationSpace', async function () {
       const newDelegationSpace = 'test.eth';
+      const shouldClear = false;
       const newDelegationSpaceBytes32 =
         ethers.utils.formatBytes32String(newDelegationSpace);
       const delegationSpaceBefore = await pCvx.delegationSpace();
       const setEvent = await callAndReturnEvent(pCvx.setDelegationSpace, [
         newDelegationSpace,
+        shouldClear,
       ]);
       const delegationSpaceAfter = await pCvx.delegationSpace();
 
-      await pCvx.setDelegationSpace(delegationSpace);
-
       expect(delegationSpaceBefore).to.not.equal(delegationSpaceAfter);
       expect(delegationSpaceAfter).to.equal(newDelegationSpaceBytes32);
-      validateEvent(setEvent, 'SetDelegationSpace(string)', {
+
+      validateEvent(setEvent, 'SetDelegationSpace(string,bool)', {
         _delegationSpace: newDelegationSpace,
+        shouldClear,
+      });
+    });
+
+    it('Should clear the vote delegate when setting the delegationSpace (if specified)', async function () {
+      await pCvx.setVoteDelegate(admin.address);
+
+      const newDelegationSpace = 'test2.eth';
+      const shouldClear = true;
+      const voteDelegateBefore = await cvxDelegateRegistry.delegation(
+        pCvx.address,
+        await pCvx.delegationSpace()
+      );
+      const setEvent = await callAndReturnEvent(pCvx.setDelegationSpace, [
+        newDelegationSpace,
+        shouldClear,
+      ]);
+      const voteDelegateAfter = await cvxDelegateRegistry.delegation(
+        pCvx.address,
+        await pCvx.delegationSpace()
+      );
+
+      expect(voteDelegateBefore).to.not.equal(voteDelegateAfter);
+      expect(voteDelegateAfter).to.equal(zeroAddress);
+
+      validateEvent(setEvent, 'SetDelegationSpace(string,bool)', {
+        _delegationSpace: newDelegationSpace,
+        shouldClear,
       });
     });
   });

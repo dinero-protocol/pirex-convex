@@ -42,7 +42,7 @@ contract PirexCvxConvex is Ownable, Pausable {
     uint256 public pendingLocks;
 
     event SetConvexContract(ConvexContract c, address contractAddress);
-    event SetDelegationSpace(string _delegationSpace);
+    event SetDelegationSpace(string _delegationSpace, bool shouldClear);
     event SetVoteDelegate(address voteDelegate);
     event ClearVoteDelegate();
 
@@ -74,7 +74,7 @@ contract PirexCvxConvex is Ownable, Pausable {
 
     /** 
         @notice Set a contract address
-        @param  c                enum     Contract enum
+        @param  c                enum     ConvexContract enum
         @param  contractAddress  address  Contract address    
      */
     function setConvexContract(ConvexContract c, address contractAddress)
@@ -93,10 +93,7 @@ contract PirexCvxConvex is Ownable, Pausable {
             return;
         }
 
-        if (c == ConvexContract.CvxDelegateRegistry) {
-            cvxDelegateRegistry = ICvxDelegateRegistry(contractAddress);
-            return;
-        }
+        cvxDelegateRegistry = ICvxDelegateRegistry(contractAddress);
     }
 
     /**
@@ -183,16 +180,22 @@ contract PirexCvxConvex is Ownable, Pausable {
     /** 
         @notice Set delegationSpace
         @param  _delegationSpace  string  Convex Snapshot delegation space
+        @param  shouldClear       bool    Whether to clear the vote delegate for current delegation space
      */
-    function setDelegationSpace(string memory _delegationSpace)
-        external
-        onlyOwner
-    {
+    function setDelegationSpace(
+        string memory _delegationSpace,
+        bool shouldClear
+    ) external onlyOwner {
+        if (shouldClear) {
+            // Clear the delegation for the current delegation space
+            clearVoteDelegate();
+        }
+
         bytes memory d = bytes(_delegationSpace);
         if (d.length == 0) revert EmptyString();
         delegationSpace = bytes32(d);
 
-        emit SetDelegationSpace(_delegationSpace);
+        emit SetDelegationSpace(_delegationSpace, shouldClear);
     }
 
     /**
@@ -213,7 +216,7 @@ contract PirexCvxConvex is Ownable, Pausable {
     /**
         @notice Remove vote delegate
      */
-    function clearVoteDelegate() external onlyOwner {
+    function clearVoteDelegate() public onlyOwner {
         emit ClearVoteDelegate();
 
         cvxDelegateRegistry.clearDelegate(delegationSpace);
