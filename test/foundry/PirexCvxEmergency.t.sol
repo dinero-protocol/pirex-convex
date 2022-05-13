@@ -221,7 +221,7 @@ contract PirexCvxEmergency is Test, ERC20("Test", "TEST", 18), HelperContract {
             bytes32(expectedRemainingCvx)
         );
 
-        // // Mint tokens for PirexCvx contract
+        // Mint tokens for PirexCvx contract
         _mintCvx(address(pirexCvx), tokenMintAmount);
         _mint(address(pirexCvx), tokenMintAmount);
 
