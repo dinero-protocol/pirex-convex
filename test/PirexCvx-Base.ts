@@ -33,10 +33,8 @@ describe('PirexCvx-Base', function () {
   let cvxLocker: CvxLockerV2;
   let cvxDelegateRegistry: DelegateRegistry;
   let votiumMultiMerkleStash: MultiMerkleStash;
-
   let zeroAddress: string;
   let epochDuration: BigNumber;
-
   let delegationSpace: string;
   let delegationSpaceBytes32: string;
   let contractEnum: any;
@@ -95,7 +93,6 @@ describe('PirexCvx-Base', function () {
       const paused = await pCvx.paused();
       const outstandingRedemptions = await pCvx.outstandingRedemptions();
       const upCvxDeprecated = await pCvx.upCvxDeprecated();
-      const pirexCvxMigration = await pCvx.pirexCvxMigration();
 
       expect(_CVX).to.equal(cvx.address);
       expect(_CVX).to.not.equal(zeroAddress);
@@ -114,7 +111,6 @@ describe('PirexCvx-Base', function () {
       expect(paused).to.be.true;
       expect(outstandingRedemptions).to.equal(0);
       expect(upCvxDeprecated).to.be.false;
-      expect(pirexCvxMigration).to.equal(zeroAddress);
     });
   });
 

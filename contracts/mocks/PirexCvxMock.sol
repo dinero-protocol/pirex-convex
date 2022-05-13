@@ -154,4 +154,16 @@ contract PirexCvxMock is PirexCvx {
             fees[Fees.RedemptionMin]
         );
     }
+
+    function getEmergencyExecutor() external view returns (address) {
+        return emergencyExecutor;
+    }
+
+    function getEmergencyMigration()
+        external
+        view
+        returns (address recipient, address[] memory tokens)
+    {
+        return (emergencyMigration.recipient, emergencyMigration.tokens);
+    }
 }

@@ -52,7 +52,9 @@ describe('PirexFees', function () {
     it('Should set up contract state', async function () {
       const _treasury = await pirexFees.treasury();
       const _contributors = await pirexFees.contributors();
+      
       adminRole = await pirexFees.DEFAULT_ADMIN_ROLE();
+
       const adminHasRole = await pirexFees.hasRole(adminRole, admin.address);
       const notAdminHasAdminRole = await pirexFees.hasRole(
         adminRole,

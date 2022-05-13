@@ -73,18 +73,6 @@ contract PirexCvxConvex is Ownable, Pausable {
     }
 
     /** 
-        @notice Only for emergency purposes when we need to resume/halt all user actions
-        @param state  bool  Pause state
-    */
-    function setPauseState(bool state) external onlyOwner {
-        if (state) {
-            _pause();
-        } else {
-            _unpause();
-        }
-    }
-
-    /** 
         @notice Set a contract address
         @param  c                enum     ConvexContract enum
         @param  contractAddress  address  Contract address    
@@ -214,7 +202,10 @@ contract PirexCvxConvex is Ownable, Pausable {
         @notice Set vote delegate
         @param  voteDelegate  address  Account to delegate votes to
      */
-    function setVoteDelegate(address voteDelegate) external onlyOwner {
+    function setVoteDelegate(address voteDelegate)
+        external
+        onlyOwner
+    {
         if (voteDelegate == address(0)) revert ZeroAddress();
 
         emit SetVoteDelegate(voteDelegate);
@@ -231,15 +222,31 @@ contract PirexCvxConvex is Ownable, Pausable {
         cvxDelegateRegistry.clearDelegate(delegationSpace);
     }
 
+    /*//////////////////////////////////////////////////////////////
+                        EMERGENCY/MIGRATION LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /** 
+        @notice Set the contract's pause state
+        @param state  bool  Pause state
+    */
+    function setPauseState(bool state) external onlyOwner {
+        if (state) {
+            _pause();
+        } else {
+            _unpause();
+        }
+    }
+
     /**
-        @notice Only for emergency purposes in the case of a forced-unlock by Convex
+        @notice Manually unlock CVX in the case of a mass unlock
      */
     function unlock() external whenPaused onlyOwner {
         _unlock();
     }
 
     /**
-        @notice Only for emergency purposes in the case of a forced-unlock by Convex
+        @notice Manually relock CVX with a new CvxLocker contract
      */
     function pausedRelock() external whenPaused onlyOwner {
         _lock();

@@ -42,6 +42,16 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         bytes32[] merkleProof;
     }
 
+    /**
+        @notice Data pertaining to an emergency migration
+        @param  recipient  address    Recipient of the tokens (e.g. new PirexCvx contract)
+        @param  tokens     address[]  Token addresses
+     */
+    struct EmergencyMigration {
+        address recipient;
+        address[] tokens;
+    }
+
     // Users can choose between the two futures tokens when staking or initiating a redemption
     enum Futures {
         Vote,
@@ -96,8 +106,11 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     // Queued fees which will take effective after 1 epoch (2 weeks)
     mapping(Fees => QueuedFee) public queuedFees;
 
-    // Address of the new PirexCvx contract in the case of emergency redeployment
-    address public pirexCvxMigration;
+    // Emergency migration data
+    EmergencyMigration public emergencyMigration;
+
+    // Non-Pirex multisig which has authority to fulfill emergency procedures
+    address public emergencyExecutor;
 
     // In the case of a mass unlock by Convex, the current upCvx would be deprecated
     // and should allow holders to immediately redeem their CVX by burning upCvx
@@ -160,13 +173,10 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         address indexed receiver,
         Futures f
     );
-    event SetPirexCvxMigration(address migrationAddress);
+    event InitializeEmergencyExecutor(address _emergencyExecutor);
+    event SetEmergencyMigration(EmergencyMigration _emergencyMigration);
     event SetUpCvxDeprecated(bool state);
-    event MigrateTokens(
-        address migrationAddress,
-        address[] tokens,
-        uint256[] amounts
-    );
+    event ExecuteEmergencyMigration(address recipient, address[] tokens);
 
     error ZeroAmount();
     error BeforeUnlock();
@@ -182,6 +192,10 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     error MismatchedArrayLengths();
     error NoRewards();
     error RedeemClosed();
+    error AlreadyInitialized();
+    error NoEmergencyExecutor();
+    error InvalidEmergencyMigration();
+    error NotAuthorized();
 
     /**
         @param  _CVX                     address  CVX address    
@@ -286,64 +300,6 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
         unionPirex = UnionPirexVault(contractAddress);
         pxCvxERC20.safeApprove(address(unionPirex), type(uint256).max);
-    }
-
-    /** 
-        @notice Set pirexCvxMigration address
-        @param  _pirexCvxMigration  address  PirexCvxMigration address
-     */
-    function setPirexCvxMigration(address _pirexCvxMigration)
-        external
-        onlyOwner
-        whenPaused
-    {
-        if (_pirexCvxMigration == address(0)) revert ZeroAddress();
-
-        pirexCvxMigration = _pirexCvxMigration;
-
-        emit SetPirexCvxMigration(pirexCvxMigration);
-    }
-
-    /**
-        @notice Withdraw ERC20 tokens to the pirexCvxMigration address in case of emergency
-        @param  tokens  address[]  Token addresses
-     */
-    function emergencyMigrateTokens(address[] calldata tokens)
-        external
-        onlyOwner
-        whenPaused
-    {
-        if (pirexCvxMigration == address(0)) revert ZeroAddress();
-
-        uint256 tLen = tokens.length;
-        if (tLen == 0) revert EmptyArray();
-        uint256[] memory amounts = new uint256[](tLen);
-
-        for (uint256 i; i < tLen; ++i) {
-            uint256 amount = ERC20(tokens[i]).balanceOf(address(this));
-
-            // If it's CVX, make sure we take into account the outstandingRedemptions
-            if (tokens[i] == address(CVX)) {
-                amount -= outstandingRedemptions;
-            }
-
-            if (amount == 0) revert ZeroAmount();
-
-            amounts[i] = amount;
-            ERC20(tokens[i]).safeTransfer(pirexCvxMigration, amount);
-        }
-
-        emit MigrateTokens(pirexCvxMigration, tokens, amounts);
-    }
-
-    /**
-        @notice Set whether the currently set upCvx is deprecated or not
-        @param  state  bool  Deprecation state
-     */
-    function setUpCvxDeprecated(bool state) external onlyOwner whenPaused {
-        upCvxDeprecated = state;
-
-        emit SetUpCvxDeprecated(state);
     }
 
     /** 
@@ -976,5 +932,85 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
         // Validates `to`
         futuresOut.mint(receiver, epoch, amount, UNUSED_1155_DATA);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        EMERGENCY/MIGRATION LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /** 
+        @notice Initialize the emergency executor address
+        @param  _emergencyExecutor  address  Non-Pirex multisig
+     */
+    function initializeEmergencyExecutor(address _emergencyExecutor)
+        external
+        onlyOwner
+        whenPaused
+    {
+        if (_emergencyExecutor == address(0)) revert ZeroAddress();
+        if (emergencyExecutor != address(0)) revert AlreadyInitialized();
+
+        emergencyExecutor = _emergencyExecutor;
+
+        emit InitializeEmergencyExecutor(_emergencyExecutor);
+    }
+
+    /** 
+        @notice Set the emergency migration data
+        @param  _emergencyMigration  EmergencyMigration  Emergency migration data
+     */
+    function setEmergencyMigration(
+        EmergencyMigration calldata _emergencyMigration
+    ) external onlyOwner whenPaused {
+        if (emergencyExecutor == address(0)) revert NoEmergencyExecutor();
+        if (_emergencyMigration.recipient == address(0))
+            revert InvalidEmergencyMigration();
+        if (_emergencyMigration.tokens.length == 0)
+            revert InvalidEmergencyMigration();
+
+        emergencyMigration = _emergencyMigration;
+
+        emit SetEmergencyMigration(_emergencyMigration);
+    }
+
+    /** 
+        @notice Execute the emergency migration
+     */
+    function executeEmergencyMigration() external whenPaused {
+        if (msg.sender != emergencyExecutor) revert NotAuthorized();
+
+        address migrationRecipient = emergencyMigration.recipient;
+        if (migrationRecipient == address(0))
+            revert InvalidEmergencyMigration();
+
+        address[] memory migrationTokens = emergencyMigration.tokens;
+        uint256 tLen = migrationTokens.length;
+        if (tLen == 0) revert InvalidEmergencyMigration();
+
+        uint256 o = outstandingRedemptions;
+
+        for (uint256 i; i < tLen; ++i) {
+            ERC20 token = ERC20(migrationTokens[i]);
+            uint256 balance = token.balanceOf(address(this));
+
+            if (token == CVX) {
+                // Transfer the diff between CVX balance and outstandingRedemptions
+                balance = balance > o ? balance - o : 0;
+            }
+
+            token.safeTransfer(migrationRecipient, balance);
+        }
+
+        emit ExecuteEmergencyMigration(migrationRecipient, migrationTokens);
+    }
+
+    /**
+        @notice Set whether the currently set upCvx is deprecated or not
+        @param  state  bool  Deprecation state
+     */
+    function setUpCvxDeprecated(bool state) external onlyOwner whenPaused {
+        upCvxDeprecated = state;
+
+        emit SetUpCvxDeprecated(state);
     }
 }
