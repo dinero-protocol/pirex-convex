@@ -132,29 +132,37 @@ contract UnionPirexStaking is Ownable {
         // Rewards transferred directly to this contract are not added to _totalSupply
         // To get the rewards w/o relying on a potentially incorrect passed in arg,
         // we can use the difference between the token balance and _totalSupply
-        uint256 reward = token.balanceOf(address(this)) - _totalSupply;
+        uint256 rewardBalance = token.balanceOf(address(this)) - _totalSupply;
 
         if (block.timestamp >= periodFinish) {
-            rewardRate = reward / rewardsDuration;
+            // Deduct earned rewards so that they are not doubly distributed
+            uint256 newRewards = rewardBalance - earned();
+            require(newRewards > rewardsDuration, "No rewards");
+
+            rewardRate = newRewards / rewardsDuration;
         } else {
             uint256 remaining = periodFinish - block.timestamp;
             uint256 leftover = remaining * rewardRate;
-            rewardRate = (reward + leftover) / rewardsDuration;
+
+            // Deduct previous rewards transfer so that they are not doubly distributed
+            uint256 newRewards = rewardBalance - (leftover + earned());
+            require(newRewards > rewardsDuration, "No rewards");
+
+            rewardRate = (newRewards + leftover) / rewardsDuration;
         }
 
         // Ensure the provided reward amount is not more than the balance in the contract.
         // This keeps the reward rate in the right range, preventing overflows due to
         // very high values of rewardRate in the earned and rewardsPerToken functions;
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        uint256 balance = token.balanceOf(address(this));
         require(
-            rewardRate <= balance / rewardsDuration,
+            rewardRate <= rewardBalance / rewardsDuration,
             "Provided reward too high"
         );
 
         lastUpdateTime = block.timestamp;
         periodFinish = block.timestamp + rewardsDuration;
-        emit RewardAdded(reward);
+        emit RewardAdded(rewardBalance);
     }
 
     // Added to support recovering LP Rewards from other systems such as BAL to be distributed to holders
