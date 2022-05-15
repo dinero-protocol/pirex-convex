@@ -26,7 +26,7 @@ contract UnionPirexStrategyMock is UnionPirexStrategy {
         onlyDistributor
         updateReward(address(0))
     {
-        // @NOTE: Comments pre-fixed with NOTE will detail issues while preserving code
+        // @NOTE: Comments starting with NOTE will detail issues while preserving code
 
         // Rewards transferred directly to this contract are not added to _totalSupply
         // To get the rewards w/o relying on a potentially incorrect passed in arg,

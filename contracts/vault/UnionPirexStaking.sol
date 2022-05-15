@@ -25,7 +25,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
     - Add `totalSupplyWithRewards` method to save gas as _totalSupply + rewards are accessed by vault
     - Updated `notifyRewardsAmount`
         - Remove the method parameter and compute the reward amount inside the function
-        - Handle `rewardRate` computations differently based on the timestamp and `periodFinish`
+        - Remove the conditional logic since we will always distribute the rewards balance
         - Remove overflow check since the caller cannot pass in the reward amount
 */
 contract UnionPirexStaking is Ownable {
@@ -135,31 +135,19 @@ contract UnionPirexStaking is Ownable {
     {
         // Rewards transferred directly to this contract are not added to _totalSupply
         // To get the rewards w/o relying on a potentially incorrect passed in arg,
-        // we can use the difference between the token balance and _totalSupply
-        uint256 rewardBalance = token.balanceOf(address(this)) - _totalSupply;
-        uint256 newRewards;
+        // we can use the difference between the token balance and _totalSupply.
+        // Additionally, to avoid re-distributing rewards, deduct the output of `earned`
+        uint256 rewardBalance = token.balanceOf(address(this)) -
+            _totalSupply -
+            earned();
 
-        if (block.timestamp >= periodFinish) {
-            // Deduct earned rewards so that they are not doubly distributed
-            newRewards = rewardBalance - earned();
-            require(newRewards > rewardsDuration, "No rewards");
-
-            rewardRate = newRewards / rewardsDuration;
-        } else {
-            uint256 remaining = periodFinish - block.timestamp;
-            uint256 leftover = remaining * rewardRate;
-
-            // Deduct previous rewards so that they are not doubly distributed
-            newRewards = rewardBalance - (leftover + earned());
-            require(newRewards > rewardsDuration, "No rewards");
-
-            rewardRate = (newRewards + leftover) / rewardsDuration;
-        }
+        rewardRate = rewardBalance / rewardsDuration;
+        require(rewardRate != 0, "No rewards");
 
         lastUpdateTime = block.timestamp;
         periodFinish = block.timestamp + rewardsDuration;
 
-        emit RewardAdded(newRewards);
+        emit RewardAdded(rewardBalance);
     }
 
     // Added to support recovering LP Rewards from other systems such as BAL to be distributed to holders

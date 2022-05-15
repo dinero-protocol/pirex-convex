@@ -60,19 +60,6 @@ contract UnionPirexStrategy is Test, HelperContract {
     }
 
     /**
-        @notice Test tx reversion if no new rewards were transferred before period finishes
-     */
-    function testCannotNotifyRewardAmountNoRewardsBeforePeriodFinish()
-        external
-    {
-        _mintAndTransferRewards(seedAmount);
-        unionPirexStrategy.notifyRewardAmount();
-        vm.warp(block.timestamp + 1);
-        vm.expectRevert(NO_REWARDS_ERROR_MSG);
-        unionPirexStrategy.notifyRewardAmount();
-    }
-
-    /**
         @notice Test tx reversion if no new rewards were transferred after period finishes
      */
     function testCannotNotifyRewardAmountAfterPeriodFinish() external {
