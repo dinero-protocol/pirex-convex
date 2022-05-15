@@ -23,6 +23,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
     - Remove `onlyVault` modifier from getReward
     - Remove ReentrancyGuard as it is no longer needed
     - Add `totalSupplyWithRewards` method to save gas as _totalSupply + rewards are accessed by vault
+    - Updated `notifyRewardsAmount`
+        - Remove the method parameter and compute the reward amount inside the function
+        - Handle `rewardRate` computations differently based on the timestamp and `periodFinish`
+        - Remove overflow check since the caller cannot pass in the reward amount
 */
 contract UnionPirexStaking is Ownable {
     using SafeTransferLib for ERC20;
@@ -144,21 +148,12 @@ contract UnionPirexStaking is Ownable {
             uint256 remaining = periodFinish - block.timestamp;
             uint256 leftover = remaining * rewardRate;
 
-            // Deduct previous rewards transfer so that they are not doubly distributed
+            // Deduct previous rewards so that they are not doubly distributed
             uint256 newRewards = rewardBalance - (leftover + earned());
             require(newRewards > rewardsDuration, "No rewards");
 
             rewardRate = (newRewards + leftover) / rewardsDuration;
         }
-
-        // Ensure the provided reward amount is not more than the balance in the contract.
-        // This keeps the reward rate in the right range, preventing overflows due to
-        // very high values of rewardRate in the earned and rewardsPerToken functions;
-        // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        require(
-            rewardRate <= rewardBalance / rewardsDuration,
-            "Provided reward too high"
-        );
 
         lastUpdateTime = block.timestamp;
         periodFinish = block.timestamp + rewardsDuration;
