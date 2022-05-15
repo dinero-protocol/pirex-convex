@@ -137,10 +137,11 @@ contract UnionPirexStaking is Ownable {
         // To get the rewards w/o relying on a potentially incorrect passed in arg,
         // we can use the difference between the token balance and _totalSupply
         uint256 rewardBalance = token.balanceOf(address(this)) - _totalSupply;
+        uint256 newRewards;
 
         if (block.timestamp >= periodFinish) {
             // Deduct earned rewards so that they are not doubly distributed
-            uint256 newRewards = rewardBalance - earned();
+            newRewards = rewardBalance - earned();
             require(newRewards > rewardsDuration, "No rewards");
 
             rewardRate = newRewards / rewardsDuration;
@@ -149,7 +150,7 @@ contract UnionPirexStaking is Ownable {
             uint256 leftover = remaining * rewardRate;
 
             // Deduct previous rewards so that they are not doubly distributed
-            uint256 newRewards = rewardBalance - (leftover + earned());
+            newRewards = rewardBalance - (leftover + earned());
             require(newRewards > rewardsDuration, "No rewards");
 
             rewardRate = (newRewards + leftover) / rewardsDuration;
@@ -157,7 +158,8 @@ contract UnionPirexStaking is Ownable {
 
         lastUpdateTime = block.timestamp;
         periodFinish = block.timestamp + rewardsDuration;
-        emit RewardAdded(rewardBalance);
+
+        emit RewardAdded(newRewards);
     }
 
     // Added to support recovering LP Rewards from other systems such as BAL to be distributed to holders
