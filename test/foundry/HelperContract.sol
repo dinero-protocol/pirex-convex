@@ -2,6 +2,7 @@
 pragma solidity 0.8.12;
 
 import "forge-std/Test.sol";
+import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {PirexCvxMock} from "contracts/mocks/PirexCvxMock.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
@@ -20,7 +21,7 @@ interface IConvexToken is IERC20 {
     function totalSupply() external view override returns (uint256);
 }
 
-abstract contract HelperContract is Test {
+abstract contract HelperContract is Test, ERC20("Test", "TEST", 18) {
     IConvexToken public constant CVX =
         IConvexToken(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
     ICvxLocker public constant CVX_LOCKER =
@@ -180,5 +181,24 @@ abstract contract HelperContract is Test {
             memory votiumRewards = new PirexCvx.VotiumReward[](1);
         votiumRewards[0] = votiumReward;
         pirexCvx.claimVotiumRewards(votiumRewards);
+    }
+
+    /**
+        @notice Mint reward assets, set merkle root, and claim rewards for Pirex token holders
+        @param  assets  uint256  Total reward assets to mint
+     */
+    function _distributeEpochRewards(uint256 assets) internal {
+        // Mint TEST tokens
+        _mint(address(this), assets);
+
+        // Transfer to Votium and update metadata
+        _loadRewards(
+            address(this),
+            assets,
+            keccak256(abi.encodePacked(uint256(0), address(pirexCvx), assets))
+        );
+
+        // Claim reward for PirexCvx, resulting in reward data updating for token holders
+        _claimSingleReward(address(this), assets);
     }
 }

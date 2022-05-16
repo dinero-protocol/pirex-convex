@@ -2,12 +2,11 @@
 pragma solidity 0.8.12;
 
 import "forge-std/Test.sol";
-import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
 import {HelperContract} from "./HelperContract.sol";
 
-contract PirexCvxEmergency is Test, ERC20("Test", "TEST", 18), HelperContract {
+contract PirexCvxEmergency is Test, HelperContract {
     PirexCvx.EmergencyMigration private e;
 
     event InitializeEmergencyExecutor(address _emergencyExecutor);

@@ -2,7 +2,6 @@
 pragma solidity 0.8.12;
 
 import "forge-std/Test.sol";
-import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {PirexCvxMock} from "contracts/mocks/PirexCvxMock.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
@@ -11,7 +10,7 @@ import {ERC1155PresetMinterSupply} from "contracts/tokens/ERC1155PresetMinterSup
 import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
 import {HelperContract} from "./HelperContract.sol";
 
-contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
+contract PirexCvxTest is Test, HelperContract {
     /**
         @notice Stake pxCVX and mint rpCVX based on input parameters
         @param  rounds  uint256  Rounds
@@ -100,25 +99,6 @@ contract PirexCvxTest is Test, ERC20("Test", "TEST", 18), HelperContract {
             // Set secondaryAccount balance to zero so we can easily test future redeemed totals
             balanceOf[secondaryAccount] = 0;
         }
-    }
-
-    /**
-        @notice Mint reward assets, set merkle root, and claim rewards for Pirex token holders
-        @param  assets  uint256  Total reward assets to mint
-     */
-    function _distributeEpochRewards(uint256 assets) internal {
-        // Mint TEST tokens
-        _mint(address(this), assets);
-
-        // Transfer to Votium and update metadata
-        _loadRewards(
-            address(this),
-            assets,
-            keccak256(abi.encodePacked(uint256(0), address(pirexCvx), assets))
-        );
-
-        // Claim reward for PirexCvx, resulting in reward data updating for token holders
-        _claimSingleReward(address(this), assets);
     }
 
     /**
