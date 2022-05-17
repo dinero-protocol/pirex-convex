@@ -4,6 +4,7 @@ pragma solidity 0.8.12;
 import "forge-std/Test.sol";
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {PirexCvxMock} from "contracts/mocks/PirexCvxMock.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
@@ -21,7 +22,7 @@ interface IConvexToken is IERC20 {
     function totalSupply() external view override returns (uint256);
 }
 
-abstract contract HelperContract is Test, ERC20("Test", "TEST", 18) {
+abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
     IConvexToken public constant CVX =
         IConvexToken(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
     ICvxLocker public constant CVX_LOCKER =
