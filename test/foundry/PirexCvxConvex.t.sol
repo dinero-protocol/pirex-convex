@@ -8,7 +8,7 @@ import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
 import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
 import {HelperContract} from "./HelperContract.sol";
-import {ICvxLocker} from "contracts/interfaces/ICvxLocker.sol";
+import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
 
 contract PirexCvxConvexTest is Test, HelperContract {
     /**
@@ -88,7 +88,7 @@ contract PirexCvxConvexTest is Test, HelperContract {
             vm.warp(block.timestamp + EPOCH_DURATION * (i + 1));
         }
 
-        (, , , ICvxLocker.LockedBalance[] memory lockData) = CVX_LOCKER
+        (, , , CvxLockerV2.LockedBalance[] memory lockData) = CVX_LOCKER
             .lockedBalances(address(pirexCvx));
         uint256 lockLen = lockData.length;
 

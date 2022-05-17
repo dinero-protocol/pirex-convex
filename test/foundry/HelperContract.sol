@@ -14,7 +14,7 @@ import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
 import {UnionPirexVault} from "contracts/vault/UnionPirexVault.sol";
 import {UnionPirexStrategyMock} from "contracts/mocks/UnionPirexStrategyMock.sol";
 import {MultiMerkleStash} from "contracts/mocks/MultiMerkleStash.sol";
-import {ICvxLocker} from "contracts/interfaces/ICvxLocker.sol";
+import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
 
 interface IConvexToken is IERC20 {
     function mint(address _to, uint256 _amount) external;
@@ -25,8 +25,8 @@ interface IConvexToken is IERC20 {
 abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
     IConvexToken public constant CVX =
         IConvexToken(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
-    ICvxLocker public constant CVX_LOCKER =
-        ICvxLocker(0x72a19342e8F1838460eBFCCEf09F6585e32db86E);
+    CvxLockerV2 public constant CVX_LOCKER =
+        CvxLockerV2(0x72a19342e8F1838460eBFCCEf09F6585e32db86E);
 
     address public constant CVX_DELEGATE_REGISTRY =
         0x469788fE6E9E9681C6ebF3bF78e7Fd26Fc015446;

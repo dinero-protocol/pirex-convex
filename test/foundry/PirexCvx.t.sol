@@ -121,6 +121,10 @@ contract PirexCvxTest is Test, HelperContract {
         vm.assume(stakePercent < 255);
     }
 
+    /*//////////////////////////////////////////////////////////////
+                        redeemFuturesRewards TESTS
+    //////////////////////////////////////////////////////////////*/
+
     /**
         @notice Fuzz the patched version of redeemFuturesRewards to verify now correctly implemented
         @param  rounds        uint256  Number of staking rounds
@@ -286,5 +290,29 @@ contract PirexCvxTest is Test, HelperContract {
 
             vm.warp(block.timestamp + EPOCH_DURATION);
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        claimMiscRewards TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Not the actual method itself but relevant due to the fatal issue of
+                duplicate reward tokens rendering the misc. rewards forever unclaimable.
+                This test verifies that the issue is not a realistic concern, as dupe
+                tokens cannot be added via the CvxLockerV2's addReward method
+     */
+    function testCannotAddRewardDuplicate() external {
+        vm.startPrank(CVX_LOCKER.owner());
+
+        // Successfully added the first time
+        CVX_LOCKER.addReward(address(this), address(this), false);
+
+        vm.expectRevert();
+
+        // Reverts due to `lastUpdateTime` being set for the token (previous call)
+        CVX_LOCKER.addReward(address(this), address(this), false);
+
+        vm.stopPrank();
     }
 }
