@@ -21,13 +21,11 @@ contract PirexFeesTest is Test, HelperContract {
         returns (bytes memory)
     {
         return
-            bytes(
-                abi.encodePacked(
-                    "AccessControl: account ",
-                    Strings.toHexString(uint160(target), 20),
-                    " is missing role ",
-                    Strings.toHexString(uint256(role), 32)
-                )
+            abi.encodePacked(
+                "AccessControl: account ",
+                Strings.toHexString(uint160(target), 20),
+                " is missing role ",
+                Strings.toHexString(uint256(role), 32)
             );
     }
 
@@ -266,12 +264,11 @@ contract PirexFeesTest is Test, HelperContract {
         CVX.approve(address(pirexFees), amount);
 
         // Grant distributor role to the primary account so it can call the distributeFees method
-        pirexFees.grantFeeDistributorRole(PRIMARY_ACCOUNT);
+        pirexFees.grantFeeDistributorRole(address(this));
 
         vm.expectEmit(false, false, false, true);
         emit DistributeFees(token, amount);
 
-        vm.prank(PRIMARY_ACCOUNT);
         pirexFees.distributeFees(from, token, amount);
 
         uint256 expectedTreasuryFees = (amount * pirexFees.treasuryPercent()) /
