@@ -2,7 +2,6 @@
 pragma solidity 0.8.12;
 
 import "forge-std/Test.sol";
-import {Counters} from "@openzeppelin/contracts/utils/Counters.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
 import {Bytes32AddressLib} from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
 import {HelperContract} from "./HelperContract.sol";
@@ -167,13 +166,13 @@ contract PxCvxTest is Test, HelperContract {
     /**
         @notice Test adding new epoch reward metadata
         @param  count           uint256  Number of reward records
-        @param  snapshotReward  uint256  Snapshot reward amount
-        @param  futuresReward   uint256  Futures reward amount
+        @param  snapshotReward  uint72   Snapshot reward amount
+        @param  futuresReward   uint72   Futures reward amount
      */
     function testAddEpochRewardMetadata(
         uint256 count,
-        uint256 snapshotReward,
-        uint256 futuresReward
+        uint72 snapshotReward,
+        uint72 futuresReward
     ) external {
         vm.assume(count > 0 && count < 5);
         vm.assume(snapshotReward < 100e18);
@@ -368,13 +367,12 @@ contract PxCvxTest is Test, HelperContract {
     /**
         @notice Test updating epoch future rewards
         @param  count           uint256  Number of reward records
-        @param  futuresReward   uint256  Futures reward amount
+        @param  futuresReward   uint72   Futures reward amount
      */
-    function testUpdateEpochFuturesRewards(uint256 count, uint256 futuresReward)
+    function testUpdateEpochFuturesRewards(uint256 count, uint72 futuresReward)
         external
     {
         vm.assume(count > 0 && count < 5);
-        vm.assume(futuresReward < 100e18);
 
         address token = address(CVX);
         uint256 snapshotReward = 100e18;
