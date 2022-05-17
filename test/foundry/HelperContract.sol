@@ -54,10 +54,7 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
 
     constructor() {
         pxCvx = new PxCvx();
-
         pirexFees = new PirexFees(msg.sender, msg.sender);
-        UnionPirexVault unionPirex = new UnionPirexVault(address(pxCvx));
-
         spCvx = new ERC1155Solmate();
         upCvx = new ERC1155Solmate();
         vpCvx = new ERC1155PresetMinterSupply("");
@@ -75,6 +72,7 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
             VOTIUM_MULTI_MERKLE_STASH
         );
 
+        UnionPirexVault unionPirex = new UnionPirexVault(address(pxCvx));
         UnionPirexStrategy unionPirexStrategy = new UnionPirexStrategy(
             address(pirexCvx),
             address(pxCvx),

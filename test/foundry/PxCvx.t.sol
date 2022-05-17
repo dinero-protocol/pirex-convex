@@ -42,6 +42,7 @@ contract PxCvxTest is Test, HelperContract {
     function testCannotSetOperatorNotOwner() external {
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(secondaryAccounts[0]);
+
         testPxCvx.setOperator(address(this));
     }
 
@@ -50,6 +51,7 @@ contract PxCvxTest is Test, HelperContract {
      */
     function testCannotSetOperatorZeroAddress() external {
         vm.expectRevert(PxCvx.ZeroAddress.selector);
+
         testPxCvx.setOperator(address(0));
     }
 
@@ -64,10 +66,12 @@ contract PxCvxTest is Test, HelperContract {
 
         // Should emit the following event and set the operator
         vm.expectEmit(false, false, false, true);
+
         emit SetOperator(operator);
+
         testPxCvx.setOperator(operator);
 
-        _assertEqSnapshotIds(uint256(1));
+        _assertEqSnapshotIds(1);
         assertEq(testPxCvx.operator(), operator);
     }
 
@@ -126,10 +130,14 @@ contract PxCvxTest is Test, HelperContract {
     function testGetEpoch() external {
         assertEq(pxCvx.getCurrentSnapshotId(), 1);
 
-        // Distribute rewards so we can check epoch data
+        // Deposit CVX so that rewards can be calculated
         _mintAndDepositCVX(1e18, address(this), true, true);
+
+        // The amount of rewards claimed and stored in the struct
+        uint256 rewardAmount = 1e18;
+
         vm.warp(block.timestamp + EPOCH_DURATION);
-        _distributeEpochRewards(1e18);
+        _distributeEpochRewards(rewardAmount);
 
         (
             uint256 snapshotId,
@@ -147,7 +155,8 @@ contract PxCvxTest is Test, HelperContract {
         assertEq(address(uint160(bytes20(rewards[0]))), address(this));
         assertEq(
             snapshotRewards[0],
-            1e18 - ((1e18 * rewardFee) / pirexCvx.FEE_DENOMINATOR())
+            rewardAmount -
+                ((rewardAmount * rewardFee) / pirexCvx.FEE_DENOMINATOR())
         );
     }
 
@@ -216,16 +225,13 @@ contract PxCvxTest is Test, HelperContract {
 
     /**
         @notice Test setting epoch redeemed snapshot rewards bitmap
-        @param  redeemed   uint256  Redeemed bitmap
+        @param  redeemed  uint256  Redeemed bitmap
      */
-    function testSetEpochRedeemedSnapshotRewards(uint256 redeemed) external {
-        vm.assume(redeemed < 65535);
-
+    function testSetEpochRedeemedSnapshotRewards(uint16 redeemed) external {
         uint256 epoch = testPxCvx.getCurrentEpoch();
         address account = secondaryAccounts[0];
 
         testPxCvx.setOperator(address(this));
-
         testPxCvx.setEpochRedeemedSnapshotRewards(account, epoch, redeemed);
 
         assertEq(
@@ -244,11 +250,12 @@ contract PxCvxTest is Test, HelperContract {
      */
     function testGetEpochRedeemedSnapshotRewards() external {
         address account = address(this);
-        uint256 expectedRedeemed = 1;
 
         // Distribute rewards so we can check epoch data
         _mintAndDepositCVX(1e18, account, false, true);
+
         vm.warp(block.timestamp + EPOCH_DURATION);
+
         _distributeEpochRewards(1e18);
 
         uint256 epoch = pxCvx.getCurrentEpoch();
@@ -261,10 +268,7 @@ contract PxCvxTest is Test, HelperContract {
         rewardIndexes[0] = 0;
         pirexCvx.redeemSnapshotRewards(epoch, rewardIndexes, account);
 
-        assertEq(
-            pxCvx.getEpochRedeemedSnapshotRewards(account, epoch),
-            expectedRedeemed
-        );
+        assertEq(pxCvx.getEpochRedeemedSnapshotRewards(account, epoch), 1);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -280,6 +284,7 @@ contract PxCvxTest is Test, HelperContract {
         rewards[0] = 1;
 
         vm.expectRevert(PxCvx.NotAuthorized.selector);
+
         testPxCvx.updateEpochFuturesRewards(epoch, rewards);
     }
 
@@ -295,11 +300,14 @@ contract PxCvxTest is Test, HelperContract {
 
         // Invalid epoch on epoch = 0
         vm.expectRevert(PxCvx.InvalidEpoch.selector);
+
         testPxCvx.updateEpochFuturesRewards(epoch, rewards);
 
         // Invalid epoch on epoch doesn't have any rewards prior to the call
         epoch = testPxCvx.getCurrentEpoch();
+
         vm.expectRevert(PxCvx.InvalidEpoch.selector);
+
         testPxCvx.updateEpochFuturesRewards(epoch, rewards);
     }
 
@@ -316,6 +324,7 @@ contract PxCvxTest is Test, HelperContract {
 
         // Add initial rewards
         address token = address(CVX);
+
         testPxCvx.addEpochRewardMetadata(
             epoch,
             token.fillLast12Bytes(),
@@ -324,6 +333,7 @@ contract PxCvxTest is Test, HelperContract {
         );
 
         vm.expectRevert(PxCvx.InvalidFuturesRewards.selector);
+
         testPxCvx.updateEpochFuturesRewards(epoch, rewards);
     }
 
@@ -342,6 +352,7 @@ contract PxCvxTest is Test, HelperContract {
 
         // Add initial rewards with less reward count
         address token = address(CVX);
+
         testPxCvx.addEpochRewardMetadata(
             epoch,
             token.fillLast12Bytes(),
@@ -350,6 +361,7 @@ contract PxCvxTest is Test, HelperContract {
         );
 
         vm.expectRevert(PxCvx.MismatchedFuturesRewards.selector);
+
         testPxCvx.updateEpochFuturesRewards(epoch, rewards);
     }
 
@@ -391,14 +403,13 @@ contract PxCvxTest is Test, HelperContract {
 
         for (uint256 i; i < count; ++i) {
             assertEq(initialFuturesRewards[i], futuresRewardAmounts[i]);
-        }
 
-        // Populate the new values for future rewards before updating it
-        for (uint256 i; i < count; ++i) {
+            // Populate the new values for future rewards before updating it
             futuresRewardAmounts[i] = futuresReward * (i + 1);
         }
 
         vm.expectEmit(false, false, false, true);
+
         emit UpdateEpochFuturesRewards(epoch, futuresRewardAmounts);
 
         testPxCvx.updateEpochFuturesRewards(epoch, futuresRewardAmounts);
@@ -419,6 +430,7 @@ contract PxCvxTest is Test, HelperContract {
      */
     function testCannotMintNotAuthorized() external {
         vm.expectRevert(PxCvx.NotAuthorized.selector);
+
         testPxCvx.mint(address(this), 1);
     }
 
@@ -429,6 +441,7 @@ contract PxCvxTest is Test, HelperContract {
         testPxCvx.setOperator(address(this));
 
         vm.expectRevert(PxCvx.ZeroAddress.selector);
+
         testPxCvx.mint(address(0), 1);
     }
 
@@ -439,22 +452,25 @@ contract PxCvxTest is Test, HelperContract {
         testPxCvx.setOperator(address(this));
 
         vm.expectRevert(PxCvx.ZeroAmount.selector);
+
         testPxCvx.mint(address(this), 0);
     }
 
     /**
         @notice Test minting PxCvx tokens
-        @param  amount  uint256  Amount of tokens to be minted
+        @param  amount  uint72  Amount of tokens to be minted
      */
-    function testMint(uint256 amount) external {
-        vm.assume(amount > 0 && amount < 1000e18);
+    function testMint(uint72 amount) external {
+        vm.assume(amount != 0);
 
         address account = address(this);
 
         testPxCvx.setOperator(address(this));
 
         assertEq(testPxCvx.balanceOf(account), 0);
+
         testPxCvx.mint(account, amount);
+
         assertEq(testPxCvx.balanceOf(account), amount);
     }
 
@@ -467,6 +483,7 @@ contract PxCvxTest is Test, HelperContract {
      */
     function testCannotBurnNotAuthorized() external {
         vm.expectRevert(PxCvx.NotAuthorized.selector);
+
         testPxCvx.burn(address(this), 1);
     }
 
@@ -477,6 +494,7 @@ contract PxCvxTest is Test, HelperContract {
         testPxCvx.setOperator(address(this));
 
         vm.expectRevert(PxCvx.ZeroAddress.selector);
+
         testPxCvx.burn(address(0), 1);
     }
 
@@ -487,6 +505,7 @@ contract PxCvxTest is Test, HelperContract {
         testPxCvx.setOperator(address(this));
 
         vm.expectRevert(PxCvx.ZeroAmount.selector);
+
         testPxCvx.burn(address(this), 0);
     }
 
@@ -500,15 +519,16 @@ contract PxCvxTest is Test, HelperContract {
         assertEq(testPxCvx.balanceOf(address(this)), 0);
 
         vm.expectRevert(stdError.arithmeticError);
+
         testPxCvx.burn(address(this), 1);
     }
 
     /**
         @notice Test burning PxCvx tokens
-        @param  amount  uint256  Amount of tokens to be burned
+        @param  amount  uint72  Amount of tokens to be burned
      */
-    function testBurn(uint256 amount) external {
-        vm.assume(amount > 0 && amount < 1000e18);
+    function testBurn(uint72 amount) external {
+        vm.assume(amount != 0);
 
         address account = address(this);
 
@@ -516,9 +536,11 @@ contract PxCvxTest is Test, HelperContract {
 
         // Mint proportionate amount of tokens to be burned later
         testPxCvx.mint(account, amount);
+
         assertEq(testPxCvx.balanceOf(account), amount);
 
         testPxCvx.burn(account, amount);
+
         assertEq(testPxCvx.balanceOf(account), 0);
     }
 
@@ -531,6 +553,7 @@ contract PxCvxTest is Test, HelperContract {
      */
     function testCannotOperatorApproveNotAuthorized() external {
         vm.expectRevert(PxCvx.NotAuthorized.selector);
+
         testPxCvx.operatorApprove(address(this), secondaryAccounts[0], 1);
     }
 
@@ -542,10 +565,12 @@ contract PxCvxTest is Test, HelperContract {
 
         // Invalid from/owner address
         vm.expectRevert(PxCvx.ZeroAddress.selector);
+
         testPxCvx.operatorApprove(address(0), secondaryAccounts[0], 1);
 
         // Invalid to/destination address
         vm.expectRevert(PxCvx.ZeroAddress.selector);
+
         testPxCvx.operatorApprove(secondaryAccounts[0], address(0), 1);
     }
 
@@ -556,21 +581,22 @@ contract PxCvxTest is Test, HelperContract {
         testPxCvx.setOperator(address(this));
 
         vm.expectRevert(PxCvx.ZeroAmount.selector);
+
         testPxCvx.operatorApprove(address(this), secondaryAccounts[0], 0);
     }
 
     /**
         @notice Test approving via operator
-        @param  amount  uint256  Amount of tokens to be burned
+        @param  amount  uint72  Amount of tokens to be burned
      */
-    function testOperatorApprove(uint256 amount) external {
-        vm.assume(amount > 0 && amount < 100e18);
+    function testOperatorApprove(uint72 amount) external {
+        vm.assume(amount != 0);
 
         address account = secondaryAccounts[0];
 
         testPxCvx.setOperator(address(this));
-
         testPxCvx.operatorApprove(account, address(this), amount);
+
         assertEq(testPxCvx.allowance(account, address(this)), amount);
     }
 
@@ -583,6 +609,7 @@ contract PxCvxTest is Test, HelperContract {
      */
     function testCannotTakeEpochSnapshotNoOperator() external {
         vm.expectRevert(PxCvx.NoOperator.selector);
+
         testPxCvx.takeEpochSnapshot();
     }
 
@@ -597,6 +624,7 @@ contract PxCvxTest is Test, HelperContract {
 
         vm.expectRevert(PxCvx.Paused.selector);
         vm.prank(secondaryAccounts[0]);
+
         testPxCvx.takeEpochSnapshot();
     }
 
@@ -606,21 +634,23 @@ contract PxCvxTest is Test, HelperContract {
     function testTakeEpochSnapshot() external {
         testPxCvx.setOperator(address(this));
 
-        _assertEqSnapshotIds(uint256(1));
+        _assertEqSnapshotIds(1);
 
         // Should allow non operator to take the snapshot when operator is not paused
         vm.prank(secondaryAccounts[0]);
+
         testPxCvx.takeEpochSnapshot();
 
         // Taking snapshot on the same epoch should not update the snaphot
         testPxCvx.takeEpochSnapshot();
 
-        _assertEqSnapshotIds(uint256(1));
+        _assertEqSnapshotIds(1);
 
         // Taking snapshot after a time skip to the next epoch should update the snapshot
         vm.warp(block.timestamp + EPOCH_DURATION);
+
         testPxCvx.takeEpochSnapshot();
 
-        _assertEqSnapshotIds(uint256(2));
+        _assertEqSnapshotIds(2);
     }
 }
