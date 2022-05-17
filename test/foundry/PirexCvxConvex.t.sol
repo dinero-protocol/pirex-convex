@@ -2,7 +2,6 @@
 pragma solidity 0.8.12;
 
 import "forge-std/Test.sol";
-import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {PirexCvxMock} from "contracts/mocks/PirexCvxMock.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
