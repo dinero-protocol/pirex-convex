@@ -44,6 +44,7 @@ abstract contract HelperContract is Test {
     ERC1155PresetMinterSupply public immutable rpCvx;
     UnionPirexVault public immutable unionPirex;
     UnionPirexStrategyMock public immutable unionPirexStrategy;
+    PirexFees public immutable pirexFees;
 
     address[3] public secondaryAccounts = [
         0x6Ecbe1DB9EF729CBe972C83Fb886247691Fb6beb,
@@ -53,9 +54,7 @@ abstract contract HelperContract is Test {
 
     constructor() {
         pxCvx = new PxCvx();
-
-        PirexFees pirexFees = new PirexFees(msg.sender, msg.sender);
-
+        pirexFees = new PirexFees(msg.sender, msg.sender);
         spCvx = new ERC1155Solmate();
         upCvx = new ERC1155Solmate();
         vpCvx = new ERC1155PresetMinterSupply("");
