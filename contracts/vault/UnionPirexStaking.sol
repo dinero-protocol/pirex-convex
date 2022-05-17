@@ -23,6 +23,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
     - Remove `onlyVault` modifier from getReward
     - Remove ReentrancyGuard as it is no longer needed
     - Add `totalSupplyWithRewards` method to save gas as _totalSupply + rewards are accessed by vault
+    - Updated `notifyRewardsAmount`
+        - Remove the method parameter and compute the reward amount inside the function
+        - Remove the conditional logic since we will always distribute the rewards balance
+        - Remove overflow check since the caller cannot pass in the reward amount
 */
 contract UnionPirexStaking is Ownable {
     using SafeTransferLib for ERC20;
@@ -42,7 +46,7 @@ contract UnionPirexStaking is Ownable {
     uint256 public userRewardPerTokenPaid;
     uint256 public rewards;
 
-    uint256 private _totalSupply;
+    uint256 internal _totalSupply;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -131,30 +135,19 @@ contract UnionPirexStaking is Ownable {
     {
         // Rewards transferred directly to this contract are not added to _totalSupply
         // To get the rewards w/o relying on a potentially incorrect passed in arg,
-        // we can use the difference between the token balance and _totalSupply
-        uint256 reward = token.balanceOf(address(this)) - _totalSupply;
+        // we can use the difference between the token balance and _totalSupply.
+        // Additionally, to avoid re-distributing rewards, deduct the output of `earned`
+        uint256 rewardBalance = token.balanceOf(address(this)) -
+            _totalSupply -
+            earned();
 
-        if (block.timestamp >= periodFinish) {
-            rewardRate = reward / rewardsDuration;
-        } else {
-            uint256 remaining = periodFinish - block.timestamp;
-            uint256 leftover = remaining * rewardRate;
-            rewardRate = (reward + leftover) / rewardsDuration;
-        }
-
-        // Ensure the provided reward amount is not more than the balance in the contract.
-        // This keeps the reward rate in the right range, preventing overflows due to
-        // very high values of rewardRate in the earned and rewardsPerToken functions;
-        // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        uint256 balance = token.balanceOf(address(this));
-        require(
-            rewardRate <= balance / rewardsDuration,
-            "Provided reward too high"
-        );
+        rewardRate = rewardBalance / rewardsDuration;
+        require(rewardRate != 0, "No rewards");
 
         lastUpdateTime = block.timestamp;
         periodFinish = block.timestamp + rewardsDuration;
-        emit RewardAdded(reward);
+
+        emit RewardAdded(rewardBalance);
     }
 
     // Added to support recovering LP Rewards from other systems such as BAL to be distributed to holders

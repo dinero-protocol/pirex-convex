@@ -12,7 +12,7 @@ import {PirexFees} from "contracts/PirexFees.sol";
 import {ERC1155PresetMinterSupply} from "contracts/tokens/ERC1155PresetMinterSupply.sol";
 import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
 import {UnionPirexVault} from "contracts/vault/UnionPirexVault.sol";
-import {UnionPirexStrategy} from "contracts/vault/UnionPirexStrategy.sol";
+import {UnionPirexStrategyMock} from "contracts/mocks/UnionPirexStrategyMock.sol";
 import {MultiMerkleStash} from "contracts/mocks/MultiMerkleStash.sol";
 import {ICvxLocker} from "contracts/interfaces/ICvxLocker.sol";
 
@@ -44,6 +44,8 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
     ERC1155Solmate public immutable upCvx;
     ERC1155PresetMinterSupply public immutable vpCvx;
     ERC1155PresetMinterSupply public immutable rpCvx;
+    UnionPirexVault public immutable unionPirex;
+    UnionPirexStrategyMock public immutable unionPirexStrategy;
     PirexFees public immutable pirexFees;
 
     address[3] public secondaryAccounts = [
@@ -71,9 +73,8 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
             address(pirexFees),
             VOTIUM_MULTI_MERKLE_STASH
         );
-
-        UnionPirexVault unionPirex = new UnionPirexVault(address(pxCvx));
-        UnionPirexStrategy unionPirexStrategy = new UnionPirexStrategy(
+        unionPirex = new UnionPirexVault(address(pxCvx));
+        unionPirexStrategy = new UnionPirexStrategyMock(
             address(pirexCvx),
             address(pxCvx),
             address(this),
@@ -97,6 +98,9 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
         upCvx.grantRole(minterRole, address(pirexCvx));
         unionPirex.setPlatform(address(this));
         unionPirex.setStrategy(address(unionPirexStrategy));
+
+        // Set maxSupply to the largest possible value
+        vm.store(address(CVX), bytes32(uint256(7)), bytes32(type(uint256).max));
 
         // Set reductionPerCliff to maxSupply to ensure mint amount is reduced by zero
         vm.store(
