@@ -5,20 +5,21 @@ import "forge-std/Test.sol";
 import {HelperContract} from "./HelperContract.sol";
 
 contract UnionPirexStrategy is Test, HelperContract {
-    uint256 private immutable rewardsDuration;
-    uint256 private seedAmount = 1e18;
+    uint256 private constant SEED_AMOUNT = 1e18;
     bytes private constant NO_REWARDS_ERROR_MSG = bytes("No rewards");
+    
+    uint256 private immutable rewardsDuration;
 
     constructor() {
-        rewardsDuration = unionPirexStrategy.getRewardsDuration();
+        rewardsDuration = unionPirexStrategy.rewardsDuration();
     }
 
     /**
         @notice Mint and deposit CVX into the vault before every test
      */
     function setUp() external {
-        // Deposit CVX to seed vault with a non-zero totalSupply and balance
-        _mintAndDepositCVX(seedAmount, address(this), true, true);
+        // Deposit CVX to seed the vault with a non-zero totalSupply and balance
+        _mintAndDepositCVX(SEED_AMOUNT, address(this), true, true);
     }
 
     /**
@@ -37,7 +38,7 @@ contract UnionPirexStrategy is Test, HelperContract {
                 Problem: When there are no new rewards, it will distribute its pxCVX balance
      */
     function testNotifyRewardAmountProblematic() external {
-        _mintAndTransferRewards(seedAmount);
+        _mintAndTransferRewards(SEED_AMOUNT);
         unionPirexStrategy.notifyRewardAmountProblematic();
 
         // Warp forward to ensure full amount is reflected when calling `earned`
@@ -63,7 +64,7 @@ contract UnionPirexStrategy is Test, HelperContract {
         @notice Test tx reversion if no new rewards were transferred after period finishes
      */
     function testCannotNotifyRewardAmountAfterPeriodFinish() external {
-        _mintAndTransferRewards(seedAmount);
+        _mintAndTransferRewards(SEED_AMOUNT);
         unionPirexStrategy.notifyRewardAmount();
         vm.warp(block.timestamp + rewardsDuration);
         vm.expectRevert(NO_REWARDS_ERROR_MSG);
@@ -89,7 +90,7 @@ contract UnionPirexStrategy is Test, HelperContract {
         external
     {
         vm.assume(newRewards > rewardsDuration);
-        _mintAndTransferRewards(seedAmount);
+        _mintAndTransferRewards(SEED_AMOUNT);
         unionPirexStrategy.notifyRewardAmount();
 
         // Warp forward halfway before period finishes and transfer in new rewards
@@ -120,7 +121,7 @@ contract UnionPirexStrategy is Test, HelperContract {
         // Check that the remaining balance is the sum of rewards and principal sans earned
         assertEq(
             pxCvx.balanceOf(address(unionPirexStrategy)),
-            seedAmount + newRewards + unionPirexStrategy.totalSupply() - earned
+            SEED_AMOUNT + newRewards + unionPirexStrategy.totalSupply() - earned
         );
 
         // Confirm that calling `notifyRewardAmount` again w/o new rewards would revert
@@ -136,7 +137,7 @@ contract UnionPirexStrategy is Test, HelperContract {
         external
     {
         vm.assume(newRewards > rewardsDuration);
-        _mintAndTransferRewards(seedAmount);
+        _mintAndTransferRewards(SEED_AMOUNT);
         unionPirexStrategy.notifyRewardAmount();
 
         // Warp forward to reward period finish and transfer in new rewards
@@ -170,7 +171,7 @@ contract UnionPirexStrategy is Test, HelperContract {
         // Check that the post-reward claimed balance remains in tact
         assertEq(
             pxCvx.balanceOf(address(unionPirexStrategy)),
-            seedAmount + newRewards + unionPirexStrategy.totalSupply() - earned
+            SEED_AMOUNT + newRewards + unionPirexStrategy.totalSupply() - earned
         );
 
         // Confirm that calling `notifyRewardAmount` again w/o new rewards would revert

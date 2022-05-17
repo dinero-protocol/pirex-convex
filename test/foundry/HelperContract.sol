@@ -98,7 +98,7 @@ abstract contract HelperContract is Test {
         unionPirex.setPlatform(address(this));
         unionPirex.setStrategy(address(unionPirexStrategy));
 
-        // Set reductionPerCliff to maxSupply to ensure mint amount is reduced by zero
+        // Set maxSupply to the largest possible value
         vm.store(address(CVX), bytes32(uint256(7)), bytes32(type(uint256).max));
 
         // Set reductionPerCliff to maxSupply to ensure mint amount is reduced by zero

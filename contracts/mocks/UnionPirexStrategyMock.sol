@@ -27,7 +27,6 @@ contract UnionPirexStrategyMock is UnionPirexStrategy {
         updateReward(address(0))
     {
         // @NOTE: Comments starting with NOTE will detail issues while preserving code
-
         // Rewards transferred directly to this contract are not added to _totalSupply
         // To get the rewards w/o relying on a potentially incorrect passed in arg,
         // we can use the difference between the token balance and _totalSupply
@@ -59,9 +58,5 @@ contract UnionPirexStrategyMock is UnionPirexStrategy {
         lastUpdateTime = block.timestamp;
         periodFinish = block.timestamp + rewardsDuration;
         emit RewardAdded(reward);
-    }
-
-    function getRewardsDuration() external pure returns (uint256) {
-        return rewardsDuration;
     }
 }
