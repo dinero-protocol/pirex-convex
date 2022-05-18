@@ -209,4 +209,30 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
         // Claim reward for PirexCvx, resulting in reward data updating for token holders
         _claimSingleReward(address(this), assets);
     }
+
+    /**
+        @notice Validate future notes balances of the specified settings
+        @param  fVal     uint256  Number representation of the futures enum
+        @param  rounds   uint256  Number of rounds
+        @param  account  uint256  Account
+        @param  amount   uint256  Amount
+     */
+    function _validateFutureNotesBalances(
+        uint256 fVal,
+        uint256 rounds,
+        address account,
+        uint256 amount
+    ) internal {
+        uint256 startingEpoch = pirexCvx.getCurrentEpoch() + EPOCH_DURATION;
+        ERC1155PresetMinterSupply fToken = (
+            PirexCvx.Futures(fVal) == PirexCvx.Futures.Reward ? rpCvx : vpCvx
+        );
+
+        for (uint256 i; i < rounds; ++i) {
+            assertEq(
+                fToken.balanceOf(account, startingEpoch + i * EPOCH_DURATION),
+                amount
+            );
+        }
+    }
 }

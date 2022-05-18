@@ -5,8 +5,6 @@ import "forge-std/Test.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
-import {ERC1155PresetMinterSupply} from "contracts/tokens/ERC1155PresetMinterSupply.sol";
-import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
 import {HelperContract} from "./HelperContract.sol";
 import {ICvxLocker} from "contracts/interfaces/ICvxLocker.sol";
 
@@ -64,25 +62,6 @@ contract PirexCvxMainTest is Test, HelperContract {
             unchecked {
                 ++rounds;
             }
-        }
-    }
-
-    function _validateFutureNotesBalances(
-        uint256 fVal,
-        uint256 rounds,
-        address account,
-        uint256 amount
-    ) internal {
-        uint256 startingEpoch = pirexCvx.getCurrentEpoch() + EPOCH_DURATION;
-        ERC1155PresetMinterSupply fToken = (
-            PirexCvx.Futures(fVal) == PirexCvx.Futures.Reward ? rpCvx : vpCvx
-        );
-
-        for (uint256 i; i < rounds; ++i) {
-            assertEq(
-                fToken.balanceOf(account, startingEpoch + i * EPOCH_DURATION),
-                amount
-            );
         }
     }
 
@@ -384,7 +363,7 @@ contract PirexCvxMainTest is Test, HelperContract {
 
     /**
         @notice Test initiating redemption
-        @param  amount  uint72   Amount of assets for deposit
+        @param  amount  uint72   Amount of assets for redemption
         @param  fVal    uint256  Integer representation of the futures enum
      */
     function testInitiateRedemptions(uint72 amount, uint256 fVal) external {
@@ -538,7 +517,7 @@ contract PirexCvxMainTest is Test, HelperContract {
 
     /**
         @notice Test redeeming
-        @param  amount  uint72   Amount of assets for deposit
+        @param  amount  uint72   Amount of assets for redeeming
      */
     function testRedeem(uint72 amount) external {
         // TMP: Should be !=0 after the fee calculation fixes
@@ -552,6 +531,8 @@ contract PirexCvxMainTest is Test, HelperContract {
             // Simulate redemption and calculate unlock time as well as the actual amount after fee
             uint256 unlockTime = _setupRedemption(account, amount, 0);
 
+            uint256 oldOutstandingRedemptions = pirexCvx
+                .outstandingRedemptions();
             uint256 oldCvxBalance = CVX.balanceOf(account);
             uint256 oldUpCvxBalance = upCvx.balanceOf(account, unlockTime);
 
@@ -573,6 +554,10 @@ contract PirexCvxMainTest is Test, HelperContract {
             assertEq(
                 upCvx.balanceOf(account, unlockTime),
                 oldUpCvxBalance - postFeeAmount
+            );
+            assertEq(
+                pirexCvx.outstandingRedemptions(),
+                oldOutstandingRedemptions - postFeeAmount
             );
         }
     }
