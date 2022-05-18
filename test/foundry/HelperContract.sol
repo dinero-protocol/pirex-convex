@@ -256,7 +256,7 @@ abstract contract HelperContract is
         uint256 _id,
         uint256 _value,
         bytes calldata _data
-    ) external override returns (bytes4) {
+    ) external pure override returns (bytes4) {
         return ERC1155TokenReceiver.onERC1155Received.selector;
     }
 
@@ -279,7 +279,7 @@ abstract contract HelperContract is
         uint256[] calldata _ids,
         uint256[] calldata _values,
         bytes calldata _data
-    ) external override returns (bytes4) {
+    ) external pure override returns (bytes4) {
         return ERC1155TokenReceiver.onERC1155BatchReceived.selector;
     }
 }

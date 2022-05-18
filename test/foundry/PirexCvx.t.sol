@@ -480,4 +480,87 @@ contract PirexCvxTest is Test, HelperContract {
             address(this)
         );
     }
+
+    /**
+        @notice Test initiating redemptions with redemption max set to FEE_MAX
+     */
+    function testInitiateRedemptionsForMaxRedemptionMax() external {
+        _resetFees();
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, FEE_MAX);
+
+        (
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        ) = _setUpInitiateRedemptions(1e18);
+        (, uint32 redemptionMax, uint32 redemptionMin) = pirexCvx.getFees();
+
+        assertEq(redemptionMax, FEE_MAX);
+
+        pirexCvx.initiateRedemptions(
+            lockIndexes,
+            PirexCvx.Futures.Reward,
+            redemptionAssets,
+            address(this)
+        );
+    }
+
+    /**
+        @notice Test initiating redemptions with equal redemption fees
+        @param  redemptionFee  uint32  Redemption max and min fees
+     */
+    function testInitiateRedemptionsForEqualRedemptionFees(uint32 redemptionFee)
+        external
+    {
+        vm.assume(redemptionFee < FEE_MAX);
+
+        _resetFees();
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, redemptionFee);
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMin, redemptionFee);
+
+        (
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        ) = _setUpInitiateRedemptions(1e18);
+        (, uint32 redemptionMax, uint32 redemptionMin) = pirexCvx.getFees();
+
+        assertEq(redemptionMax, redemptionMin);
+
+        pirexCvx.initiateRedemptions(
+            lockIndexes,
+            PirexCvx.Futures.Reward,
+            redemptionAssets,
+            address(this)
+        );
+    }
+
+    /**
+        @notice Test fuzzing initiating redemptions with various redemption fees
+        @param  redemptionMaxFee  uint32  Redemption max fee
+        @param  redemptionMinFee  uint32  Redemption min fee
+     */
+    function testInitiateRedemptionsForRedemptionFees(
+        uint32 redemptionMaxFee,
+        uint32 redemptionMinFee
+    ) external {
+        vm.assume(redemptionMaxFee < FEE_MAX);
+        vm.assume(redemptionMinFee < FEE_MAX);
+        vm.assume(redemptionMaxFee > redemptionMinFee);
+
+        _resetFees();
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, redemptionMaxFee);
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMin, redemptionMinFee);
+
+        (
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        ) = _setUpInitiateRedemptions(1e18);
+        (, uint32 redemptionMax, uint32 redemptionMin) = pirexCvx.getFees();
+
+        pirexCvx.initiateRedemptions(
+            lockIndexes,
+            PirexCvx.Futures.Reward,
+            redemptionAssets,
+            address(this)
+        );
+    }
 }
