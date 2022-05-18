@@ -14,6 +14,9 @@ import {HelperContract} from "./HelperContract.sol";
 contract PirexCvxTest is Test, HelperContract {
     uint32 private immutable FEE_MAX;
 
+    event AddDeveloper(address developer);
+    event RemoveDeveloper(address developer);
+
     constructor() {
         FEE_MAX = pirexCvx.FEE_MAX();
     }
@@ -562,5 +565,87 @@ contract PirexCvxTest is Test, HelperContract {
             redemptionAssets,
             address(this)
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        addDeveloper TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reverts if not owner
+     */
+    function testCannotAddDeveloperNotOwner() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(secondaryAccounts[0]);
+
+        pirexCvx.addDeveloper(address(this));
+    }
+
+    /**
+        @notice Test tx reverts if developer arg is zero address
+     */
+    function testCannotAddDeveloperZeroAddress() external {
+        vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
+
+        pirexCvx.addDeveloper(address(0));
+    }
+
+    /**
+        @notice Test add developer
+     */
+    function testAddDeveloper() external {
+        address developer = PRIMARY_ACCOUNT;
+
+        assertEq(pirexCvx.developers(developer), false);
+
+        vm.expectEmit(false, false, false, true);
+
+        emit AddDeveloper(developer);
+
+        pirexCvx.addDeveloper(developer);
+
+        assertEq(pirexCvx.developers(developer), true);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        removeDeveloper TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reverts if not owner
+     */
+    function testCannotRemoveDeveloperNotOwner() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(secondaryAccounts[0]);
+
+        pirexCvx.removeDeveloper(address(this));
+    }
+
+    /**
+        @notice Test tx reverts if developer arg is zero address
+     */
+    function testCannotRemoveDeveloperZeroAddress() external {
+        vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
+
+        pirexCvx.removeDeveloper(address(0));
+    }
+
+    /**
+        @notice Test remove developer
+     */
+    function testRemoveDeveloper() external {
+        address developer = PRIMARY_ACCOUNT;
+
+        pirexCvx.addDeveloper(developer);
+
+        assertEq(pirexCvx.developers(developer), true);
+
+        vm.expectEmit(false, false, false, true);
+
+        emit RemoveDeveloper(developer);
+
+        pirexCvx.removeDeveloper(developer);
+
+        assertEq(pirexCvx.developers(developer), false);
     }
 }

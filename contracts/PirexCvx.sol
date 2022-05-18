@@ -82,6 +82,9 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     // Unused ERC1155 `data` param value
     bytes private constant UNUSED_1155_DATA = "";
 
+    // Whitelisted app developers who are eligible for incentives
+    mapping(address => bool) public developers;
+
     PxCvx public pxCvx;
     PirexFees public pirexFees;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
@@ -109,6 +112,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
     event SetContract(Contract indexed c, address contractAddress);
     event SetFee(Fees indexed f, uint32 fee);
+    event AddDeveloper(address developer);
+    event RemoveDeveloper(address developer);
     event MintFutures(
         uint256 rounds,
         Futures indexed f,
@@ -307,6 +312,30 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         fees[f] = fee;
 
         emit SetFee(f, fee);
+    }
+
+    /** 
+        @notice Add developer to whitelist mapping
+        @param  developer  address  Developer
+     */
+    function addDeveloper(address developer) external onlyOwner {
+        if (developer == address(0)) revert ZeroAddress();
+
+        developers[developer] = true;
+
+        emit AddDeveloper(developer);
+    }
+
+    /** 
+        @notice Add developer to whitelist mapping
+        @param  developer  address  Developer
+     */
+    function removeDeveloper(address developer) external onlyOwner {
+        if (developer == address(0)) revert ZeroAddress();
+
+        developers[developer] = false;
+
+        emit RemoveDeveloper(developer);
     }
 
     /**
