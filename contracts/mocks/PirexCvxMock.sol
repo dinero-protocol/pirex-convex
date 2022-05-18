@@ -117,13 +117,15 @@ contract PirexCvxMock is PirexCvx {
         returns (
             uint32,
             uint32,
+            uint32,
             uint32
         )
     {
         return (
             fees[Fees.Reward],
             fees[Fees.RedemptionMax],
-            fees[Fees.RedemptionMin]
+            fees[Fees.RedemptionMin],
+            fees[Fees.Developers]
         );
     }
 

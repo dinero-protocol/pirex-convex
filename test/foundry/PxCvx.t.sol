@@ -144,7 +144,7 @@ contract PxCvxTest is Test, HelperContract {
             uint256[] memory snapshotRewards,
             uint256[] memory futuresRewards
         ) = pxCvx.getEpoch(pxCvx.getCurrentEpoch());
-        (uint256 rewardFee, , ) = pirexCvx.getFees();
+        (uint256 rewardFee, , , ) = pirexCvx.getFees();
 
         assertEq(pxCvx.getCurrentSnapshotId(), 2);
         assertEq(snapshotId, 2);

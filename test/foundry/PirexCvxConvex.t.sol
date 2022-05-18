@@ -50,7 +50,7 @@ contract PirexCvxConvexTest is Test, HelperContract {
     ) external {
         // Need to ensure assets and redemption amounts are greater than the redemption fee min
         // The issue of errors from rounding down will be addressed in a new PR
-        (, , uint32 redemptionMin) = pirexCvx.getFees();
+        (, , uint32 redemptionMin, ) = pirexCvx.getFees();
 
         vm.assume(assets < 1000e18);
         vm.assume(assets > uint256(redemptionMin));

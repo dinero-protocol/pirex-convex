@@ -63,7 +63,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     enum Fees {
         Reward,
         RedemptionMax,
-        RedemptionMin
+        RedemptionMin,
+        Developers
     }
 
     // Convex voting round duration (1,209,600 seconds)
