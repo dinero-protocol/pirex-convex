@@ -22,7 +22,7 @@ contract PirexCvxEmergency is Test, HelperContract {
         @notice Test tx reversion if caller is not authorized
      */
     function testCannotInitializeEmergencyExecutorNotAuthorized() external {
-        vm.expectRevert(bytes("Ownable: caller is not the owner"));
+        vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(secondaryAccounts[0]);
 
         pirexCvx.initializeEmergencyExecutor(address(this));
@@ -34,7 +34,7 @@ contract PirexCvxEmergency is Test, HelperContract {
     function testCannotInitializeEmergencyExecutorNotPaused() external {
         assertEq(pirexCvx.paused(), false);
 
-        vm.expectRevert(bytes("Pausable: not paused"));
+        vm.expectRevert("Pausable: not paused");
 
         pirexCvx.initializeEmergencyExecutor(address(0));
     }
@@ -88,7 +88,7 @@ contract PirexCvxEmergency is Test, HelperContract {
         @notice Test tx reversion if caller is not authorized
      */
     function testCannotSetEmergencyMigrationNotAuthorized() external {
-        vm.expectRevert(bytes("Ownable: caller is not the owner"));
+        vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(secondaryAccounts[0]);
 
         pirexCvx.setEmergencyMigration(e);
@@ -182,7 +182,7 @@ contract PirexCvxEmergency is Test, HelperContract {
     function testCannotExecuteEmergencyMigrationNotPaused() external {
         assertEq(pirexCvx.paused(), false);
 
-        vm.expectRevert(bytes("Pausable: not paused"));
+        vm.expectRevert("Pausable: not paused");
 
         pirexCvx.executeEmergencyMigration();
     }
