@@ -24,6 +24,7 @@ contract PirexCvxEmergency is Test, HelperContract {
     function testCannotInitializeEmergencyExecutorNotAuthorized() external {
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
         vm.prank(secondaryAccounts[0]);
+
         pirexCvx.initializeEmergencyExecutor(address(this));
     }
 
@@ -34,6 +35,7 @@ contract PirexCvxEmergency is Test, HelperContract {
         assertEq(pirexCvx.paused(), false);
 
         vm.expectRevert(bytes("Pausable: not paused"));
+
         pirexCvx.initializeEmergencyExecutor(address(0));
     }
 
@@ -42,7 +44,9 @@ contract PirexCvxEmergency is Test, HelperContract {
      */
     function testCannotInitializeEmergencyExecutorZeroAddress() external {
         pirexCvx.setPauseState(true);
+
         vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
+
         pirexCvx.initializeEmergencyExecutor(address(0));
     }
 
@@ -56,6 +60,7 @@ contract PirexCvxEmergency is Test, HelperContract {
         assertEq(pirexCvx.getEmergencyExecutor(), address(this));
 
         vm.expectRevert(PirexCvx.AlreadyInitialized.selector);
+
         pirexCvx.initializeEmergencyExecutor(address(this));
     }
 
@@ -85,6 +90,7 @@ contract PirexCvxEmergency is Test, HelperContract {
     function testCannotSetEmergencyMigrationNotAuthorized() external {
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
         vm.prank(secondaryAccounts[0]);
+
         pirexCvx.setEmergencyMigration(e);
     }
 
@@ -95,6 +101,7 @@ contract PirexCvxEmergency is Test, HelperContract {
         assertEq(pirexCvx.paused(), false);
 
         vm.expectRevert("Pausable: not paused");
+
         pirexCvx.setEmergencyMigration(e);
     }
 
@@ -105,7 +112,9 @@ contract PirexCvxEmergency is Test, HelperContract {
         assertEq(pirexCvx.getEmergencyExecutor(), address(0));
 
         pirexCvx.setPauseState(true);
+
         vm.expectRevert(PirexCvx.NoEmergencyExecutor.selector);
+
         pirexCvx.setEmergencyMigration(e);
     }
 
@@ -117,7 +126,9 @@ contract PirexCvxEmergency is Test, HelperContract {
 
         pirexCvx.setPauseState(true);
         pirexCvx.initializeEmergencyExecutor(address(this));
+
         vm.expectRevert(PirexCvx.InvalidEmergencyMigration.selector);
+
         pirexCvx.setEmergencyMigration(e);
     }
 
@@ -131,7 +142,9 @@ contract PirexCvxEmergency is Test, HelperContract {
 
         pirexCvx.setPauseState(true);
         pirexCvx.initializeEmergencyExecutor(address(this));
+
         vm.expectRevert(PirexCvx.InvalidEmergencyMigration.selector);
+
         pirexCvx.setEmergencyMigration(e);
     }
 
@@ -170,6 +183,7 @@ contract PirexCvxEmergency is Test, HelperContract {
         assertEq(pirexCvx.paused(), false);
 
         vm.expectRevert(bytes("Pausable: not paused"));
+
         pirexCvx.executeEmergencyMigration();
     }
 
@@ -178,7 +192,9 @@ contract PirexCvxEmergency is Test, HelperContract {
      */
     function testCannotExecuteEmergencyMigrationNotExecutor() external {
         pirexCvx.setPauseState(true);
+
         vm.expectRevert(PirexCvx.NotAuthorized.selector);
+
         pirexCvx.executeEmergencyMigration();
     }
 
@@ -194,6 +210,7 @@ contract PirexCvxEmergency is Test, HelperContract {
         assertEq(recipient, address(0));
 
         vm.expectRevert(PirexCvx.InvalidEmergencyMigration.selector);
+
         pirexCvx.executeEmergencyMigration();
     }
 
