@@ -63,7 +63,8 @@ contract PirexCvxStakeTest is Test, HelperContract {
     ) external {
         // TMP: Should be !=0 after the fee calculation fixes
         vm.assume(amount > 1000);
-        vm.assume(rounds != 0);
+        // Tune down the rounds since it takes too long for large rounds
+        vm.assume(rounds > 0 && rounds < 50);
         vm.assume(fVal <= uint256(type(PirexCvx.Futures).max));
 
         uint256 tLen = secondaryAccounts.length;
@@ -136,8 +137,8 @@ contract PirexCvxStakeTest is Test, HelperContract {
 
     /**
         @notice Test unstaking
-        @param  amount  uint72   Amount of assets to unstake
-        @param  rounds  uint8    Number of rounds
+        @param  amount  uint72  Amount of assets to unstake
+        @param  rounds  uint8   Number of rounds
      */
     function testUnstake(
         uint72 amount,
@@ -145,7 +146,8 @@ contract PirexCvxStakeTest is Test, HelperContract {
     ) external {
         // TMP: Should be !=0 after the fee calculation fixes
         vm.assume(amount > 1000);
-        vm.assume(rounds != 0);
+        // Tune down the rounds since it takes too long for large rounds
+        vm.assume(rounds > 0 && rounds < 50);
 
         uint256 spCvxId = pirexCvx.getCurrentEpoch() + EPOCH_DURATION * rounds;
         uint256 tLen = secondaryAccounts.length;
@@ -156,7 +158,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
             _mintAndDepositCVX(amount, account, false, true);
 
             // Simulate staking first before unstaking
-            vm.startPrank(account);
+            vm.prank(account);
 
             pirexCvx.stake(rounds, PirexCvx.Futures.Reward, amount, account);
 
@@ -168,6 +170,15 @@ contract PirexCvxStakeTest is Test, HelperContract {
                 ),
                 amount
             );
+        }
+
+        // Time-skip beyond the expiry
+        vm.warp(spCvxId + EPOCH_DURATION);
+
+        for (uint256 i; i < tLen; ++i) {
+            address account = secondaryAccounts[i];
+
+            vm.prank(account);
 
             pirexCvx.unstake(spCvxId, amount, account);
 
@@ -179,8 +190,6 @@ contract PirexCvxStakeTest is Test, HelperContract {
                 ),
                 0
             );
-
-            vm.stopPrank();
         }
     }
 }
