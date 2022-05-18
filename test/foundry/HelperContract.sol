@@ -56,7 +56,10 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
 
     constructor() {
         pxCvx = new PxCvx();
-        pirexFees = new PirexFees(msg.sender, msg.sender);
+        pirexFees = new PirexFees(
+            0x086C98855dF3C78C6b481b6e1D47BeF42E9aC36B, // Treasury
+            msg.sender
+        );
         spCvx = new ERC1155Solmate();
         upCvx = new ERC1155Solmate();
         vpCvx = new ERC1155PresetMinterSupply("");
@@ -94,6 +97,7 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
 
         bytes32 minterRole = keccak256("MINTER_ROLE");
 
+        vpCvx.grantRole(minterRole, address(pirexCvx));
         rpCvx.grantRole(minterRole, address(pirexCvx));
         upCvx.grantRole(minterRole, address(pirexCvx));
         unionPirex.setPlatform(address(this));

@@ -12,6 +12,70 @@ import {HelperContract} from "./HelperContract.sol";
 import {ICvxLocker} from "contracts/interfaces/ICvxLocker.sol";
 
 contract PirexCvxMainTest is Test, HelperContract {
+    function _processRedemption(uint256 unlockTime, uint256 amount)
+        internal
+        view
+        returns (uint256 postFeeAmount, uint256 rounds)
+    {
+        uint256 waitTime = (unlockTime - block.timestamp);
+        uint256 feeDenom = pirexCvx.FEE_DENOMINATOR();
+        uint256 feeMin = pirexCvx.fees(PirexCvx.Fees.RedemptionMin);
+        uint256 feeMax = pirexCvx.fees(PirexCvx.Fees.RedemptionMax);
+        uint256 feePercent = feeMax -
+            (((feeMax - feeMin) * waitTime) / pirexCvx.MAX_REDEMPTION_TIME());
+
+        postFeeAmount = amount - ((amount * feePercent) / feeDenom);
+        rounds = waitTime / EPOCH_DURATION;
+
+        if (
+            rounds == 0 &&
+            unlockTime % EPOCH_DURATION != 0 &&
+            waitTime > (EPOCH_DURATION / 2)
+        ) {
+            unchecked {
+                ++rounds;
+            }
+        }
+    }
+
+    function _validateFutureNotesBalances(
+        uint256 fVal,
+        uint256 rounds,
+        address account,
+        uint256 amount
+    ) internal {
+        uint256 startingEpoch = pirexCvx.getCurrentEpoch() + EPOCH_DURATION;
+        ERC1155PresetMinterSupply fToken = (
+            PirexCvx.Futures(fVal) == PirexCvx.Futures.Reward ? rpCvx : vpCvx
+        );
+
+        for (uint256 i; i < rounds; ++i) {
+            assertEq(
+                fToken.balanceOf(account, startingEpoch + i * EPOCH_DURATION),
+                amount
+            );
+        }
+    }
+
+    function _validateFeeDistributions(
+        uint256 oldTreasuryBalance,
+        uint256 oldContributorsBalance,
+        uint256 fee
+    ) internal {
+        uint256 treasuryFees = (fee * pirexFees.treasuryPercent()) /
+            pirexFees.PERCENT_DENOMINATOR();
+        uint256 contributorsFees = (fee - treasuryFees);
+
+        assertEq(
+            pxCvx.balanceOf(address(pirexFees.treasury())),
+            oldTreasuryBalance + treasuryFees
+        );
+        assertEq(
+            pxCvx.balanceOf(address(pirexFees.contributors())),
+            oldContributorsBalance + contributorsFees
+        );
+    }
+
     /*//////////////////////////////////////////////////////////////
                         deposit TESTS
     //////////////////////////////////////////////////////////////*/
@@ -224,15 +288,42 @@ contract PirexCvxMainTest is Test, HelperContract {
     }
 
     /**
+        @notice Test tx reversion if contract is paused
+     */
+    function testCannotInitiateRedemptionsPaused() external {
+        pirexCvx.setPauseState(true);
+
+        uint256[] memory locks = new uint256[](1);
+        uint256[] memory assets = new uint256[](1);
+        locks[0] = 0;
+        assets[0] = 0;
+
+        vm.expectRevert("Pausable: paused");
+
+        pirexCvx.initiateRedemptions(
+            locks,
+            PirexCvx.Futures.Reward,
+            assets,
+            address(this)
+        );
+    }
+
+    /**
         @notice Test tx reversion if initiating redemption with insufficient asset
      */
-    function testCannotInitiateRedemptionsInsufficientRedemptionAllowance() external {
+    function testCannotInitiateRedemptionsInsufficientRedemptionAllowance()
+        external
+    {
         address account = secondaryAccounts[0];
 
         _mintAndDepositCVX(1e18, account, false, true);
 
-        (, , uint256 locked, ICvxLocker.LockedBalance[] memory lockData) = CVX_LOCKER
-            .lockedBalances(address(pirexCvx));
+        (
+            ,
+            ,
+            uint256 locked,
+            ICvxLocker.LockedBalance[] memory lockData
+        ) = CVX_LOCKER.lockedBalances(address(pirexCvx));
 
         uint256[] memory locks = new uint256[](1);
         uint256[] memory assets = new uint256[](1);
@@ -252,44 +343,61 @@ contract PirexCvxMainTest is Test, HelperContract {
 
     /**
         @notice Test initiating redemption
-        @param  amount  uint72  Amount of assets for deposit
+        @param  amount  uint72   Amount of assets for deposit
+        @param  fVal    uint256  Integer representation of the futures enum
      */
-    function testInitiateRedemptions(uint72 amount) external {
-        vm.assume(amount != 0);
+    function testInitiateRedemptions(uint72 amount, uint256 fVal) external {
+        // TMP: Should be !=0 after the fee calculation fixes
+        vm.assume(amount > 1000);
+        vm.assume(fVal <= uint256(type(PirexCvx.Futures).max));
 
         address account = secondaryAccounts[0];
 
         _mintAndDepositCVX(amount, account, false, true);
 
-        (, , uint256 locked, ICvxLocker.LockedBalance[] memory lockData) = CVX_LOCKER
+        (, , , ICvxLocker.LockedBalance[] memory lockData) = CVX_LOCKER
             .lockedBalances(address(pirexCvx));
-        uint256 lockIndex = lockData.length - 1;
 
         uint256[] memory locks = new uint256[](1);
         uint256[] memory assets = new uint256[](1);
-        locks[0] = lockIndex;
+        locks[0] = lockData.length - 1;
         assets[0] = amount;
 
-        uint256 unlockTime = lockData[lockIndex].unlockTime;
+        uint256 unlockTime = lockData[lockData.length - 1].unlockTime;
         uint256 oldOutstandingRedemptions = pirexCvx.outstandingRedemptions();
+        uint256 oldTreasuryBalance = pxCvx.balanceOf(address(pirexFees.treasury()));
+        uint256 oldContributorsBalance = pxCvx.balanceOf(address(pirexFees.contributors()));
 
         vm.prank(account);
 
         pirexCvx.initiateRedemptions(
             locks,
-            PirexCvx.Futures.Reward,
+            PirexCvx.Futures(fVal),
             assets,
             account
         );
 
-        uint256 newOutstandingRedemptions = pirexCvx.outstandingRedemptions();
+        // Simulate the fee calculation separately to avoid "stack too deep" issue
+        (uint256 postFeeAmount, uint256 rounds) = _processRedemption(
+            unlockTime,
+            amount
+        );
 
-        assertGt(newOutstandingRedemptions, oldOutstandingRedemptions);
-
-        // Amount after fees should be equal to the difference between the outstandingRedemption values
-        uint256 postFeeAmount = newOutstandingRedemptions - oldOutstandingRedemptions;
-
+        assertEq(
+            pirexCvx.outstandingRedemptions(),
+            oldOutstandingRedemptions + postFeeAmount
+        );
         assertEq(pxCvx.balanceOf(account), 0);
         assertEq(upCvx.balanceOf(account, unlockTime), postFeeAmount);
+
+        // Check through all the future notes balances separately to avoid "stack too deep" issue
+        _validateFutureNotesBalances(fVal, rounds, account, amount);
+
+        // Check fee distributions separately to avoid "stack too deep" issue
+        _validateFeeDistributions(
+            oldTreasuryBalance,
+            oldContributorsBalance,
+            amount - postFeeAmount
+        );
     }
 }
