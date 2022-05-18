@@ -2,7 +2,6 @@
 pragma solidity 0.8.12;
 
 import "forge-std/Test.sol";
-import {PirexCvxMock} from "contracts/mocks/PirexCvxMock.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
@@ -12,6 +11,36 @@ import {HelperContract} from "./HelperContract.sol";
 import {ICvxLocker} from "contracts/interfaces/ICvxLocker.sol";
 
 contract PirexCvxMainTest is Test, HelperContract {
+    function _setupRedemption(
+        address account,
+        uint256 amount,
+        uint256 fVal
+    ) internal returns (uint256) {
+        _mintAndDepositCVX(amount, account, false, true);
+
+        (, , , ICvxLocker.LockedBalance[] memory lockData) = CVX_LOCKER
+            .lockedBalances(address(pirexCvx));
+
+        uint256[] memory locks = new uint256[](1);
+        uint256[] memory assets = new uint256[](1);
+        uint256 lockIndex = lockData.length - 1;
+        locks[0] = lockIndex;
+        assets[0] = amount;
+
+        uint256 unlockTime = lockData[lockIndex].unlockTime;
+
+        vm.prank(account);
+
+        pirexCvx.initiateRedemptions(
+            locks,
+            PirexCvx.Futures(fVal),
+            assets,
+            account
+        );
+
+        return unlockTime;
+    }
+
     function _processRedemption(uint256 unlockTime, uint256 amount)
         internal
         view
@@ -227,11 +256,9 @@ contract PirexCvxMainTest is Test, HelperContract {
         @notice Test tx reversion if initiating redemption with invalid lock array
      */
     function testCannotInitiateRedemptionsInvalidLock() external {
-        (, , , ICvxLocker.LockedBalance[] memory lockData) = CVX_LOCKER
-            .lockedBalances(address(pirexCvx));
         uint256[] memory locks = new uint256[](1);
         uint256[] memory assets = new uint256[](1);
-        locks[0] = lockData.length;
+        locks[0] = 1;
         assets[0] = 1;
 
         vm.expectRevert(stdError.indexOOBError);
@@ -248,11 +275,9 @@ contract PirexCvxMainTest is Test, HelperContract {
         @notice Test tx reversion if initiating redemption with mismatched arguments length
      */
     function testCannotInitiateRedemptionsMismatchedArrayLengths() external {
-        (, , , ICvxLocker.LockedBalance[] memory lockData) = CVX_LOCKER
-            .lockedBalances(address(pirexCvx));
         uint256[] memory locks = new uint256[](1);
         uint256[] memory assets = new uint256[](2);
-        locks[0] = lockData.length;
+        locks[0] = 0;
         assets[0] = 1;
         assets[1] = 1;
 
@@ -288,6 +313,27 @@ contract PirexCvxMainTest is Test, HelperContract {
     }
 
     /**
+        @notice Test tx reversion if initiating redemption for zero address as recipient
+     */
+    function testCannotInitiateRedemptionsZeroAddress() external {
+        _mintAndDepositCVX(1e18, address(this), false, true);
+
+        uint256[] memory locks = new uint256[](1);
+        uint256[] memory assets = new uint256[](1);
+        locks[0] = 0;
+        assets[0] = 1;
+
+        vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
+
+        pirexCvx.initiateRedemptions(
+            locks,
+            PirexCvx.Futures.Reward,
+            assets,
+            address(0)
+        );
+    }
+
+    /**
         @notice Test tx reversion if contract is paused
      */
     function testCannotInitiateRedemptionsPaused() external {
@@ -318,13 +364,8 @@ contract PirexCvxMainTest is Test, HelperContract {
 
         _mintAndDepositCVX(1e18, account, false, true);
 
-        (
-            ,
-            ,
-            uint256 locked,
-            ICvxLocker.LockedBalance[] memory lockData
-        ) = CVX_LOCKER.lockedBalances(address(pirexCvx));
-
+        (, , , ICvxLocker.LockedBalance[] memory lockData) = CVX_LOCKER
+            .lockedBalances(address(pirexCvx));
         uint256[] memory locks = new uint256[](1);
         uint256[] memory assets = new uint256[](1);
         locks[0] = 0;
@@ -351,53 +392,188 @@ contract PirexCvxMainTest is Test, HelperContract {
         vm.assume(amount > 1000);
         vm.assume(fVal <= uint256(type(PirexCvx.Futures).max));
 
-        address account = secondaryAccounts[0];
+        uint256 tLen = secondaryAccounts.length;
 
-        _mintAndDepositCVX(amount, account, false, true);
+        for (uint256 i; i < tLen; ++i) {
+            address account = secondaryAccounts[i];
+            uint256 oldOutstandingRedemptions = pirexCvx
+                .outstandingRedemptions();
+            uint256 oldTreasuryBalance = pxCvx.balanceOf(
+                address(pirexFees.treasury())
+            );
+            uint256 oldContributorsBalance = pxCvx.balanceOf(
+                address(pirexFees.contributors())
+            );
 
-        (, , , ICvxLocker.LockedBalance[] memory lockData) = CVX_LOCKER
-            .lockedBalances(address(pirexCvx));
+            uint256 unlockTime = _setupRedemption(account, amount, fVal);
 
-        uint256[] memory locks = new uint256[](1);
+            // Simulate the fee calculation separately to avoid "stack too deep" issue
+            (uint256 postFeeAmount, uint256 rounds) = _processRedemption(
+                unlockTime,
+                amount
+            );
+
+            assertEq(
+                pirexCvx.outstandingRedemptions(),
+                oldOutstandingRedemptions + postFeeAmount
+            );
+            assertEq(pxCvx.balanceOf(account), 0);
+            assertEq(upCvx.balanceOf(account, unlockTime), postFeeAmount);
+
+            // Check through all the future notes balances separately to avoid "stack too deep" issue
+            _validateFutureNotesBalances(fVal, rounds, account, amount);
+
+            // Check fee distributions separately to avoid "stack too deep" issue
+            _validateFeeDistributions(
+                oldTreasuryBalance,
+                oldContributorsBalance,
+                amount - postFeeAmount
+            );
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        redeem TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if contract is paused
+     */
+    function testCannotRedeemPaused() external {
+        pirexCvx.setPauseState(true);
+
+        uint256[] memory unlockTimes = new uint256[](1);
         uint256[] memory assets = new uint256[](1);
-        locks[0] = lockData.length - 1;
-        assets[0] = amount;
+        unlockTimes[0] = 0;
+        assets[0] = 0;
 
-        uint256 unlockTime = lockData[lockData.length - 1].unlockTime;
-        uint256 oldOutstandingRedemptions = pirexCvx.outstandingRedemptions();
-        uint256 oldTreasuryBalance = pxCvx.balanceOf(address(pirexFees.treasury()));
-        uint256 oldContributorsBalance = pxCvx.balanceOf(address(pirexFees.contributors()));
+        vm.expectRevert("Pausable: paused");
 
-        vm.prank(account);
+        pirexCvx.redeem(unlockTimes, assets, address(this));
+    }
 
-        pirexCvx.initiateRedemptions(
-            locks,
-            PirexCvx.Futures(fVal),
-            assets,
-            account
-        );
+    /**
+        @notice Test tx reversion if redeeming with empty lock array
+     */
+    function testCannotRedeemEmptyArray() external {
+        uint256[] memory unlockTimes = new uint256[](0);
+        uint256[] memory assets = new uint256[](1);
+        assets[0] = 1;
 
-        // Simulate the fee calculation separately to avoid "stack too deep" issue
-        (uint256 postFeeAmount, uint256 rounds) = _processRedemption(
-            unlockTime,
-            amount
-        );
+        vm.expectRevert(PirexCvx.EmptyArray.selector);
 
-        assertEq(
-            pirexCvx.outstandingRedemptions(),
-            oldOutstandingRedemptions + postFeeAmount
-        );
-        assertEq(pxCvx.balanceOf(account), 0);
-        assertEq(upCvx.balanceOf(account, unlockTime), postFeeAmount);
+        pirexCvx.redeem(unlockTimes, assets, address(this));
+    }
 
-        // Check through all the future notes balances separately to avoid "stack too deep" issue
-        _validateFutureNotesBalances(fVal, rounds, account, amount);
+    /**
+        @notice Test tx reversion if redeeming with mismatched arguments length
+     */
+    function testCannotRedeemMismatchedArrayLengths() external {
+        uint256[] memory unlockTimes = new uint256[](1);
+        uint256[] memory assets = new uint256[](2);
+        unlockTimes[0] = 0;
+        assets[0] = 1;
+        assets[1] = 1;
 
-        // Check fee distributions separately to avoid "stack too deep" issue
-        _validateFeeDistributions(
-            oldTreasuryBalance,
-            oldContributorsBalance,
-            amount - postFeeAmount
-        );
+        vm.expectRevert(PirexCvx.MismatchedArrayLengths.selector);
+
+        pirexCvx.redeem(unlockTimes, assets, address(this));
+    }
+
+    /**
+        @notice Test tx reversion if redeeming for zero address as recipient
+     */
+    function testCannotRedeemZeroAddress() external {
+        uint256[] memory unlockTimes = new uint256[](1);
+        uint256[] memory assets = new uint256[](1);
+        unlockTimes[0] = 0;
+        assets[0] = 1;
+
+        vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
+
+        pirexCvx.redeem(unlockTimes, assets, address(0));
+    }
+
+    /**
+        @notice Test tx reversion if redeeming before unlock
+     */
+    function testCannotRedeemBeforeUnlock() external {
+        uint256[] memory unlockTimes = new uint256[](1);
+        uint256[] memory assets = new uint256[](1);
+        unlockTimes[0] = block.timestamp + 1 days;
+        assets[0] = 1;
+
+        vm.expectRevert(PirexCvx.BeforeUnlock.selector);
+
+        pirexCvx.redeem(unlockTimes, assets, address(this));
+    }
+
+    /**
+        @notice Test tx reversion if redeeming with zero amount
+     */
+    function testCannotRedeemZeroAmount() external {
+        uint256[] memory unlockTimes = new uint256[](1);
+        uint256[] memory assets = new uint256[](1);
+        unlockTimes[0] = 0;
+        assets[0] = 0;
+
+        vm.expectRevert(PirexCvx.ZeroAmount.selector);
+
+        pirexCvx.redeem(unlockTimes, assets, address(this));
+    }
+
+    /**
+        @notice Test tx reversion if redeeming with insufficient asset
+     */
+    function testCannotRedeemInsufficientAssets() external {
+        uint256[] memory unlockTimes = new uint256[](1);
+        uint256[] memory assets = new uint256[](1);
+        unlockTimes[0] = 0;
+        assets[0] = 1;
+
+        vm.expectRevert(stdError.arithmeticError);
+
+        pirexCvx.redeem(unlockTimes, assets, address(this));
+    }
+
+    /**
+        @notice Test redeeming
+        @param  amount  uint72   Amount of assets for deposit
+     */
+    function testRedeem(uint72 amount) external {
+        // TMP: Should be !=0 after the fee calculation fixes
+        vm.assume(amount > 1000);
+
+        uint256 tLen = secondaryAccounts.length;
+
+        for (uint256 i; i < tLen; ++i) {
+            address account = secondaryAccounts[i];
+
+            // Simulate redemption and calculate unlock time as well as the actual amount after fee
+            uint256 unlockTime = _setupRedemption(account, amount, 0);
+
+            uint256 oldCvxBalance = CVX.balanceOf(account);
+            uint256 oldUpCvxBalance = upCvx.balanceOf(account, unlockTime);
+
+            (uint256 postFeeAmount, ) = _processRedemption(unlockTime, amount);
+
+            // Time-skip until the designated unlock time
+            vm.warp(unlockTime);
+
+            uint256[] memory unlockTimes = new uint256[](1);
+            uint256[] memory assets = new uint256[](1);
+            unlockTimes[0] = unlockTime;
+            assets[0] = postFeeAmount;
+
+            vm.prank(account);
+
+            pirexCvx.redeem(unlockTimes, assets, account);
+
+            assertEq(CVX.balanceOf(account), oldCvxBalance + postFeeAmount);
+            assertEq(
+                upCvx.balanceOf(account, unlockTime),
+                oldUpCvxBalance - postFeeAmount
+            );
+        }
     }
 }
