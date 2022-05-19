@@ -10,22 +10,7 @@ import {ERC1155PresetMinterSupply} from "contracts/tokens/ERC1155PresetMinterSup
 import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
 import {HelperContract} from "./HelperContract.sol";
 
-contract PirexCvxTest is Test, HelperContract {
-    /**
-        @notice Stake pxCVX and mint rpCVX based on input parameters
-        @param  rounds  uint256  Rounds
-        @param  assets  uint256  pxCVX
-     */
-    function _stakePxCvx(uint256 rounds, uint256 assets) internal {
-        vm.prank(PRIMARY_ACCOUNT);
-        pirexCvx.stake(
-            rounds,
-            PirexCvx.Futures.Reward,
-            assets,
-            PRIMARY_ACCOUNT
-        );
-    }
-
+contract PirexCvxRewardTest is Test, HelperContract {
     /**
         @notice Transfer rpCVX to other receiver
         @param  receiver  address  rpCVX receiver
@@ -137,7 +122,8 @@ contract PirexCvxTest is Test, HelperContract {
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
         _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
-        _stakePxCvx(rounds, stakeAmount);
+
+        _stakePxCvx(PRIMARY_ACCOUNT, rounds, assets);
 
         // Forward 1 epoch, since rpCVX has claim to rewards in subsequent epochs
         vm.warp(block.timestamp + EPOCH_DURATION);
@@ -179,7 +165,8 @@ contract PirexCvxTest is Test, HelperContract {
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
         _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
-        _stakePxCvx(rounds, stakeAmount);
+
+        _stakePxCvx(PRIMARY_ACCOUNT, rounds, assets);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
 
@@ -264,7 +251,8 @@ contract PirexCvxTest is Test, HelperContract {
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
         _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
-        _stakePxCvx(rounds, stakeAmount);
+
+        _stakePxCvx(PRIMARY_ACCOUNT, rounds, assets);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
 

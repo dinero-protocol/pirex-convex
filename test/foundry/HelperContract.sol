@@ -140,7 +140,9 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
         bool lock
     ) internal {
         _mintCvx(receiver, assets);
+
         vm.startPrank(receiver);
+
         CVX.approve(address(pirexCvx), CVX.balanceOf(receiver));
         pirexCvx.deposit(assets, receiver, shouldCompound);
 
@@ -149,6 +151,23 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
         }
 
         vm.stopPrank();
+    }
+
+    /**
+        @notice Stake pxCVX and mint rpCVX based on input parameters
+        @param  account  address  Account
+        @param  rounds   uint256  Rounds
+        @param  assets   uint256  pxCVX
+     */
+    function _stakePxCvx(address account, uint256 rounds, uint256 assets) internal {
+        vm.prank(account);
+
+        pirexCvx.stake(
+            rounds,
+            PirexCvx.Futures.Reward,
+            assets,
+            PRIMARY_ACCOUNT
+        );
     }
 
     /**
@@ -167,6 +186,7 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
 
         // Set reward merkle root
         vm.prank(VOTIUM_OWNER);
+
         MultiMerkleStash(VOTIUM_MULTI_MERKLE_STASH).updateMerkleRoot(
             token,
             merkleRoot
