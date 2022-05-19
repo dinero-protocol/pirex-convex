@@ -6,7 +6,7 @@ import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
 import {HelperContract} from "./HelperContract.sol";
-import {ICvxLocker} from "contracts/interfaces/ICvxLocker.sol";
+import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
 
 contract PirexCvxMainTest is Test, HelperContract {
     /**
@@ -22,7 +22,7 @@ contract PirexCvxMainTest is Test, HelperContract {
     ) internal returns (uint256) {
         _mintAndDepositCVX(amount, account, false, true);
 
-        (, , , ICvxLocker.LockedBalance[] memory lockData) = CVX_LOCKER
+        (, , , CvxLockerV2.LockedBalance[] memory lockData) = CVX_LOCKER
             .lockedBalances(address(pirexCvx));
 
         uint256[] memory locks = new uint256[](1);
@@ -369,7 +369,7 @@ contract PirexCvxMainTest is Test, HelperContract {
 
         _mintAndDepositCVX(1e18, account, false, true);
 
-        (, , , ICvxLocker.LockedBalance[] memory lockData) = CVX_LOCKER
+        (, , , CvxLockerV2.LockedBalance[] memory lockData) = CVX_LOCKER
             .lockedBalances(address(pirexCvx));
         uint256[] memory locks = new uint256[](1);
         uint256[] memory assets = new uint256[](1);
