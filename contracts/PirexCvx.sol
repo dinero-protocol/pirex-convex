@@ -19,16 +19,6 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     using Bytes32AddressLib for address;
 
     /**
-        @notice Queued fee changes
-        @param  newFee          uint32   New fee
-        @param  effectiveAfter  uint224  Timestamp after which new fee could take effect
-     */
-    struct QueuedFee {
-        uint32 newFee;
-        uint224 effectiveAfter;
-    }
-
-    /**
         @notice Votium reward metadata
         @param  token        address    Reward token address
         @param  index        uint256    Merkle tree node index
@@ -105,9 +95,6 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
     // Convex unlock timestamps mapped to amount being redeemed
     mapping(uint256 => uint256) public redemptions;
-
-    // Queued fees which will take effective after 1 epoch (2 weeks)
-    mapping(Fees => QueuedFee) public queuedFees;
 
     // Emergency migration data
     EmergencyMigration public emergencyMigration;
