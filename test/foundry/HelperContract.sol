@@ -36,6 +36,8 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
         0x9d37A22cEc2f6b3635c61C253D192E68e85b1790;
     address public constant PRIMARY_ACCOUNT =
         0x5409ED021D9299bf6814279A6A1411A7e866A631;
+    address public constant TREASURY =
+        0x086C98855dF3C78C6b481b6e1D47BeF42E9aC36B;
     uint256 public constant EPOCH_DURATION = 1209600;
 
     PirexCvxMock public immutable pirexCvx;
@@ -56,10 +58,7 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
 
     constructor() {
         pxCvx = new PxCvx();
-        pirexFees = new PirexFees(
-            0x086C98855dF3C78C6b481b6e1D47BeF42E9aC36B, // Treasury
-            msg.sender
-        );
+        pirexFees = new PirexFees(TREASURY, msg.sender);
         spCvx = new ERC1155Solmate();
         upCvx = new ERC1155Solmate();
         vpCvx = new ERC1155PresetMinterSupply("");
@@ -154,24 +153,6 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
     }
 
     /**
-        @notice Stake pxCVX and mint rpCVX based on input parameters
-        @param  account  address           Account
-        @param  rounds   uint256           Number of rounds
-        @param  f        PirexCvx.Futures  Futures enum
-        @param  assets   uint256           Amount of pxCVX
-     */
-    function _stakePxCvx(
-        address account,
-        uint256 rounds,
-        PirexCvx.Futures f,
-        uint256 assets
-    ) internal {
-        vm.prank(account);
-
-        pirexCvx.stake(rounds, f, assets, account);
-    }
-
-    /**
         @notice Set merkle root
         @param  token       address  Reward token
         @param  amount      uint256  Reward amount
@@ -209,7 +190,7 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
         PirexCvx.VotiumReward[]
             memory votiumRewards = new PirexCvx.VotiumReward[](1);
         votiumRewards[0] = votiumReward;
-    
+
         pirexCvx.claimVotiumRewards(votiumRewards);
     }
 

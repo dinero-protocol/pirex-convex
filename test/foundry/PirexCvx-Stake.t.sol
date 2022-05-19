@@ -20,7 +20,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
 
         vm.expectRevert("Pausable: paused");
 
-        _stakePxCvx(address(this), 0, PirexCvx.Futures.Reward, 1);
+        pirexCvx.stake(0, PirexCvx.Futures.Reward, 1, address(this));
     }
 
     /**
@@ -29,7 +29,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
     function testCannotStakeZeroRound() external {
         vm.expectRevert(PirexCvx.ZeroAmount.selector);
 
-        _stakePxCvx(address(this), 0, PirexCvx.Futures.Reward, 1);
+        pirexCvx.stake(0, PirexCvx.Futures.Reward, 1, address(this));
     }
 
     /**
@@ -38,7 +38,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
     function testCannotStakeZeroAmount() external {
         vm.expectRevert(PirexCvx.ZeroAmount.selector);
 
-        _stakePxCvx(address(this), 1, PirexCvx.Futures.Reward, 0);
+        pirexCvx.stake(1, PirexCvx.Futures.Reward, 0, address(this));
     }
 
     /**
@@ -76,7 +76,9 @@ contract PirexCvxStakeTest is Test, HelperContract {
 
             assertEq(pxCvx.balanceOf(account), amount);
 
-            _stakePxCvx(account, rounds, PirexCvx.Futures(fVal), amount);
+            vm.prank(account);
+
+            pirexCvx.stake(rounds, PirexCvx.Futures(fVal), amount, account);
 
             assertEq(pxCvx.balanceOf(account), 0);
             assertEq(
@@ -153,7 +155,9 @@ contract PirexCvxStakeTest is Test, HelperContract {
             _mintAndDepositCVX(amount, account, false, true);
 
             // Simulate staking first before unstaking
-            _stakePxCvx(account, rounds, PirexCvx.Futures.Reward, amount);
+            vm.prank(account);
+
+            pirexCvx.stake(rounds, PirexCvx.Futures.Reward, amount, account);
 
             assertEq(pxCvx.balanceOf(account), 0);
             assertEq(spCvx.balanceOf(account, spCvxId), amount);

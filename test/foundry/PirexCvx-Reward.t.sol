@@ -165,7 +165,9 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
         _mintAndDepositCVX(asset, PRIMARY_ACCOUNT, false, true);
 
-        _stakePxCvx(PRIMARY_ACCOUNT, rounds, PirexCvx.Futures.Reward, asset);
+        vm.prank(PRIMARY_ACCOUNT);
+
+        pirexCvx.stake(rounds, PirexCvx.Futures.Reward, asset, PRIMARY_ACCOUNT);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
 
@@ -211,7 +213,10 @@ contract PirexCvxRewardTest is Test, HelperContract {
             );
 
         assertEq(rewardFee + snapshotRewards + futuresRewards, amount);
-        assertEq(IERC20(token).balanceOf(address(pirexCvx)), snapshotRewards + futuresRewards);
+        assertEq(
+            IERC20(token).balanceOf(address(pirexCvx)),
+            snapshotRewards + futuresRewards
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -235,7 +240,14 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
         _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
 
-        _stakePxCvx(PRIMARY_ACCOUNT, rounds, PirexCvx.Futures.Reward, assets);
+        vm.prank(PRIMARY_ACCOUNT);
+
+        pirexCvx.stake(
+            rounds,
+            PirexCvx.Futures.Reward,
+            assets,
+            PRIMARY_ACCOUNT
+        );
 
         // Forward 1 epoch, since rpCVX has claim to rewards in subsequent epochs
         vm.warp(block.timestamp + EPOCH_DURATION);
@@ -278,7 +290,14 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
         _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
 
-        _stakePxCvx(PRIMARY_ACCOUNT, rounds, PirexCvx.Futures.Reward, assets);
+        vm.prank(PRIMARY_ACCOUNT);
+
+        pirexCvx.stake(
+            rounds,
+            PirexCvx.Futures.Reward,
+            assets,
+            PRIMARY_ACCOUNT
+        );
 
         vm.warp(block.timestamp + EPOCH_DURATION);
 
@@ -364,7 +383,14 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
         _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
 
-        _stakePxCvx(PRIMARY_ACCOUNT, rounds, PirexCvx.Futures.Reward, assets);
+        vm.prank(PRIMARY_ACCOUNT);
+
+        pirexCvx.stake(
+            rounds,
+            PirexCvx.Futures.Reward,
+            assets,
+            PRIMARY_ACCOUNT
+        );
 
         vm.warp(block.timestamp + EPOCH_DURATION);
 
