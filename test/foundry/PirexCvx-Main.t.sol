@@ -9,6 +9,12 @@ import {HelperContract} from "./HelperContract.sol";
 import {ICvxLocker} from "contracts/interfaces/ICvxLocker.sol";
 
 contract PirexCvxMainTest is Test, HelperContract {
+    /**
+        @notice Setup for redemption tests
+        @param  account  address  Account
+        @param  amount   uint256  Amount of assets for redemption
+        @param  fVal     uint256  Integer representation of the futures enum
+     */
     function _setupRedemption(
         address account,
         uint256 amount,
@@ -39,6 +45,11 @@ contract PirexCvxMainTest is Test, HelperContract {
         return unlockTime;
     }
 
+    /**
+        @notice Process and calculate data related to redemptions
+        @param  unlockTime  uint256  Unlock time
+        @param  amount      uint256  Amount of assets for redemption
+     */
     function _processRedemption(uint256 unlockTime, uint256 amount)
         internal
         view
@@ -65,6 +76,12 @@ contract PirexCvxMainTest is Test, HelperContract {
         }
     }
 
+    /**
+        @notice Validate the results of distributing fees
+        @param  oldTreasuryBalance      uint256  Previous PxCvx balance for treasury
+        @param  oldContributorsBalance  uint256  Previous PxCvx balance for contributors
+        @param  fee                     uint256  Amount of fee
+     */
     function _validateFeeDistributions(
         uint256 oldTreasuryBalance,
         uint256 oldContributorsBalance,

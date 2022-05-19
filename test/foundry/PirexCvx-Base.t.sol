@@ -10,6 +10,11 @@ import {HelperContract} from "./HelperContract.sol";
 contract PirexCvxBaseTest is Test, HelperContract {
     event SetContract(PirexCvx.Contract indexed c, address contractAddress);
 
+    /**
+        @notice Validate the result of setting new contract
+        @param  c         PirexCvx.Contract  Contract enum
+        @param  selector  bytes4             Method selector
+     */
     function _validateSetContract(PirexCvx.Contract c, bytes4 selector)
         internal
     {
