@@ -23,6 +23,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
         uint256 amount
     ) internal {
         vm.prank(PRIMARY_ACCOUNT);
+
         rpCvx.safeTransferFrom(PRIMARY_ACCOUNT, receiver, epoch, amount, "");
     }
 
@@ -69,6 +70,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
             // Impersonate secondaryAccount and redeem futures rewards
             vm.startPrank(secondaryAccount);
+
             rpCvx.setApprovalForAll(address(pirexCvx), true);
 
             // Call either the patched or bugged redeemFuturesReward method
@@ -76,6 +78,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
             address(pirexCvx).call(
                 abi.encodeWithSelector(selector, epoch, secondaryAccount)
             );
+
             vm.stopPrank();
 
             // Total up redeemed reward amount to confirm whether redemption amount is correct
@@ -88,14 +91,14 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
     /**
         @notice Guardrails for our fuzz test inputs
-        @param  rounds        uint256  Number of staking rounds
+        @param  rounds        uint8    Number of staking rounds
         @param  assets        uint256  pxCVX amount
-        @param  stakePercent  uint256  Percent of pxCVX to stake (255 is denominator)
+        @param  stakePercent  uint8    Percent of pxCVX to stake (255 is denominator)
      */
     function _redeemFuturesRewardsFuzzParameters(
-        uint256 rounds,
+        uint8 rounds,
         uint256 assets,
-        uint256 stakePercent
+        uint8 stakePercent
     ) internal {
         vm.assume(rounds != 0);
         vm.assume(rounds < 10);
@@ -106,16 +109,20 @@ contract PirexCvxRewardTest is Test, HelperContract {
         vm.assume(stakePercent < 255);
     }
 
+    /*//////////////////////////////////////////////////////////////
+                        redeemFuturesRewards TESTS
+    //////////////////////////////////////////////////////////////*/
+
     /**
         @notice Fuzz the patched version of redeemFuturesRewards to verify now correctly implemented
-        @param  rounds        uint256  Number of staking rounds
+        @param  rounds        uint8    Number of staking rounds
         @param  assets        uint256  pxCVX amount
-        @param  stakePercent  uint256  Percent of pxCVX to stake
+        @param  stakePercent  uint8    Percent of pxCVX to stake
      */
     function testRedeemFuturesRewards(
-        uint256 rounds,
+        uint8 rounds,
         uint256 assets,
-        uint256 stakePercent
+        uint8 stakePercent
     ) external {
         _redeemFuturesRewardsFuzzParameters(rounds, assets, stakePercent);
 
@@ -151,14 +158,14 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
     /**
         @notice Fuzz the bugged version of redeemFuturesRewards to reproduce find
-        @param  rounds        uint256  Number of staking rounds
+        @param  rounds        uint8    Number of staking rounds
         @param  assets        uint256  pxCVX amount
-        @param  stakePercent  uint256  Percent of pxCVX to stake
+        @param  stakePercent  uint8    Percent of pxCVX to stake
      */
     function testRedeemFuturesRewardsBugged(
-        uint256 rounds,
+        uint8 rounds,
         uint256 assets,
-        uint256 stakePercent
+        uint8 stakePercent
     ) external {
         _redeemFuturesRewardsFuzzParameters(rounds, assets, stakePercent);
 
@@ -237,14 +244,14 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
     /**
         @notice Fuzz to verify tx reverts if receiver does not have any rpCVX
-        @param  rounds        uint256  Number of staking rounds
+        @param  rounds        uint8    Number of staking rounds
         @param  assets        uint256  pxCVX amount
-        @param  stakePercent  uint256  Percent of pxCVX to stake
+        @param  stakePercent  uint8    Percent of pxCVX to stake
      */
     function testCannotRedeemFuturesRewardsInsufficientBalance(
-        uint256 rounds,
+        uint8 rounds,
         uint256 assets,
-        uint256 stakePercent
+        uint8 stakePercent
     ) external {
         _redeemFuturesRewardsFuzzParameters(rounds, assets, stakePercent);
 
