@@ -698,4 +698,109 @@ contract PirexCvxTest is Test, HelperContract {
 
         pirexCvx.deposit(assets, invalidReceiver, shouldCompound, developer);
     }
+
+    /**
+        @notice Test deposit without compounding pxCVX
+     */
+    function testDepositShouldNotCompound() external {
+        uint256 assets = 1e18;
+        address receiver = address(this);
+        bool shouldCompound = false;
+        address developer = address(0);
+
+        assertEq(pxCvx.balanceOf(receiver), 0);
+        assertEq(CVX.balanceOf(address(pirexCvx)), 0);
+
+        _mintCvx(address(this), assets);
+        CVX.approve(address(pirexCvx), assets);
+        pirexCvx.deposit(assets, receiver, shouldCompound, developer);
+
+        assertEq(pxCvx.balanceOf(receiver), assets);
+        assertEq(CVX.balanceOf(address(pirexCvx)), assets);
+    }
+
+    /**
+        @notice Test deposit without compounding pxCVX
+     */
+    function testDepositShouldCompound() external {
+        uint256 assets = 1e18;
+        address receiver = address(this);
+        bool shouldCompound = true;
+        address developer = address(0);
+
+        assertEq(pxCvx.balanceOf(address(unionPirexStrategy)), 0);
+        assertEq(CVX.balanceOf(address(pirexCvx)), 0);
+        assertEq(unionPirex.balanceOf(receiver), 0);
+
+        _mintCvx(address(this), assets);
+        CVX.approve(address(pirexCvx), assets);
+        pirexCvx.deposit(assets, receiver, shouldCompound, developer);
+
+        assertEq(pxCvx.balanceOf(address(unionPirexStrategy)), assets);
+        assertEq(CVX.balanceOf(address(pirexCvx)), assets);
+        assertEq(unionPirex.balanceOf(receiver), assets);
+    }
+
+    /**
+        @notice Test deposit with developer incentive
+     */
+    function testDepositDeveloperIncentive() external {
+        uint256 assets = 1e18;
+        address receiver = address(this);
+        bool shouldCompound = true;
+        address developer = PRIMARY_ACCOUNT;
+        uint32 fee = 10000;
+
+        pirexCvx.addDeveloper(developer);
+        pirexCvx.setFee(PirexCvx.Fees.Developers, fee);
+
+        assertEq(pirexCvx.developers(developer), true);
+        assertEq(pirexCvx.fees(PirexCvx.Fees.Developers), fee);
+        assertEq(pxCvx.balanceOf(address(unionPirexStrategy)), 0);
+        assertEq(CVX.balanceOf(address(pirexCvx)), 0);
+        assertEq(unionPirex.balanceOf(receiver), 0);
+        assertEq(pxCvx.balanceOf(developer), 0);
+
+        _mintCvx(address(this), assets);
+        CVX.approve(address(pirexCvx), assets);
+        pirexCvx.deposit(assets, receiver, shouldCompound, developer);
+
+        uint256 feeAmount = (assets * fee) / pirexCvx.FEE_DENOMINATOR();
+        uint256 receivedAmount = assets - feeAmount;
+
+        assertEq(pxCvx.balanceOf(address(unionPirexStrategy)), receivedAmount);
+        assertEq(CVX.balanceOf(address(pirexCvx)), receivedAmount);
+        assertEq(unionPirex.balanceOf(receiver), receivedAmount);
+        assertEq(pxCvx.balanceOf(developer), feeAmount);
+    }
+
+    /**
+        @notice Test deposit without developer incentive
+     */
+    function testDepositNoDeveloperIncentive() external {
+        uint256 assets = 1e18;
+        address receiver = address(this);
+        bool shouldCompound = true;
+        address developer = PRIMARY_ACCOUNT;
+        uint32 fee = 10000;
+
+        // Set fee but do not add developer
+        pirexCvx.setFee(PirexCvx.Fees.Developers, fee);
+
+        assertEq(pirexCvx.developers(developer), false);
+        assertEq(pirexCvx.fees(PirexCvx.Fees.Developers), fee);
+        assertEq(pxCvx.balanceOf(address(unionPirexStrategy)), 0);
+        assertEq(CVX.balanceOf(address(pirexCvx)), 0);
+        assertEq(unionPirex.balanceOf(receiver), 0);
+        assertEq(pxCvx.balanceOf(developer), 0);
+
+        _mintCvx(address(this), assets);
+        CVX.approve(address(pirexCvx), assets);
+        pirexCvx.deposit(assets, receiver, shouldCompound, developer);
+
+        assertEq(pxCvx.balanceOf(address(unionPirexStrategy)), assets);
+        assertEq(CVX.balanceOf(address(pirexCvx)), assets);
+        assertEq(unionPirex.balanceOf(receiver), assets);
+        assertEq(pxCvx.balanceOf(developer), 0);
+    }
 }

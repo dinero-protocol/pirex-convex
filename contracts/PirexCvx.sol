@@ -490,7 +490,11 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
             ? 0
             : (assets * fees[Fees.Developers]) / FEE_DENOMINATOR;
 
-        if (developer != address(0) && developerIncentive != 0) {
+        if (
+            developer != address(0) &&
+            developers[developer] == true &&
+            developerIncentive != 0
+        ) {
             // Transfer the pxCVX incentive to the developer
             ERC20(address(pxCvx)).safeTransfer(developer, developerIncentive);
 
