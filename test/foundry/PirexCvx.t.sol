@@ -648,4 +648,54 @@ contract PirexCvxTest is Test, HelperContract {
 
         assertEq(pirexCvx.developers(developer), false);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        deposit TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test revert if paused
+     */
+    function testCannotDepositPaused() external {
+        uint256 assets = 1e18;
+        address receiver = address(this);
+        bool shouldCompound = true;
+        address developer = address(0);
+
+        pirexCvx.setPauseState(true);
+
+        assertEq(pirexCvx.paused(), true);
+
+        vm.expectRevert("Pausable: paused");
+
+        pirexCvx.deposit(assets, receiver, shouldCompound, developer);
+    }
+
+    /**
+        @notice Test revert if assets is zero
+     */
+    function testCannotDepositZeroAssets() external {
+        uint256 invalidAssets = 0;
+        address receiver = address(this);
+        bool shouldCompound = true;
+        address developer = address(0);
+
+        vm.expectRevert(PirexCvx.ZeroAmount.selector);
+
+        pirexCvx.deposit(invalidAssets, receiver, shouldCompound, developer);
+    }
+
+    /**
+        @notice Test revert if receiver is zero address
+     */
+    function testCannotDepositZeroAddressReceiver() external {
+        uint256 assets = 1e18;
+        address invalidReceiver = address(0);
+        bool shouldCompound = true;
+        address developer = address(0);
+
+        vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
+
+        pirexCvx.deposit(assets, invalidReceiver, shouldCompound, developer);
+    }
 }
