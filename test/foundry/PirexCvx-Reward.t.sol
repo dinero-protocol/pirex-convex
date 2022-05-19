@@ -10,6 +10,7 @@ import {PxCvx} from "contracts/PxCvx.sol";
 import {ERC1155PresetMinterSupply} from "contracts/tokens/ERC1155PresetMinterSupply.sol";
 import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
 import {HelperContract} from "./HelperContract.sol";
+import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
 
 contract PirexCvxRewardTest is Test, HelperContract {
     /**
@@ -249,6 +250,67 @@ contract PirexCvxRewardTest is Test, HelperContract {
     }
 
     /*//////////////////////////////////////////////////////////////
+                        claimMiscRewards TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test claiming misc rewards
+     */
+    function testClaimMiscRewards() external {
+        address cvxLockerOwner = CVX_LOCKER.owner();
+        address token = address(this);
+        IERC20 t = IERC20(token);
+        address sender = msg.sender;
+        uint256 amount = 10e18;
+
+        // Lock CVX so we are eligible for some misc locker rewards
+        _mintAndDepositCVX(amount, address(this), false, true);
+
+        // Mint and approve the rewards to be included in the misc rewards
+        _mint(sender, amount);
+
+        approve(address(CVX_LOCKER), amount);
+
+        // Register the designated address to be a distributor as the CvxLocker owner
+        vm.prank(cvxLockerOwner);
+
+        CVX_LOCKER.addReward(token, sender, true);
+
+        // Apply the rewards
+        vm.prank(sender);
+
+        CVX_LOCKER.notifyRewardAmount(token, amount);
+
+        // Skip to accrue the rewards
+        vm.warp(block.timestamp + CVX_LOCKER.rewardsDuration());
+
+        // Claim and validate the updated balances
+        CvxLockerV2.EarnedData[] memory miscRewards = CVX_LOCKER
+            .claimableRewards(address(pirexCvx));
+        CvxLockerV2.EarnedData memory reward = miscRewards[
+            miscRewards.length - 1
+        ];
+
+        uint256 oldTreasuryBalance = t.balanceOf(pirexFees.treasury());
+        uint256 oldContributorsBalance = t.balanceOf(
+            address(pirexFees.contributors())
+        );
+
+        pirexCvx.claimMiscRewards();
+
+        uint256 newTreasuryBalance = t.balanceOf(pirexFees.treasury());
+        uint256 newContributorsBalance = t.balanceOf(
+            address(pirexFees.contributors())
+        );
+
+        assertEq(reward.token, token);
+        assertEq(
+            newTreasuryBalance + newContributorsBalance,
+            oldTreasuryBalance + oldContributorsBalance + reward.amount
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
                         redeemFuturesRewards TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -407,8 +469,6 @@ contract PirexCvxRewardTest is Test, HelperContract {
         uint8 stakePercent
     ) external {
         _redeemFuturesRewardsFuzzParameters(rounds, assets, stakePercent);
-
-        uint256 stakeAmount = (assets * stakePercent) / 255;
 
         _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
 
