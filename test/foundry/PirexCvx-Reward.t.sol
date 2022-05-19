@@ -123,7 +123,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
         _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
 
-        _stakePxCvx(PRIMARY_ACCOUNT, rounds, assets);
+        _stakePxCvx(PRIMARY_ACCOUNT, rounds, PirexCvx.Futures.Reward, assets);
 
         // Forward 1 epoch, since rpCVX has claim to rewards in subsequent epochs
         vm.warp(block.timestamp + EPOCH_DURATION);
@@ -166,7 +166,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
         _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
 
-        _stakePxCvx(PRIMARY_ACCOUNT, rounds, assets);
+        _stakePxCvx(PRIMARY_ACCOUNT, rounds, PirexCvx.Futures.Reward, assets);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
 
@@ -252,7 +252,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
         _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
 
-        _stakePxCvx(PRIMARY_ACCOUNT, rounds, assets);
+        _stakePxCvx(PRIMARY_ACCOUNT, rounds, PirexCvx.Futures.Reward, assets);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
 

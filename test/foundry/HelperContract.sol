@@ -155,19 +155,20 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
 
     /**
         @notice Stake pxCVX and mint rpCVX based on input parameters
-        @param  account  address  Account
-        @param  rounds   uint256  Rounds
-        @param  assets   uint256  pxCVX
+        @param  account  address           Account
+        @param  rounds   uint256           Number of rounds
+        @param  f        PirexCvx.Futures  Futures enum
+        @param  assets   uint256           Amount of pxCVX
      */
-    function _stakePxCvx(address account, uint256 rounds, uint256 assets) internal {
+    function _stakePxCvx(
+        address account,
+        uint256 rounds,
+        PirexCvx.Futures f,
+        uint256 assets
+    ) internal {
         vm.prank(account);
 
-        pirexCvx.stake(
-            rounds,
-            PirexCvx.Futures.Reward,
-            assets,
-            PRIMARY_ACCOUNT
-        );
+        pirexCvx.stake(rounds, f, assets, account);
     }
 
     /**

@@ -20,7 +20,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
 
         vm.expectRevert("Pausable: paused");
 
-        pirexCvx.stake(0, PirexCvx.Futures.Reward, 1, address(this));
+        _stakePxCvx(address(this), 0, PirexCvx.Futures.Reward, 1);
     }
 
     /**
@@ -29,7 +29,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
     function testCannotStakeZeroRound() external {
         vm.expectRevert(PirexCvx.ZeroAmount.selector);
 
-        pirexCvx.stake(0, PirexCvx.Futures.Reward, 1, address(this));
+        _stakePxCvx(address(this), 0, PirexCvx.Futures.Reward, 1);
     }
 
     /**
@@ -38,7 +38,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
     function testCannotStakeZeroAmount() external {
         vm.expectRevert(PirexCvx.ZeroAmount.selector);
 
-        pirexCvx.stake(1, PirexCvx.Futures.Reward, 0, address(this));
+        _stakePxCvx(address(this), 1, PirexCvx.Futures.Reward, 0);
     }
 
     /**
@@ -76,9 +76,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
 
             assertEq(pxCvx.balanceOf(account), amount);
 
-            vm.prank(account);
-
-            pirexCvx.stake(rounds, PirexCvx.Futures(fVal), amount, account);
+            _stakePxCvx(account, rounds, PirexCvx.Futures(fVal), amount);
 
             assertEq(pxCvx.balanceOf(account), 0);
             assertEq(
@@ -140,10 +138,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
         @param  amount  uint72  Amount of assets to unstake
         @param  rounds  uint8   Number of rounds
      */
-    function testUnstake(
-        uint72 amount,
-        uint8 rounds
-    ) external {
+    function testUnstake(uint72 amount, uint8 rounds) external {
         // TMP: Should be !=0 after the fee calculation fixes
         vm.assume(amount > 1000);
         // Tune down the rounds since it takes too long for large rounds
@@ -158,18 +153,10 @@ contract PirexCvxStakeTest is Test, HelperContract {
             _mintAndDepositCVX(amount, account, false, true);
 
             // Simulate staking first before unstaking
-            vm.prank(account);
-
-            pirexCvx.stake(rounds, PirexCvx.Futures.Reward, amount, account);
+            _stakePxCvx(account, rounds, PirexCvx.Futures.Reward, amount);
 
             assertEq(pxCvx.balanceOf(account), 0);
-            assertEq(
-                spCvx.balanceOf(
-                    account,
-                    spCvxId
-                ),
-                amount
-            );
+            assertEq(spCvx.balanceOf(account, spCvxId), amount);
         }
 
         // Time-skip beyond the expiry
@@ -183,13 +170,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
             pirexCvx.unstake(spCvxId, amount, account);
 
             assertEq(pxCvx.balanceOf(account), amount);
-            assertEq(
-                spCvx.balanceOf(
-                    account,
-                    spCvxId
-                ),
-                0
-            );
+            assertEq(spCvx.balanceOf(account, spCvxId), 0);
         }
     }
 }

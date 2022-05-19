@@ -150,19 +150,22 @@ contract PirexCvxMainTest is Test, HelperContract {
     function testDepositNoLock(uint72 amount) external {
         vm.assume(amount != 0);
 
+        uint256 totalAssets;
         uint256 tLen = secondaryAccounts.length;
 
         for (uint256 i; i < tLen; ++i) {
             address account = secondaryAccounts[i];
+            uint256 asset = amount * (i + 1);
 
-            _mintAndDepositCVX(amount, account, false, false);
+            totalAssets += asset;
+
+            _mintAndDepositCVX(asset, account, false, false);
 
             // Check the PxCvx balance of the account
-            assertEq(pxCvx.balanceOf(account), amount);
+            assertEq(pxCvx.balanceOf(account), asset);
             assertEq(CVX.balanceOf(account), 0);
         }
 
-        uint256 totalAssets = tLen * amount;
         uint256 locked = CVX_LOCKER.lockedBalanceOf(address(pirexCvx));
 
         // Check amount of pending locks
@@ -178,19 +181,22 @@ contract PirexCvxMainTest is Test, HelperContract {
     function testDeposit(uint72 amount) external {
         vm.assume(amount != 0);
 
+        uint256 totalAssets;
         uint256 tLen = secondaryAccounts.length;
 
         for (uint256 i; i < tLen; ++i) {
             address account = secondaryAccounts[i];
+            uint256 asset = amount * (i + 1);
 
-            _mintAndDepositCVX(amount, account, false, true);
+            totalAssets += asset;
+
+            _mintAndDepositCVX(asset, account, false, true);
 
             // Check the PxCvx balance of the account
-            assertEq(pxCvx.balanceOf(account), amount);
+            assertEq(pxCvx.balanceOf(account), asset);
             assertEq(CVX.balanceOf(account), 0);
         }
 
-        uint256 totalAssets = tLen * amount;
         uint256 locked = CVX_LOCKER.lockedBalanceOf(address(pirexCvx));
 
         assertEq(pxCvx.totalSupply(), totalAssets);
@@ -204,19 +210,22 @@ contract PirexCvxMainTest is Test, HelperContract {
     function testDepositWithCompound(uint72 amount) external {
         vm.assume(amount != 0);
 
+        uint256 totalAssets;
         uint256 tLen = secondaryAccounts.length;
 
         for (uint256 i; i < tLen; ++i) {
             address account = secondaryAccounts[i];
+            uint256 asset = amount * (i + 1);
 
-            _mintAndDepositCVX(amount, account, true, true);
+            totalAssets += asset;
+
+            _mintAndDepositCVX(asset, account, true, true);
 
             // Check the balance of the account in the UnionVault
-            assertEq(unionPirex.balanceOf(account), amount);
+            assertEq(unionPirex.balanceOf(account), asset);
             assertEq(CVX.balanceOf(account), 0);
         }
 
-        uint256 totalAssets = tLen * amount;
         uint256 locked = CVX_LOCKER.lockedBalanceOf(address(pirexCvx));
 
         // For compounding deposit, the PxCvx tokens are transferred to the Strategy contract
@@ -392,6 +401,7 @@ contract PirexCvxMainTest is Test, HelperContract {
 
         for (uint256 i; i < tLen; ++i) {
             address account = secondaryAccounts[i];
+            uint256 asset = amount * (i + 1);
             uint256 oldOutstandingRedemptions = pirexCvx
                 .outstandingRedemptions();
             uint256 oldTreasuryBalance = pxCvx.balanceOf(
@@ -401,12 +411,12 @@ contract PirexCvxMainTest is Test, HelperContract {
                 address(pirexFees.contributors())
             );
 
-            uint256 unlockTime = _setupRedemption(account, amount, fVal);
+            uint256 unlockTime = _setupRedemption(account, asset, fVal);
 
             // Simulate the fee calculation separately to avoid "stack too deep" issue
             (uint256 postFeeAmount, uint256 rounds) = _processRedemption(
                 unlockTime,
-                amount
+                asset
             );
 
             assertEq(
@@ -417,13 +427,13 @@ contract PirexCvxMainTest is Test, HelperContract {
             assertEq(upCvx.balanceOf(account, unlockTime), postFeeAmount);
 
             // Check through all the future notes balances separately to avoid "stack too deep" issue
-            _validateFutureNotesBalances(fVal, rounds, account, amount);
+            _validateFutureNotesBalances(fVal, rounds, account, asset);
 
             // Check fee distributions separately to avoid "stack too deep" issue
             _validateFeeDistributions(
                 oldTreasuryBalance,
                 oldContributorsBalance,
-                amount - postFeeAmount
+                asset - postFeeAmount
             );
         }
     }
@@ -544,16 +554,17 @@ contract PirexCvxMainTest is Test, HelperContract {
 
         for (uint256 i; i < tLen; ++i) {
             address account = secondaryAccounts[i];
+            uint256 asset = amount * (i + 1);
 
             // Simulate redemption and calculate unlock time as well as the actual amount after fee
-            uint256 unlockTime = _setupRedemption(account, amount, 0);
+            uint256 unlockTime = _setupRedemption(account, asset, 0);
 
             uint256 oldOutstandingRedemptions = pirexCvx
                 .outstandingRedemptions();
             uint256 oldCvxBalance = CVX.balanceOf(account);
             uint256 oldUpCvxBalance = upCvx.balanceOf(account, unlockTime);
 
-            (uint256 postFeeAmount, ) = _processRedemption(unlockTime, amount);
+            (uint256 postFeeAmount, ) = _processRedemption(unlockTime, asset);
 
             // Time-skip until the designated unlock time
             vm.warp(unlockTime);
