@@ -82,7 +82,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     // Unused ERC1155 `data` param value
     bytes private constant UNUSED_1155_DATA = "";
 
-    // Whitelisted app developers who are eligible for incentives
+    // Developers who are eligible for incentives as part of the new initiative
+    // to enable builders to sustainably build apps for the Pirex ecosystem
     mapping(address => bool) public developers;
 
     PxCvx public pxCvx;
@@ -123,7 +124,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     event Deposit(
         uint256 assets,
         address indexed receiver,
-        bool indexed shouldCompound
+        bool indexed shouldCompound,
+        address indexed developer
     );
     event InitiateRedemptions(
         uint256[] lockIndexes,
@@ -465,11 +467,13 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @param  assets          uint256  CVX amount
         @param  receiver        address  Receives pCVX
         @param  shouldCompound  bool     Whether to auto-compound
+        @param  developer       address  Developer incentive receiver
      */
     function deposit(
         uint256 assets,
         address receiver,
-        bool shouldCompound
+        bool shouldCompound,
+        address developer
     ) external whenNotPaused nonReentrant {
         if (assets == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
@@ -480,7 +484,18 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         // Mint pCVX - recipient depends on whether or not to compound
         pxCvx.mint(shouldCompound ? address(this) : receiver, assets);
 
-        emit Deposit(assets, receiver, shouldCompound);
+        emit Deposit(assets, receiver, shouldCompound, developer);
+
+        uint256 developerIncentive = developer == address(0)
+            ? 0
+            : (assets * fees[Fees.Developers]) / FEE_DENOMINATOR;
+
+        if (developer != address(0) && developerIncentive != 0) {
+            // Transfer the pxCVX incentive to the developer
+            ERC20(address(pxCvx)).safeTransfer(developer, developerIncentive);
+
+            assets -= developerIncentive;
+        }
 
         if (shouldCompound) {
             // Deposit pCVX into Union vault - user receives shares

@@ -142,12 +142,14 @@ abstract contract HelperContract is
         @param  assets          uint256  Amount of CVX to mint and deposit
         @param  receiver        address  Recipient of pxCVX or uCVX
         @param  shouldCompound  bool     Whether to compound with UnionPirexVault
+        @param  developer       address  Developer incentive receiver
         @param  lock            bool     Whether to lock deposited CVX
      */
     function _mintAndDepositCVX(
         uint256 assets,
         address receiver,
         bool shouldCompound,
+        address developer,
         bool lock
     ) internal {
         _mintCvx(receiver, assets);
@@ -155,7 +157,7 @@ abstract contract HelperContract is
         vm.startPrank(receiver);
 
         CVX.approve(address(pirexCvx), CVX.balanceOf(receiver));
-        pirexCvx.deposit(assets, receiver, shouldCompound);
+        pirexCvx.deposit(assets, receiver, shouldCompound, developer);
 
         if (lock) {
             pirexCvx.lock();

@@ -68,7 +68,7 @@ contract PirexCvxConvexTest is Test, HelperContract {
             address secondaryAccount = secondaryAccounts[i];
 
             // Deposit and lock CVX so that there are locked balances to redeem against
-            _mintAndDepositCVX(assets, secondaryAccount, false, true);
+            _mintAndDepositCVX(assets, secondaryAccount, false, address(0), true);
 
             uint256[] memory lockIndexes = new uint256[](1);
             uint256[] memory lockableAssets = new uint256[](1);
@@ -117,6 +117,7 @@ contract PirexCvxConvexTest is Test, HelperContract {
                 pendingLockAmount,
                 PRIMARY_ACCOUNT,
                 false,
+                address(0),
                 false
             );
 

@@ -130,7 +130,7 @@ contract PxCvxTest is Test, HelperContract {
         assertEq(pxCvx.getCurrentSnapshotId(), 1);
 
         // Deposit CVX so that rewards can be calculated
-        _mintAndDepositCVX(1e18, address(this), true, true);
+        _mintAndDepositCVX(1e18, address(this), true, address(0), true);
 
         // The amount of rewards claimed and stored in the struct
         uint256 rewardAmount = 1e18;
@@ -251,7 +251,7 @@ contract PxCvxTest is Test, HelperContract {
         address account = address(this);
 
         // Distribute rewards so we can check epoch data
-        _mintAndDepositCVX(1e18, account, false, true);
+        _mintAndDepositCVX(1e18, account, false, address(0), true);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
 

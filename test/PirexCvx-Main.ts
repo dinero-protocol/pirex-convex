@@ -64,9 +64,10 @@ describe('PirexCvx-Main', function () {
       const invalidAssets = toBN(0);
       const receiver = admin.address;
       const shouldCompound = true;
+      const developer = zeroAddress;
 
       await expect(
-        pCvx.deposit(invalidAssets, receiver, shouldCompound)
+        pCvx.deposit(invalidAssets, receiver, shouldCompound, developer)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
@@ -74,9 +75,10 @@ describe('PirexCvx-Main', function () {
       const assets = toBN(1e18);
       const invalidReceiver = zeroAddress;
       const shouldCompound = true;
+      const developer = zeroAddress;
 
       await expect(
-        pCvx.deposit(assets, invalidReceiver, shouldCompound)
+        pCvx.deposit(assets, invalidReceiver, shouldCompound, developer)
       ).to.be.revertedWith('ZeroAddress()');
     });
 
@@ -85,9 +87,10 @@ describe('PirexCvx-Main', function () {
       const invalidAssets = cvxBalance.add(1);
       const receiver = admin.address;
       const shouldCompound = true;
+      const developer = zeroAddress;
 
       await expect(
-        pCvx.deposit(invalidAssets, receiver, shouldCompound)
+        pCvx.deposit(invalidAssets, receiver, shouldCompound, developer)
       ).to.be.revertedWith(
         "VM Exception while processing transaction: reverted with reason string 'TRANSFER_FROM_FAILED'"
       );
@@ -97,11 +100,12 @@ describe('PirexCvx-Main', function () {
       const cvxBalance = await cvx.balanceOf(admin.address);
       const receiver = admin.address;
       const shouldCompound = true;
+      const developer = zeroAddress;
 
       await pCvx.setPauseState(true);
 
       await expect(
-        pCvx.deposit(cvxBalance, receiver, shouldCompound)
+        pCvx.deposit(cvxBalance, receiver, shouldCompound, developer)
       ).to.be.revertedWith('Pausable: paused');
 
       await pCvx.setPauseState(false);
@@ -115,6 +119,7 @@ describe('PirexCvx-Main', function () {
       const assets = toBN(10e18);
       const receiver = admin.address;
       const shouldCompound = true;
+      const developer = zeroAddress;
 
       // Necessary since pCVX transfers CVX to itself before locking
       await cvx.approve(pCvx.address, assets);
@@ -124,6 +129,7 @@ describe('PirexCvx-Main', function () {
         assets,
         receiver,
         shouldCompound,
+        developer,
       ]);
 
       await pCvx.lock();
@@ -152,7 +158,7 @@ describe('PirexCvx-Main', function () {
         amount: assets,
       });
 
-      validateEvent(depositEvent, 'Deposit(uint256,address,bool)', {
+      validateEvent(depositEvent, 'Deposit(uint256,address,bool,address)', {
         assets,
         receiver,
       });
@@ -197,7 +203,7 @@ describe('PirexCvx-Main', function () {
       const amount = toBN(1e18);
 
       await cvx.approve(pCvx.address, amount);
-      await pCvx.deposit(amount, admin.address, false);
+      await pCvx.deposit(amount, admin.address, false, zeroAddress);
       await pCvx.lock();
     });
 
@@ -256,7 +262,7 @@ describe('PirexCvx-Main', function () {
       const assets = toBN(1e18);
 
       await cvx.approve(pCvx.address, assets);
-      await pCvx.deposit(assets, admin.address, true);
+      await pCvx.deposit(assets, admin.address, true, zeroAddress);
       await pCvx.lock();
 
       const { lockData } = await cvxLocker.lockedBalances(pCvx.address);
@@ -397,7 +403,7 @@ describe('PirexCvx-Main', function () {
       expect(upCvxBalanceAfter2).to.equal(
         upCvxBalanceBefore2.add(postFeeAmount2)
       );
-      
+
       validateEvent(burnEvent, 'Transfer(address,address,uint256)', {
         from: msgSender,
         to: zeroAddress,

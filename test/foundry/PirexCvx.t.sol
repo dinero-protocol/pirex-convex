@@ -151,7 +151,7 @@ contract PirexCvxTest is Test, HelperContract {
         )
     {
         // Deposit CVX and get pxCVX - used for redemptions
-        _mintAndDepositCVX(assets, address(this), false, true);
+        _mintAndDepositCVX(assets, address(this), false, address(0), true);
 
         (, , , CvxLockerV2.LockedBalance[] memory lockData) = CVX_LOCKER
             .lockedBalances(address(pirexCvx));
@@ -180,7 +180,7 @@ contract PirexCvxTest is Test, HelperContract {
 
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
-        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
+        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, address(0), true);
         _stakePxCvx(rounds, stakeAmount);
 
         // Forward 1 epoch, since rpCVX has claim to rewards in subsequent epochs
@@ -222,7 +222,7 @@ contract PirexCvxTest is Test, HelperContract {
 
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
-        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
+        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, address(0), true);
         _stakePxCvx(rounds, stakeAmount);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
@@ -307,7 +307,7 @@ contract PirexCvxTest is Test, HelperContract {
 
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
-        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
+        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, address(0), true);
         _stakePxCvx(rounds, stakeAmount);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
