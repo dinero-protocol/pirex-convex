@@ -209,6 +209,7 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
         PirexCvx.VotiumReward[]
             memory votiumRewards = new PirexCvx.VotiumReward[](1);
         votiumRewards[0] = votiumReward;
+    
         pirexCvx.claimVotiumRewards(votiumRewards);
     }
 

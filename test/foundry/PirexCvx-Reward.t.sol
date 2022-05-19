@@ -2,6 +2,7 @@
 pragma solidity 0.8.12;
 
 import "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {PirexCvxMock} from "contracts/mocks/PirexCvxMock.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
@@ -107,6 +108,110 @@ contract PirexCvxRewardTest is Test, HelperContract {
         vm.assume(assets > 1e18);
         vm.assume(stakePercent != 0);
         vm.assume(stakePercent < 255);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        claimVotiumRewards TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if contract is paused
+     */
+    function testCannotClaimVotiumRewardsPaused() external {
+        pirexCvx.setPauseState(true);
+
+        vm.expectRevert("Pausable: paused");
+
+        _claimSingleReward(address(this), 1);
+    }
+
+    /**
+        @notice Test tx reversion if claiming with empty array
+     */
+    function testCannotClaimVotiumRewardsEmptyArray() external {
+        PirexCvx.VotiumReward[]
+            memory votiumRewards = new PirexCvx.VotiumReward[](0);
+
+        vm.expectRevert(PirexCvx.EmptyArray.selector);
+
+        pirexCvx.claimVotiumRewards(votiumRewards);
+    }
+
+    /**
+        @notice Test tx reversion if claiming with invalid token address
+     */
+    function testCannotClaimVotiumRewardsZeroAddress() external {
+        vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
+
+        _claimSingleReward(address(0), 1);
+    }
+
+    /**
+        @notice Test tx reversion if claiming with zero amount
+     */
+    function testCannotClaimVotiumRewardsZeroAmount() external {
+        vm.expectRevert(PirexCvx.ZeroAmount.selector);
+
+        _claimSingleReward(address(this), 0);
+    }
+
+    /**
+        @notice Test claiming votium rewards
+     */
+    function testClaimVotiumRewards() external {
+        // Populate and stake PxCvx for the snapshot
+        uint256 asset = 1e18;
+        uint256 rounds = 5;
+
+        _mintAndDepositCVX(asset, PRIMARY_ACCOUNT, false, true);
+
+        _stakePxCvx(PRIMARY_ACCOUNT, rounds, PirexCvx.Futures.Reward, asset);
+
+        vm.warp(block.timestamp + EPOCH_DURATION);
+
+        // Mint tokens before adding it as a claimable votium reward record
+        address token = address(this);
+        uint256 amount = 1e18;
+
+        _mint(token, amount);
+
+        // Transfer to Votium and update metadata
+        _loadRewards(
+            token,
+            amount,
+            keccak256(abi.encodePacked(uint256(0), address(pirexCvx), amount))
+        );
+
+        PirexCvx.VotiumReward memory votiumReward;
+        votiumReward.token = token;
+        votiumReward.index = 0;
+        votiumReward.amount = amount;
+        votiumReward.merkleProof = new bytes32[](0);
+
+        PirexCvx.VotiumReward[]
+            memory votiumRewards = new PirexCvx.VotiumReward[](1);
+        votiumRewards[0] = votiumReward;
+
+        pirexCvx.claimVotiumRewards(votiumRewards);
+
+        uint256 epoch = pirexCvx.getCurrentEpoch();
+        (uint256 snapshotId, , , ) = pxCvx.getEpoch(epoch);
+        uint256 rpCvxSupply = rpCvx.totalSupply(epoch);
+
+        // Validate fees and epoch rewards
+        (
+            uint256 rewardFee,
+            uint256 snapshotRewards,
+            uint256 futuresRewards
+        ) = pirexCvx.calculateRewards(
+                pirexCvx.fees(PirexCvx.Fees.Reward),
+                pxCvx.totalSupplyAt(snapshotId),
+                rpCvxSupply,
+                amount
+            );
+
+        assertEq(rewardFee + snapshotRewards + futuresRewards, amount);
+        assertEq(IERC20(token).balanceOf(address(pirexCvx)), snapshotRewards + futuresRewards);
     }
 
     /*//////////////////////////////////////////////////////////////
