@@ -13,6 +13,44 @@ import {HelperContract} from "./HelperContract.sol";
 
 contract PirexCvxRewardTest is Test, HelperContract {
     /**
+        @notice Add the specified tokens to Votium
+        @param  tokens  address[]  Token addresses
+        @param  amount  uint256    Amount
+     */
+    function _addVotiumRewards(address[] memory tokens, uint256 amount)
+        internal
+    {
+        uint256 tLen = tokens.length;
+
+        PirexCvx.VotiumReward[]
+            memory votiumRewards = new PirexCvx.VotiumReward[](tLen);
+
+        for (uint256 i; i < tLen; ++i) {
+            // Mint tokens before adding it as a claimable votium reward record
+            address token = tokens[i];
+
+            // Transfer to Votium and update metadata
+            _loadRewards(
+                token,
+                amount,
+                keccak256(
+                    abi.encodePacked(uint256(i), address(pirexCvx), amount)
+                )
+            );
+
+            PirexCvx.VotiumReward memory votiumReward;
+            votiumReward.token = token;
+            votiumReward.index = i;
+            votiumReward.amount = amount;
+            votiumReward.merkleProof = new bytes32[](0);
+
+            votiumRewards[i] = votiumReward;
+        }
+
+        pirexCvx.claimVotiumRewards(votiumRewards);
+    }
+
+    /**
         @notice Transfer rpCVX to other receiver
         @param  receiver  address  rpCVX receiver
         @param  epoch     address  rpCVX id
@@ -157,66 +195,57 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
     /**
         @notice Test claiming votium rewards
+        @param  amount  uint256  Token amount
      */
-    function testClaimVotiumRewards() external {
+    function testClaimVotiumRewards(uint72 amount) external {
+        vm.assume(amount > 1000);
+
         // Populate and stake PxCvx for the snapshot
         uint256 asset = 1e18;
-        uint256 rounds = 5;
 
         _mintAndDepositCVX(asset, PRIMARY_ACCOUNT, false, true);
 
         vm.prank(PRIMARY_ACCOUNT);
 
-        pirexCvx.stake(rounds, PirexCvx.Futures.Reward, asset, PRIMARY_ACCOUNT);
+        pirexCvx.stake(5, PirexCvx.Futures.Reward, asset, PRIMARY_ACCOUNT);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
 
-        // Mint tokens before adding it as a claimable votium reward record
-        address token = address(this);
-        uint256 amount = 1e18;
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(CVX);
+        tokens[1] = address(this);
 
-        _mint(token, amount);
+        uint256 tLen = tokens.length;
 
-        // Transfer to Votium and update metadata
-        _loadRewards(
-            token,
-            amount,
-            keccak256(abi.encodePacked(uint256(0), address(pirexCvx), amount))
-        );
+        // Mint the required tokens first before we can transfer it to Votium
+        _mintCvx(address(this), amount);
+        _mint(address(this), amount);
 
-        PirexCvx.VotiumReward memory votiumReward;
-        votiumReward.token = token;
-        votiumReward.index = 0;
-        votiumReward.amount = amount;
-        votiumReward.merkleProof = new bytes32[](0);
+        // Add the specified tokens as Votium rewards separately to avoid "Stack too deep" issue
+        _addVotiumRewards(tokens, amount);
 
-        PirexCvx.VotiumReward[]
-            memory votiumRewards = new PirexCvx.VotiumReward[](1);
-        votiumRewards[0] = votiumReward;
+        // Validate reward distributions
+        for (uint256 i; i < tLen; ++i) {
+            uint256 epoch = pirexCvx.getCurrentEpoch();
+            (uint256 snapshotId, , , ) = pxCvx.getEpoch(epoch);
 
-        pirexCvx.claimVotiumRewards(votiumRewards);
+            (
+                uint256 rewardFee,
+                uint256 snapshotRewards,
+                uint256 futuresRewards
+            ) = pirexCvx.calculateRewards(
+                    pirexCvx.fees(PirexCvx.Fees.Reward),
+                    pxCvx.totalSupplyAt(snapshotId),
+                    rpCvx.totalSupply(epoch),
+                    amount
+                );
 
-        uint256 epoch = pirexCvx.getCurrentEpoch();
-        (uint256 snapshotId, , , ) = pxCvx.getEpoch(epoch);
-        uint256 rpCvxSupply = rpCvx.totalSupply(epoch);
-
-        // Validate fees and epoch rewards
-        (
-            uint256 rewardFee,
-            uint256 snapshotRewards,
-            uint256 futuresRewards
-        ) = pirexCvx.calculateRewards(
-                pirexCvx.fees(PirexCvx.Fees.Reward),
-                pxCvx.totalSupplyAt(snapshotId),
-                rpCvxSupply,
-                amount
+            assertEq(rewardFee + snapshotRewards + futuresRewards, amount);
+            assertEq(
+                IERC20(tokens[i]).balanceOf(address(pirexCvx)),
+                snapshotRewards + futuresRewards
             );
-
-        assertEq(rewardFee + snapshotRewards + futuresRewards, amount);
-        assertEq(
-            IERC20(token).balanceOf(address(pirexCvx)),
-            snapshotRewards + futuresRewards
-        );
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
