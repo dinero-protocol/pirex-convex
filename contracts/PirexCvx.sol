@@ -329,7 +329,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     }
 
     /** 
-        @notice Add developer to whitelist mapping
+        @notice Remove developer from whitelist mapping
         @param  developer  address  Developer
      */
     function removeDeveloper(address developer) external onlyOwner {
@@ -486,6 +486,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
         emit Deposit(assets, receiver, shouldCompound, developer);
 
+        // Calculate the dev incentive, which will come out of the minted pxCVX
         uint256 developerIncentive = developer == address(0)
             ? 0
             : (assets * fees[Fees.Developers]) / FEE_DENOMINATOR;
@@ -495,7 +496,6 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
             developers[developer] == true &&
             developerIncentive != 0
         ) {
-            // Transfer the pxCVX incentive to the developer
             ERC20(address(pxCvx)).safeTransfer(developer, developerIncentive);
 
             assets -= developerIncentive;
@@ -506,7 +506,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
             unionPirex.deposit(assets, receiver);
         }
 
-        // Transfer CVX to self in prepartion for lock
+        // Transfer CVX to self in preparation for lock
         CVX.safeTransferFrom(msg.sender, address(this), assets);
 
         // Lock CVX

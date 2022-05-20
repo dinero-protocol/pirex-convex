@@ -700,7 +700,7 @@ contract PirexCvxTest is Test, HelperContract {
     }
 
     /**
-        @notice Test deposit without compounding pxCVX
+        @notice Test deposit and compound pxCVX
      */
     function testDepositShouldNotCompound() external {
         uint256 assets = 1e18;
