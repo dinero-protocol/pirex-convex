@@ -232,7 +232,6 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
         );
 
         for (uint256 i; i < rounds; ++i) {
-            console.log(fToken.balanceOf(account, startingEpoch + i * EPOCH_DURATION));
             assertEq(
                 fToken.balanceOf(account, startingEpoch + i * EPOCH_DURATION),
                 amount
