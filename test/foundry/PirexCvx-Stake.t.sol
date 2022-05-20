@@ -54,18 +54,18 @@ contract PirexCvxStakeTest is Test, HelperContract {
         @notice Test staking
         @param  amount  uint72   Amount of assets for staking
         @param  rounds  uint8    Number of rounds
-        @param  fVal    uint256  Integer representation of the futures enum
+        @param  fVal    uint8    Integer representation of the futures enum
      */
     function testStake(
         uint72 amount,
         uint8 rounds,
-        uint256 fVal
+        uint8 fVal
     ) external {
         // TMP: Should be !=0 after the fee calculation fixes
         vm.assume(amount > 1000);
         // Tune down the rounds since it takes too long for large rounds
         vm.assume(rounds > 0 && rounds < 50);
-        vm.assume(fVal <= uint256(type(PirexCvx.Futures).max));
+        vm.assume(fVal <= uint8(type(PirexCvx.Futures).max));
 
         uint256 tLen = secondaryAccounts.length;
 

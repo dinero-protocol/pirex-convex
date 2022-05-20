@@ -158,10 +158,10 @@ contract PirexFeesTest is Test, HelperContract {
 
     /**
         @notice Test setting the fee recipient
-        @param  fVal  uint256  Integer representation of the recipient enum
+        @param  fVal  uint8  Integer representation of the recipient enum
      */
-    function testSetFeeRecipient(uint256 fVal) external {
-        vm.assume(fVal <= uint256(type(PirexFees.FeeRecipient).max));
+    function testSetFeeRecipient(uint8 fVal) external {
+        vm.assume(fVal <= uint8(type(PirexFees.FeeRecipient).max));
 
         PirexFees.FeeRecipient f = PirexFees.FeeRecipient(fVal);
         address recipient = secondaryAccounts[0];

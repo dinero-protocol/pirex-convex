@@ -13,12 +13,12 @@ contract PirexCvxMainTest is Test, HelperContract {
         @notice Setup for redemption tests
         @param  account  address  Account
         @param  amount   uint256  Amount of assets for redemption
-        @param  fVal     uint256  Integer representation of the futures enum
+        @param  fVal     uint8    Integer representation of the futures enum
      */
     function _setupRedemption(
         address account,
         uint256 amount,
-        uint256 fVal
+        uint8 fVal
     ) internal returns (uint256) {
         _mintAndDepositCVX(amount, account, false, true);
 
@@ -390,12 +390,12 @@ contract PirexCvxMainTest is Test, HelperContract {
     /**
         @notice Test initiating redemption
         @param  amount  uint72   Amount of assets for redemption
-        @param  fVal    uint256  Integer representation of the futures enum
+        @param  fVal    uint8    Integer representation of the futures enum
      */
-    function testInitiateRedemptions(uint72 amount, uint256 fVal) external {
+    function testInitiateRedemptions(uint72 amount, uint8 fVal) external {
         // TMP: Should be !=0 after the fee calculation fixes
         vm.assume(amount > 1000);
-        vm.assume(fVal <= uint256(type(PirexCvx.Futures).max));
+        vm.assume(fVal <= uint8(type(PirexCvx.Futures).max));
 
         uint256 tLen = secondaryAccounts.length;
 

@@ -215,13 +215,13 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
 
     /**
         @notice Validate future notes balances of the specified settings
-        @param  fVal     uint256  Number representation of the futures enum
+        @param  fVal     uint8    Number representation of the futures enum
         @param  rounds   uint256  Number of rounds
         @param  account  uint256  Account
         @param  amount   uint256  Amount
      */
     function _validateFutureNotesBalances(
-        uint256 fVal,
+        uint8 fVal,
         uint256 rounds,
         address account,
         uint256 amount
@@ -232,6 +232,7 @@ abstract contract HelperContract is Test, Pausable, ERC20("Test", "TEST", 18) {
         );
 
         for (uint256 i; i < rounds; ++i) {
+            console.log(fToken.balanceOf(account, startingEpoch + i * EPOCH_DURATION));
             assertEq(
                 fToken.balanceOf(account, startingEpoch + i * EPOCH_DURATION),
                 amount
