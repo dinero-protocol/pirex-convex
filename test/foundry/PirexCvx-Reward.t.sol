@@ -3,12 +3,9 @@ pragma solidity 0.8.12;
 
 import "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {PirexCvxMock} from "contracts/mocks/PirexCvxMock.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
-import {ERC1155PresetMinterSupply} from "contracts/tokens/ERC1155PresetMinterSupply.sol";
-import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
 import {HelperContract} from "./HelperContract.sol";
 import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
 
@@ -259,7 +256,6 @@ contract PirexCvxRewardTest is Test, HelperContract {
     function testClaimMiscRewards() external {
         address cvxLockerOwner = CVX_LOCKER.owner();
         address token = address(this);
-        IERC20 t = IERC20(token);
         address sender = msg.sender;
         uint256 amount = 10e18;
 
@@ -291,23 +287,181 @@ contract PirexCvxRewardTest is Test, HelperContract {
             miscRewards.length - 1
         ];
 
-        uint256 oldTreasuryBalance = t.balanceOf(pirexFees.treasury());
-        uint256 oldContributorsBalance = t.balanceOf(
+        uint256 oldTreasuryBalance = balanceOf[pirexFees.treasury()];
+        uint256 oldContributorsBalance = balanceOf[
             address(pirexFees.contributors())
-        );
+        ];
 
         pirexCvx.claimMiscRewards();
 
-        uint256 newTreasuryBalance = t.balanceOf(pirexFees.treasury());
-        uint256 newContributorsBalance = t.balanceOf(
+        uint256 newTreasuryBalance = balanceOf[pirexFees.treasury()];
+        uint256 newContributorsBalance = balanceOf[
             address(pirexFees.contributors())
-        );
+        ];
 
         assertEq(reward.token, token);
         assertEq(
             newTreasuryBalance + newContributorsBalance,
             oldTreasuryBalance + oldContributorsBalance + reward.amount
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        redeemSnapshotRewards TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if contract is paused
+     */
+    function testCannotRedeemSnapshotRewardsPaused() external {
+        pirexCvx.setPauseState(true);
+
+        uint256[] memory rewardIndexes = new uint256[](0);
+
+        vm.expectRevert("Pausable: paused");
+
+        pirexCvx.redeemSnapshotRewards(0, rewardIndexes, address(this));
+    }
+
+    /**
+        @notice Test tx reversion on invalid epoch
+     */
+    function testCannotRedeemSnapshotRewardsInvalidEpoch() external {
+        uint256[] memory rewardIndexes = new uint256[](0);
+
+        vm.expectRevert(PirexCvx.InvalidEpoch.selector);
+
+        pirexCvx.redeemSnapshotRewards(0, rewardIndexes, address(this));
+    }
+
+    /**
+        @notice Test tx reversion on invalid recipient
+     */
+    function testCannotRedeemSnapshotRewardsZeroAddress() external {
+        uint256[] memory rewardIndexes = new uint256[](0);
+
+        vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
+
+        pirexCvx.redeemSnapshotRewards(1, rewardIndexes, address(0));
+    }
+
+    /**
+        @notice Test tx reversion on invalid index array
+     */
+    function testCannotRedeemSnapshotRewardsEmptyArray() external {
+        uint256[] memory rewardIndexes = new uint256[](0);
+
+        vm.expectRevert(PirexCvx.EmptyArray.selector);
+
+        pirexCvx.redeemSnapshotRewards(1, rewardIndexes, address(this));
+    }
+
+    /**
+        @notice Test tx reversion on insufficient balance at snapshot
+     */
+    function testCannotRedeemSnapshotRewardsInsufficientBalance() external {
+        uint256 amount = 1e18;
+        address account = secondaryAccounts[0];
+
+        _mintAndDepositCVX(1e18, account, false, true);
+
+        vm.warp(block.timestamp + EPOCH_DURATION);
+
+        uint256 epoch = pirexCvx.getCurrentEpoch();
+
+        _distributeEpochRewards(amount);
+
+        uint256[] memory rewardIndexes = new uint256[](1);
+        rewardIndexes[0] = 0;
+
+        // Attempt to redeem with an account having 0 balance on the snapshot
+        vm.expectRevert(PirexCvx.InsufficientBalance.selector);
+
+        pirexCvx.redeemSnapshotRewards(epoch, rewardIndexes, account);
+    }
+
+    /**
+        @notice Test redeeming snapshot rewards
+        @param  amount  uint72  Amount of rewards
+     */
+    function testRedeemSnapshotRewards(uint72 amount) external {
+        vm.assume(amount != 0);
+
+        uint256 tLen = secondaryAccounts.length;
+
+        // Simulate deposits for all test accounts first to populate the snapshot balances
+        for (uint256 i; i < tLen; ++i) {
+            _mintAndDepositCVX(
+                1e18 * (i + 1),
+                secondaryAccounts[i],
+                false,
+                true
+            );
+        }
+
+        vm.warp(block.timestamp + EPOCH_DURATION);
+
+        _distributeEpochRewards(amount);
+
+        uint256 epoch = pirexCvx.getCurrentEpoch();
+        (uint256 snapshotId, , uint256[] memory snapshotRewards, ) = pxCvx
+            .getEpoch(epoch);
+        uint256[] memory rewardIndexes = new uint256[](1);
+            rewardIndexes[0] = 0;
+
+        // Loop through all test accounts to perform redemptions and validations
+        for (uint256 i; i < tLen; ++i) {
+            address account = secondaryAccounts[i];
+
+            // No redemption has been performed yet
+            assertEq(balanceOf[account], 0);
+            assertEq(pxCvx.getEpochRedeemedSnapshotRewards(account, epoch), 0);
+
+            vm.prank(account);
+
+            pirexCvx.redeemSnapshotRewards(epoch, rewardIndexes, account);
+
+            uint256 snapshotBalance = pxCvx.balanceOfAt(account, snapshotId);
+            uint256 snapshotSupply = pxCvx.totalSupplyAt(snapshotId);
+
+            // Check the updated token balance and reward redemption bitmap
+            assertEq(
+                balanceOf[account],
+                (snapshotRewards[0] * snapshotBalance) / snapshotSupply
+            );
+            assertEq(pxCvx.getEpochRedeemedSnapshotRewards(account, epoch), 1);
+        }
+    }
+
+    /**
+        @notice Test tx reversion if redeeming already redeemed rewards
+     */
+    function testCannotRedeemSnapshotRewardsAlreadyRedeemed() external {
+        uint256 amount = 1e18;
+        address account = secondaryAccounts[0];
+
+        _mintAndDepositCVX(1e18, account, false, true);
+
+        vm.warp(block.timestamp + EPOCH_DURATION);
+
+        _distributeEpochRewards(amount);
+
+        uint256 epoch = pirexCvx.getCurrentEpoch();
+
+        uint256[] memory rewardIndexes = new uint256[](1);
+        rewardIndexes[0] = 0;
+
+        // First redemption should be successful
+        vm.startPrank(account);
+
+        pirexCvx.redeemSnapshotRewards(epoch, rewardIndexes, account);
+
+        // Attempt to redeem again with the same index
+        vm.expectRevert(PirexCvx.AlreadyRedeemed.selector);
+
+        pirexCvx.redeemSnapshotRewards(epoch, rewardIndexes, account);
+
+        vm.stopPrank();
     }
 
     /*//////////////////////////////////////////////////////////////
