@@ -7,6 +7,7 @@ import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
 import {HelperContract} from "./HelperContract.sol";
+import {ERC1155PresetMinterSupply} from "contracts/tokens/ERC1155PresetMinterSupply.sol";
 import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
 
 contract PirexCvxRewardTest is Test, HelperContract {
@@ -407,7 +408,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
         (uint256 snapshotId, , uint256[] memory snapshotRewards, ) = pxCvx
             .getEpoch(epoch);
         uint256[] memory rewardIndexes = new uint256[](1);
-            rewardIndexes[0] = 0;
+        rewardIndexes[0] = 0;
 
         // Loop through all test accounts to perform redemptions and validations
         for (uint256 i; i < tLen; ++i) {
@@ -655,5 +656,129 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
             vm.warp(block.timestamp + EPOCH_DURATION);
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        exchangeFutures TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if contract is paused
+     */
+    function testCannotExchangeFuturesPaused() external {
+        pirexCvx.setPauseState(true);
+
+        vm.expectRevert("Pausable: paused");
+
+        pirexCvx.exchangeFutures(0, 0, address(this), PirexCvx.Futures.Reward);
+    }
+
+    /**
+        @notice Test tx reversion if exchanging past the allowed period
+     */
+    function testCannotExchangeFuturesPastExchangePeriod() external {
+        uint256 epoch = pirexCvx.getCurrentEpoch();
+
+        vm.expectRevert(PirexCvx.PastExchangePeriod.selector);
+
+        // Exchanging with epoch <= current epoch
+        pirexCvx.exchangeFutures(
+            epoch,
+            1,
+            address(this),
+            PirexCvx.Futures.Reward
+        );
+    }
+
+    /**
+        @notice Test tx reversion if exchanging for zero address as recipient
+     */
+    function testCannotExchangeFuturesZeroAddress() external {
+        uint256 epoch = pirexCvx.getCurrentEpoch();
+
+        vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
+
+        pirexCvx.exchangeFutures(
+            epoch + EPOCH_DURATION,
+            1,
+            address(0),
+            PirexCvx.Futures.Reward
+        );
+    }
+
+    /**
+        @notice Test tx reversion if exchanging with zero amount
+     */
+    function testCannotExchangeFuturesZeroAmount() external {
+        uint256 epoch = pirexCvx.getCurrentEpoch();
+
+        vm.expectRevert(PirexCvx.ZeroAmount.selector);
+
+        pirexCvx.exchangeFutures(
+            epoch + EPOCH_DURATION,
+            0,
+            address(this),
+            PirexCvx.Futures.Reward
+        );
+    }
+
+    /**
+        @notice Test exchanging futures notes
+        @param  amount   uint72   Amount
+        @param  rounds   uint8    Number of rounds
+        @param  fromVal  uint8    Integer representation of the futures enum
+     */
+    function testExchangeFutures(
+        uint72 amount,
+        uint8 rounds,
+        uint8 fromVal
+    ) external {
+        // TMP: Should be !=0 after the fee calculation fixes
+        vm.assume(amount > 1000);
+        // Tune down the rounds since it takes too long for large rounds
+        vm.assume(rounds > 0 && rounds < 50);
+        vm.assume(fromVal <= uint8(type(PirexCvx.Futures).max));
+
+        address account = secondaryAccounts[0];
+
+        PirexCvx.Futures fromF = PirexCvx.Futures(fromVal);
+        uint8 toVal = (
+            fromF == PirexCvx.Futures.Reward
+                ? uint8(PirexCvx.Futures.Vote)
+                : uint8(PirexCvx.Futures.Reward)
+        );
+        ERC1155PresetMinterSupply fromT = (
+            fromF == PirexCvx.Futures.Reward ? rpCvx : vpCvx
+        );
+
+        uint256 epoch = pirexCvx.getCurrentEpoch() + EPOCH_DURATION;
+
+        _mintAndDepositCVX(amount, account, false, true);
+
+        vm.startPrank(account);
+
+        // Approve the futures notes contract to allow burning on behalf of the account
+        fromT.setApprovalForAll(address(pirexCvx), true);
+
+        // Stake and then immediately exchange all the original futures notes to the other type
+        // then proceed to do the validations
+        pirexCvx.stake(rounds, fromF, amount, account);
+
+        _validateFutureNotesBalances(fromVal, rounds, account, amount);
+        _validateFutureNotesBalances(toVal, rounds, account, 0);
+
+        for (uint256 i; i < rounds; ++i) {
+            pirexCvx.exchangeFutures(
+                epoch + (i * EPOCH_DURATION),
+                amount,
+                account,
+                fromF
+            );
+        }
+
+        _validateFutureNotesBalances(fromVal, rounds, account, 0);
+        _validateFutureNotesBalances(toVal, rounds, account, amount);
+
+        vm.stopPrank();
     }
 }
