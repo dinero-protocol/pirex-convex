@@ -19,16 +19,6 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     using Bytes32AddressLib for address;
 
     /**
-        @notice Queued fee changes
-        @param  newFee          uint32   New fee
-        @param  effectiveAfter  uint224  Timestamp after which new fee could take effect
-     */
-    struct QueuedFee {
-        uint32 newFee;
-        uint224 effectiveAfter;
-    }
-
-    /**
         @notice Votium reward metadata
         @param  token        address    Reward token address
         @param  index        uint256    Merkle tree node index
@@ -82,6 +72,9 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     // Fee denominator
     uint32 public constant FEE_DENOMINATOR = 1_000_000;
 
+    // Fee maximum
+    uint32 public constant FEE_MAX = 100_000;
+
     // Maximum wait time for a CVX redemption (10,281,600 seconds)
     uint32 public constant MAX_REDEMPTION_TIME = 17 weeks;
 
@@ -103,9 +96,6 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     // Convex unlock timestamps mapped to amount being redeemed
     mapping(uint256 => uint256) public redemptions;
 
-    // Queued fees which will take effective after 1 epoch (2 weeks)
-    mapping(Fees => QueuedFee) public queuedFees;
-
     // Emergency migration data
     EmergencyMigration public emergencyMigration;
 
@@ -117,7 +107,6 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     bool public upCvxDeprecated;
 
     event SetContract(Contract indexed c, address contractAddress);
-    event QueueFee(Fees indexed f, uint32 newFee, uint224 effectiveAfter);
     event SetFee(Fees indexed f, uint32 fee);
     event MintFutures(
         uint256 rounds,
@@ -184,7 +173,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     error AlreadyRedeemed();
     error InsufficientRedemptionAllowance();
     error PastExchangePeriod();
-    error InvalidNewFee();
+    error InvalidFee();
     error BeforeEffectiveTimestamp();
     error BeforeStakingExpiry();
     error InvalidEpoch();
@@ -303,36 +292,20 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     }
 
     /** 
-        @notice Queue fee
-        @param  f       enum    Fee
-        @param  newFee  uint32  New fee
-     */
-    function queueFee(Fees f, uint32 newFee) external onlyOwner {
-        if (newFee > FEE_DENOMINATOR) revert InvalidNewFee();
-        if (newFee == fees[f]) revert InvalidNewFee();
-
-        uint224 effectiveAfter = uint224(block.timestamp + EPOCH_DURATION);
-
-        // Queue up the fee change, which can be set after 2 weeks
-        queuedFees[f].newFee = newFee;
-        queuedFees[f].effectiveAfter = effectiveAfter;
-
-        emit QueueFee(f, newFee, effectiveAfter);
-    }
-
-    /** 
         @notice Set fee
-        @param  f  enum  Fee
+        @param  f    enum    Fee
+        @param  fee  uint32  Fee amount
      */
-    function setFee(Fees f) external onlyOwner {
-        QueuedFee memory q = queuedFees[f];
+    function setFee(Fees f, uint32 fee) external onlyOwner {
+        if (fee > FEE_MAX) revert InvalidFee();
+        if (f == Fees.RedemptionMax && fee < fees[Fees.RedemptionMin])
+            revert InvalidFee();
+        if (f == Fees.RedemptionMin && fee > fees[Fees.RedemptionMax])
+            revert InvalidFee();
 
-        if (q.effectiveAfter > block.timestamp)
-            revert BeforeEffectiveTimestamp();
+        fees[f] = fee;
 
-        fees[f] = q.newFee;
-
-        emit SetFee(f, q.newFee);
+        emit SetFee(f, fee);
     }
 
     /**
@@ -601,11 +574,13 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         // Burn pCVX - reverts if sender balance is insufficient
         pxCvx.burn(msg.sender, totalAssets - feeAmount);
 
-        // Allow PirexFees to distribute fees directly from sender
-        pxCvx.operatorApprove(msg.sender, address(pirexFees), feeAmount);
+        if (feeAmount != 0) {
+            // Allow PirexFees to distribute fees directly from sender
+            pxCvx.operatorApprove(msg.sender, address(pirexFees), feeAmount);
 
-        // Distribute fees
-        pirexFees.distributeFees(msg.sender, address(pxCvx), feeAmount);
+            // Distribute fees
+            pirexFees.distributeFees(msg.sender, address(pxCvx), feeAmount);
+        }
     }
 
     /**
