@@ -52,7 +52,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
 
     /**
         @notice Set the platform fee
-        @param _fee  uint16  Platform fee
+        @param _fee  uint256  Platform fee
      */
     function setPlatformFee(uint256 _fee)
         external

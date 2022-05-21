@@ -8,9 +8,22 @@ import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
 import {ERC1155PresetMinterSupply} from "contracts/tokens/ERC1155PresetMinterSupply.sol";
 import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
+import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
 import {HelperContract} from "./HelperContract.sol";
 
 contract PirexCvxTest is Test, HelperContract {
+    uint32 private immutable FEE_MAX;
+
+    constructor() {
+        FEE_MAX = pirexCvx.FEE_MAX();
+    }
+
+    event InitializeFees(
+        uint32 reward,
+        uint32 redemptionMax,
+        uint32 redemptionMin
+    );
+
     /**
         @notice Stake pxCVX and mint rpCVX based on input parameters
         @param  rounds  uint256  Rounds
@@ -120,6 +133,34 @@ contract PirexCvxTest is Test, HelperContract {
         vm.assume(stakePercent != 0);
         vm.assume(stakePercent < 255);
     }
+
+    /**
+        @notice Set up state to test initiating redemptions
+        @param  assets            uint256    Assets to deposit
+        @return lockIndexes       uint256[]  Lock data indexes
+        @return redemptionAssets  uint256[]  Assets to redeem
+     */
+    function _setUpInitiateRedemptions(uint256 assets)
+        internal
+        returns (
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        )
+    {
+        // Deposit CVX and get pxCVX - used for redemptions
+        _mintAndDepositCVX(assets, address(this), false, true);
+
+        (, , , CvxLockerV2.LockedBalance[] memory lockData) = CVX_LOCKER
+            .lockedBalances(address(pirexCvx));
+        lockIndexes = new uint256[](1);
+        redemptionAssets = new uint256[](1);
+        lockIndexes[0] = 0;
+        redemptionAssets[0] = assets;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        redeemFuturesRewards TESTS
+    //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Fuzz the patched version of redeemFuturesRewards to verify now correctly implemented
@@ -286,5 +327,240 @@ contract PirexCvxTest is Test, HelperContract {
 
             vm.warp(block.timestamp + EPOCH_DURATION);
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        claimMiscRewards TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Not the actual method itself but relevant due to the fatal issue of
+                duplicate reward tokens rendering the misc. rewards forever unclaimable.
+                This test verifies that the issue is not a realistic concern, as dupe
+                tokens cannot be added via the CvxLockerV2's addReward method
+     */
+    function testCannotAddRewardDuplicate() external {
+        vm.startPrank(CVX_LOCKER.owner());
+
+        // Successfully added the first time
+        CVX_LOCKER.addReward(address(this), address(this), false);
+
+        vm.expectRevert();
+
+        // Reverts due to `lastUpdateTime` being set for the token (previous call)
+        CVX_LOCKER.addReward(address(this), address(this), false);
+
+        vm.stopPrank();
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setFee TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reverts if not owner
+     */
+    function testCannotSetFeeNotOwner() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(secondaryAccounts[0]);
+
+        pirexCvx.setFee(PirexCvx.Fees.Reward, 1);
+    }
+
+    /**
+        @notice Test tx reverts if fee amount exceeds max
+     */
+    function testCannotSetFeeExceedsMax() external {
+        PirexCvx.Fees[3] memory feeTypes;
+        feeTypes[0] = PirexCvx.Fees.Reward;
+        feeTypes[1] = PirexCvx.Fees.RedemptionMax;
+        feeTypes[2] = PirexCvx.Fees.RedemptionMin;
+
+        for (uint256 i; i < feeTypes.length; ++i) {
+            vm.expectRevert(PirexCvx.InvalidFee.selector);
+
+            pirexCvx.setFee(feeTypes[i], FEE_MAX + 1);
+        }
+    }
+
+    /**
+        @notice Test tx reverts if redemption max fee is less than min
+     */
+    function testCannotSetFeeRedemptionMaxLessThanMin() external {
+        (, , uint32 redemptionMin) = pirexCvx.getFees();
+
+        vm.expectRevert(PirexCvx.InvalidFee.selector);
+
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, redemptionMin - 1);
+    }
+
+    /**
+        @notice Test tx reverts if redemption min fee is greater than max
+     */
+    function testCannotSetFeeRedemptionMinLessThanMax() external {
+        (, uint32 redemptionMax, ) = pirexCvx.getFees();
+
+        vm.expectRevert(PirexCvx.InvalidFee.selector);
+
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMin, redemptionMax + 1);
+    }
+
+    /**
+        @notice Test setting fees for each type
+     */
+    function testSetFee(
+        uint32 reward,
+        uint32 redemptionMax,
+        uint32 redemptionMin
+    ) external {
+        vm.assume(
+            reward < FEE_MAX &&
+                redemptionMax < FEE_MAX &&
+                redemptionMin < FEE_MAX
+        );
+        vm.assume(redemptionMax > redemptionMin);
+
+        _resetFees();
+
+        pirexCvx.setFee(PirexCvx.Fees.Reward, reward);
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, redemptionMax);
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMin, redemptionMin);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        initiateRedemptions TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test that the tx reverts if redemptionMax is zero with faulty method.
+                In addition to the `ZeroAmount` error, it was previously possible for
+                redemptionMax to be set below redemptionMin, causing an underflow error -
+                with the latest set of fixes, that is no longer possible.
+                
+     */
+    function testCannotInitiateRedemptionsFaultyZeroRedemptionMax() external {
+        _resetFees();
+
+        (
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        ) = _setUpInitiateRedemptions(1e18);
+
+        vm.expectRevert(PxCvx.ZeroAmount.selector);
+
+        pirexCvx.initiateRedemptionsFaulty(
+            lockIndexes,
+            PirexCvx.Futures.Reward,
+            redemptionAssets,
+            address(this)
+        );
+    }
+
+    /**
+        @notice Test initiating redemptions with zero redemption max fees (patched method)
+                It's assumed (asserted below) that redemptionMin is zero, as redemptionMax
+                cannot be less than it (check in `setFee`)
+     */
+    function testInitiateRedemptionsForZeroRedemptionMax() external {
+        _resetFees();
+
+        (
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        ) = _setUpInitiateRedemptions(1e18);
+        (, uint32 redemptionMax, uint32 redemptionMin) = pirexCvx.getFees();
+
+        assertEq(redemptionMax, 0);
+        assertEq(redemptionMin, 0);
+
+        pirexCvx.initiateRedemptions(
+            lockIndexes,
+            PirexCvx.Futures.Reward,
+            redemptionAssets,
+            address(this)
+        );
+    }
+
+    /**
+        @notice Test initiating redemptions with redemption max set to FEE_MAX
+     */
+    function testInitiateRedemptionsForMaxRedemptionMax() external {
+        _resetFees();
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, FEE_MAX);
+
+        (
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        ) = _setUpInitiateRedemptions(1e18);
+        (, uint32 redemptionMax, uint32 redemptionMin) = pirexCvx.getFees();
+
+        assertEq(redemptionMax, FEE_MAX);
+
+        pirexCvx.initiateRedemptions(
+            lockIndexes,
+            PirexCvx.Futures.Reward,
+            redemptionAssets,
+            address(this)
+        );
+    }
+
+    /**
+        @notice Test initiating redemptions with equal redemption fees
+        @param  redemptionFee  uint32  Redemption max and min fees
+     */
+    function testInitiateRedemptionsForEqualRedemptionFees(uint32 redemptionFee)
+        external
+    {
+        vm.assume(redemptionFee < FEE_MAX);
+
+        _resetFees();
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, redemptionFee);
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMin, redemptionFee);
+
+        (
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        ) = _setUpInitiateRedemptions(1e18);
+        (, uint32 redemptionMax, uint32 redemptionMin) = pirexCvx.getFees();
+
+        assertEq(redemptionMax, redemptionMin);
+
+        pirexCvx.initiateRedemptions(
+            lockIndexes,
+            PirexCvx.Futures.Reward,
+            redemptionAssets,
+            address(this)
+        );
+    }
+
+    /**
+        @notice Test fuzzing initiating redemptions with various redemption fees
+        @param  redemptionMaxFee  uint32  Redemption max fee
+        @param  redemptionMinFee  uint32  Redemption min fee
+     */
+    function testInitiateRedemptionsForRedemptionFees(
+        uint32 redemptionMaxFee,
+        uint32 redemptionMinFee
+    ) external {
+        vm.assume(redemptionMaxFee < FEE_MAX);
+        vm.assume(redemptionMinFee < FEE_MAX);
+        vm.assume(redemptionMaxFee > redemptionMinFee);
+
+        _resetFees();
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, redemptionMaxFee);
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMin, redemptionMinFee);
+
+        (
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        ) = _setUpInitiateRedemptions(1e18);
+        (, uint32 redemptionMax, uint32 redemptionMin) = pirexCvx.getFees();
+
+        pirexCvx.initiateRedemptions(
+            lockIndexes,
+            PirexCvx.Futures.Reward,
+            redemptionAssets,
+            address(this)
+        );
     }
 }

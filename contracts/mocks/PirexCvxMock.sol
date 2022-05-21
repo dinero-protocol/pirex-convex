@@ -3,6 +3,7 @@ pragma solidity 0.8.12;
 
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
+import {ICvxLocker} from "contracts/interfaces/ICvxLocker.sol";
 import {PirexCvx} from "../PirexCvx.sol";
 
 contract PirexCvxMock is PirexCvx {
@@ -57,35 +58,6 @@ contract PirexCvxMock is PirexCvx {
             _votiumMultiMerkleStash
         )
     {}
-
-    /** 
-        @notice Set the initial fees
-        @param  reward         uint32  Reward fee
-        @param  redemptionMax  uint32  Redemption max fee
-        @param  redemptionMin  uint32  Redemption min fee
-     */
-    function setInitialFees(
-        uint32 reward,
-        uint32 redemptionMax,
-        uint32 redemptionMin
-    ) external {
-        if (
-            fees[Fees.Reward] != 0 ||
-            fees[Fees.RedemptionMax] != 0 ||
-            fees[Fees.RedemptionMin] != 0
-        )
-            revert FeesAlreadySet(
-                fees[Fees.Reward],
-                fees[Fees.RedemptionMax],
-                fees[Fees.RedemptionMin]
-            );
-
-        fees[Fees.Reward] = reward;
-        fees[Fees.RedemptionMax] = redemptionMax;
-        fees[Fees.RedemptionMin] = redemptionMin;
-
-        emit SetInitialFees(reward, redemptionMax, redemptionMin);
-    }
 
     /**
         @notice Redeem Futures rewards for rpCVX holders for an epoch
@@ -153,6 +125,55 @@ contract PirexCvxMock is PirexCvx {
             fees[Fees.RedemptionMax],
             fees[Fees.RedemptionMin]
         );
+    }
+
+    /**
+        @notice Initiate CVX redemptions
+        @param  lockIndexes  uint256[]    Locked balance index
+        @param  f            enum       Futures enum
+        @param  assets       uint256[]  pCVX amounts
+        @param  receiver     address    Receives upCVX
+     */
+    function initiateRedemptionsFaulty(
+        uint256[] calldata lockIndexes,
+        Futures f,
+        uint256[] calldata assets,
+        address receiver
+    ) external whenNotPaused nonReentrant {
+        uint256 lockLen = lockIndexes.length;
+        if (lockLen == 0) revert EmptyArray();
+        if (lockLen != assets.length) revert MismatchedArrayLengths();
+
+        emit InitiateRedemptions(lockIndexes, f, assets, receiver);
+
+        (, , , ICvxLocker.LockedBalance[] memory lockData) = cvxLocker
+            .lockedBalances(address(this));
+        uint256 totalAssets;
+        uint256 feeAmount;
+        uint256 feeMin = fees[Fees.RedemptionMin];
+        uint256 feeMax = fees[Fees.RedemptionMax];
+
+        for (uint256 i; i < lockLen; ++i) {
+            totalAssets += assets[i];
+            feeAmount += _initiateRedemption(
+                lockData[lockIndexes[i]],
+                f,
+                assets[i],
+                receiver,
+                feeMin,
+                feeMax
+            );
+        }
+
+        // Burn pCVX - reverts if sender balance is insufficient
+        pxCvx.burn(msg.sender, totalAssets - feeAmount);
+
+        // NOTE: Reverts (zero amount check) if redemption fees are zero
+        // Allow PirexFees to distribute fees directly from sender
+        pxCvx.operatorApprove(msg.sender, address(pirexFees), feeAmount);
+
+        // Distribute fees
+        pirexFees.distributeFees(msg.sender, address(pxCvx), feeAmount);
     }
 
     function getEmergencyExecutor() external view returns (address) {
