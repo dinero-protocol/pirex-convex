@@ -61,8 +61,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
         uint8 rounds,
         uint8 fVal
     ) external {
-        // TMP: Should be !=0 after the fee calculation fixes
-        vm.assume(amount > 1000);
+        vm.assume(amount != 0);
         // Tune down the rounds since it takes too long for large rounds
         vm.assume(rounds > 0 && rounds < 50);
         vm.assume(fVal <= uint8(type(PirexCvx.Futures).max));
@@ -141,8 +140,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
         @param  rounds  uint8   Number of rounds
      */
     function testUnstake(uint72 amount, uint8 rounds) external {
-        // TMP: Should be !=0 after the fee calculation fixes
-        vm.assume(amount > 1000);
+        vm.assume(amount != 0);
         // Tune down the rounds since it takes too long for large rounds
         vm.assume(rounds > 0 && rounds < 50);
 

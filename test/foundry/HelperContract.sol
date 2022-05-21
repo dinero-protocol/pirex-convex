@@ -55,6 +55,7 @@ abstract contract HelperContract is
     UnionPirexVault public immutable unionPirex;
     UnionPirexStrategyMock public immutable unionPirexStrategy;
     PirexFees public immutable pirexFees;
+    uint32 public immutable FEE_MAX;
 
     address[3] public secondaryAccounts = [
         0x6Ecbe1DB9EF729CBe972C83Fb886247691Fb6beb,
@@ -110,6 +111,8 @@ abstract contract HelperContract is
         unionPirex.setPlatform(address(this));
         unionPirex.setStrategy(address(unionPirexStrategy));
 
+        FEE_MAX = pirexCvx.FEE_MAX();
+
         // Set maxSupply to the largest possible value
         vm.store(address(CVX), bytes32(uint256(7)), bytes32(type(uint256).max));
 
@@ -158,6 +161,51 @@ abstract contract HelperContract is
         }
 
         vm.stopPrank();
+    }
+
+    /**
+        @notice Setup for redemption tests
+        @param  account           address    Account
+        @param  amount            uint256    Amount of assets for redemption
+        @param  fVal              uint8      Integer representation of the futures enum
+        @param  shouldInitiate    bool       Whether should also initiate
+        @return unlockTime        uint256    Unlock time
+        @return lockIndexes       uint256[]  Lock data indexes
+        @return redemptionAssets  uint256[]  Assets to redeem
+     */
+    function _setupRedemption(
+        address account,
+        uint256 amount,
+        uint8 fVal,
+        bool shouldInitiate
+    ) internal returns (
+        uint256 unlockTime,
+        uint256[] memory lockIndexes,
+        uint256[] memory redemptionAssets
+    ) {
+        _mintAndDepositCVX(amount, account, false, true);
+
+        (, , , CvxLockerV2.LockedBalance[] memory lockData) = CVX_LOCKER
+            .lockedBalances(address(pirexCvx));
+
+        lockIndexes = new uint256[](1);
+        redemptionAssets = new uint256[](1);
+        uint256 lockIndex = lockData.length - 1;
+        lockIndexes[0] = lockIndex;
+        redemptionAssets[0] = amount;
+
+        unlockTime = lockData[lockIndex].unlockTime;
+
+        if (shouldInitiate) {
+            vm.prank(account);
+
+            pirexCvx.initiateRedemptions(
+                lockIndexes,
+                PirexCvx.Futures(fVal),
+                redemptionAssets,
+                account
+            );
+        }
     }
 
     /**

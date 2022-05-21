@@ -53,7 +53,9 @@ contract PirexCvxEmergency is Test, HelperContract {
     /**
         @notice Test tx reversion if executor is already initialized
      */
-    function testCannotInitializeEmergencyExecutorAlreadyInitialized() external {
+    function testCannotInitializeEmergencyExecutorAlreadyInitialized()
+        external
+    {
         pirexCvx.setPauseState(true);
         pirexCvx.initializeEmergencyExecutor(address(this));
 

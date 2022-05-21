@@ -10,42 +10,6 @@ import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
 
 contract PirexCvxMainTest is Test, HelperContract {
     /**
-        @notice Setup for redemption tests
-        @param  account  address  Account
-        @param  amount   uint256  Amount of assets for redemption
-        @param  fVal     uint8    Integer representation of the futures enum
-     */
-    function _setupRedemption(
-        address account,
-        uint256 amount,
-        uint8 fVal
-    ) internal returns (uint256) {
-        _mintAndDepositCVX(amount, account, false, true);
-
-        (, , , CvxLockerV2.LockedBalance[] memory lockData) = CVX_LOCKER
-            .lockedBalances(address(pirexCvx));
-
-        uint256[] memory locks = new uint256[](1);
-        uint256[] memory assets = new uint256[](1);
-        uint256 lockIndex = lockData.length - 1;
-        locks[0] = lockIndex;
-        assets[0] = amount;
-
-        uint256 unlockTime = lockData[lockIndex].unlockTime;
-
-        vm.prank(account);
-
-        pirexCvx.initiateRedemptions(
-            locks,
-            PirexCvx.Futures(fVal),
-            assets,
-            account
-        );
-
-        return unlockTime;
-    }
-
-    /**
         @notice Process and calculate data related to redemptions
         @param  unlockTime  uint256  Unlock time
         @param  amount      uint256  Amount of assets for redemption
@@ -388,14 +352,132 @@ contract PirexCvxMainTest is Test, HelperContract {
     }
 
     /**
-        @notice Test initiating redemption
-        @param  amount  uint72   Amount of assets for redemption
-        @param  fVal    uint8    Integer representation of the futures enum
+        @notice Test that the tx reverts if redemptionMax is zero with faulty method.
+                In addition to the `ZeroAmount` error, it was previously possible for
+                redemptionMax to be set below redemptionMin, causing an underflow error -
+                with the latest set of fixes, that is no longer possible.         
      */
-    function testInitiateRedemptions(uint72 amount, uint8 fVal) external {
-        // TMP: Should be !=0 after the fee calculation fixes
-        vm.assume(amount > 1000);
+    function testCannotInitiateRedemptionsFaultyZeroRedemptionMax() external {
+        _resetFees();
+
+        (
+            uint256 unlockTime,
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        ) = _setupRedemption(address(this), 1e18, 0, false);
+
+        vm.expectRevert(PxCvx.ZeroAmount.selector);
+
+        pirexCvx.initiateRedemptionsFaulty(
+            lockIndexes,
+            PirexCvx.Futures.Reward,
+            redemptionAssets,
+            address(this)
+        );
+    }
+
+    /**
+        @notice Test initiating redemptions with zero redemption max fees (patched method)
+                It's assumed (asserted below) that redemptionMin is zero, as redemptionMax
+                cannot be less than it (check in `setFee`)
+     */
+    function testInitiateRedemptionsForZeroRedemptionMax() external {
+        _resetFees();
+
+        (
+            uint256 unlockTime,
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        ) = _setupRedemption(address(this), 1e18, 0, false);
+        (, uint32 redemptionMax, uint32 redemptionMin) = pirexCvx.getFees();
+
+        assertEq(redemptionMax, 0);
+        assertEq(redemptionMin, 0);
+
+        pirexCvx.initiateRedemptions(
+            lockIndexes,
+            PirexCvx.Futures.Reward,
+            redemptionAssets,
+            address(this)
+        );
+    }
+
+    /**
+        @notice Test initiating redemptions with redemption max set to FEE_MAX
+     */
+    function testInitiateRedemptionsForMaxRedemptionMax() external {
+        _resetFees();
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, FEE_MAX);
+
+        (
+            uint256 unlockTime,
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        ) = _setupRedemption(address(this), 1e18, 0, false);
+        (, uint32 redemptionMax, uint32 redemptionMin) = pirexCvx.getFees();
+
+        assertEq(redemptionMax, FEE_MAX);
+
+        pirexCvx.initiateRedemptions(
+            lockIndexes,
+            PirexCvx.Futures.Reward,
+            redemptionAssets,
+            address(this)
+        );
+    }
+
+    /**
+        @notice Test initiating redemptions with equal redemption fees
+        @param  redemptionFee  uint32  Redemption max and min fees
+     */
+    function testInitiateRedemptionsForEqualRedemptionFees(uint32 redemptionFee)
+        external
+    {
+        vm.assume(redemptionFee < FEE_MAX);
+
+        _resetFees();
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, redemptionFee);
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMin, redemptionFee);
+
+        (
+            uint256 unlockTime,
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        ) = _setupRedemption(address(this), 1e18, 0, false);
+        (, uint32 redemptionMax, uint32 redemptionMin) = pirexCvx.getFees();
+
+        assertEq(redemptionMax, redemptionMin);
+
+        pirexCvx.initiateRedemptions(
+            lockIndexes,
+            PirexCvx.Futures.Reward,
+            redemptionAssets,
+            address(this)
+        );
+    }
+
+    /**
+        @notice Test initiating redemption with various fees settings
+        @param  amount             uint72  Amount of assets for redemption
+        @param  fVal               uint8   Integer representation of the futures enum
+        @param  redemptionMaxFee   uint32  Redemption max fee
+        @param  redemptionMinFee   uint32  Redemption min fee
+     */
+    function testInitiateRedemptions(
+        uint72 amount,
+        uint8 fVal,
+        uint32 redemptionMaxFee,
+        uint32 redemptionMinFee
+    ) external {
+        vm.assume(amount != 0);
         vm.assume(fVal <= uint8(type(PirexCvx.Futures).max));
+        vm.assume(redemptionMaxFee < FEE_MAX);
+        vm.assume(redemptionMinFee < FEE_MAX);
+        vm.assume(redemptionMaxFee > redemptionMinFee);
+
+        _resetFees();
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, redemptionMaxFee);
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMin, redemptionMinFee);
 
         uint256 tLen = secondaryAccounts.length;
 
@@ -411,7 +493,12 @@ contract PirexCvxMainTest is Test, HelperContract {
                 address(pirexFees.contributors())
             );
 
-            uint256 unlockTime = _setupRedemption(account, asset, fVal);
+            (uint256 unlockTime, , ) = _setupRedemption(
+                account,
+                asset,
+                fVal,
+                true
+            );
 
             // Simulate the fee calculation separately to avoid "stack too deep" issue
             (uint256 postFeeAmount, uint256 rounds) = _processRedemption(
@@ -547,8 +634,7 @@ contract PirexCvxMainTest is Test, HelperContract {
         @param  amount  uint72   Amount of assets for redeeming
      */
     function testRedeem(uint72 amount) external {
-        // TMP: Should be !=0 after the fee calculation fixes
-        vm.assume(amount > 1000);
+        vm.assume(amount != 0);
 
         uint256 tLen = secondaryAccounts.length;
 
@@ -557,7 +643,12 @@ contract PirexCvxMainTest is Test, HelperContract {
             uint256 asset = amount * (i + 1);
 
             // Simulate redemption and calculate unlock time as well as the actual amount after fee
-            uint256 unlockTime = _setupRedemption(account, asset, 0);
+            (uint256 unlockTime, , ) = _setupRedemption(
+                account,
+                asset,
+                0,
+                true
+            );
 
             uint256 oldOutstandingRedemptions = pirexCvx
                 .outstandingRedemptions();

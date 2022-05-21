@@ -197,7 +197,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
         @param  amount  uint256  Token amount
      */
     function testClaimVotiumRewards(uint72 amount) external {
-        vm.assume(amount > 1000);
+        vm.assume(amount != 0);
 
         // Populate and stake PxCvx for the snapshot
         uint256 asset = 1e18;
@@ -733,8 +733,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
         uint8 rounds,
         uint8 fromVal
     ) external {
-        // TMP: Should be !=0 after the fee calculation fixes
-        vm.assume(amount > 1000);
+        vm.assume(amount != 0);
         // Tune down the rounds since it takes too long for large rounds
         vm.assume(rounds > 0 && rounds < 50);
         vm.assume(fromVal <= uint8(type(PirexCvx.Futures).max));

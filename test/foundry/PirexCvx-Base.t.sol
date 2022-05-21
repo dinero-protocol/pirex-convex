@@ -9,6 +9,11 @@ import {HelperContract} from "./HelperContract.sol";
 
 contract PirexCvxBaseTest is Test, HelperContract {
     event SetContract(PirexCvx.Contract indexed c, address contractAddress);
+    event InitializeFees(
+        uint32 reward,
+        uint32 redemptionMax,
+        uint32 redemptionMin
+    );
 
     /**
         @notice Set the new contract
@@ -157,6 +162,80 @@ contract PirexCvxBaseTest is Test, HelperContract {
             pxCvx.allowance(address(pirexCvx), newContract),
             type(uint256).max
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setFee TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if not owner
+     */
+    function testCannotSetFeeNotOwner() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(secondaryAccounts[0]);
+
+        pirexCvx.setFee(PirexCvx.Fees.Reward, 1);
+    }
+
+    /**
+        @notice Test tx reversion if fee amount exceeds max
+     */
+    function testCannotSetFeeExceedsMax() external {
+        PirexCvx.Fees[3] memory feeTypes;
+        feeTypes[0] = PirexCvx.Fees.Reward;
+        feeTypes[1] = PirexCvx.Fees.RedemptionMax;
+        feeTypes[2] = PirexCvx.Fees.RedemptionMin;
+
+        for (uint256 i; i < feeTypes.length; ++i) {
+            vm.expectRevert(PirexCvx.InvalidFee.selector);
+
+            pirexCvx.setFee(feeTypes[i], FEE_MAX + 1);
+        }
+    }
+
+    /**
+        @notice Test tx reversion if redemption max fee is less than min
+     */
+    function testCannotSetFeeRedemptionMaxLessThanMin() external {
+        (, , uint32 redemptionMin) = pirexCvx.getFees();
+
+        vm.expectRevert(PirexCvx.InvalidFee.selector);
+
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, redemptionMin - 1);
+    }
+
+    /**
+        @notice Test tx reversion if redemption min fee is greater than max
+     */
+    function testCannotSetFeeRedemptionMinLessThanMax() external {
+        (, uint32 redemptionMax, ) = pirexCvx.getFees();
+
+        vm.expectRevert(PirexCvx.InvalidFee.selector);
+
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMin, redemptionMax + 1);
+    }
+
+    /**
+        @notice Test setting fees for each type
+     */
+    function testSetFee(
+        uint32 reward,
+        uint32 redemptionMax,
+        uint32 redemptionMin
+    ) external {
+        vm.assume(
+            reward < FEE_MAX &&
+                redemptionMax < FEE_MAX &&
+                redemptionMin < FEE_MAX
+        );
+        vm.assume(redemptionMax > redemptionMin);
+
+        _resetFees();
+
+        pirexCvx.setFee(PirexCvx.Fees.Reward, reward);
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, redemptionMax);
+        pirexCvx.setFee(PirexCvx.Fees.RedemptionMin, redemptionMin);
     }
 
     /*//////////////////////////////////////////////////////////////
