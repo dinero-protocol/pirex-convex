@@ -478,39 +478,45 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         if (assets == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
+        emit Deposit(assets, receiver, shouldCompound, developer);
+
+        // Track amount of CVX waiting to be locked before assets is modified
+        pendingLocks += assets;
+
+        // Calculate the dev incentive, which will come out of the minted pxCVX
+        uint256 developerIncentive = developer != address(0) &&
+            developers[developer]
+            ? (assets * fees[Fees.Developers]) / FEE_DENOMINATOR
+            : 0;
+
         // Take snapshot if necessary
         pxCvx.takeEpochSnapshot();
 
-        // Mint pCVX - recipient depends on whether or not to compound
-        pxCvx.mint(shouldCompound ? address(this) : receiver, assets);
+        // Mint pxCVX sans developer incentive - recipient depends on shouldCompound
+        pxCvx.mint(
+            shouldCompound ? address(this) : receiver,
+            assets - developerIncentive
+        );
 
-        emit Deposit(assets, receiver, shouldCompound, developer);
-
-        // Calculate the dev incentive, which will come out of the minted pxCVX
-        uint256 developerIncentive = developer == address(0)
-            ? 0
-            : (assets * fees[Fees.Developers]) / FEE_DENOMINATOR;
+        // Transfer CVX to self in preparation for lock
+        CVX.safeTransferFrom(msg.sender, address(this), assets);
 
         if (
             developer != address(0) &&
             developers[developer] == true &&
             developerIncentive != 0
         ) {
-            ERC20(address(pxCvx)).safeTransfer(developer, developerIncentive);
+            // Mint pxCVX for the developer
+            pxCvx.mint(developer, developerIncentive);
 
+            // Update assets to ensure only the appropriate amount is deposited in vault
             assets -= developerIncentive;
         }
 
         if (shouldCompound) {
-            // Deposit pCVX into Union vault - user receives shares
+            // Deposit pxCVX into Union vault - user receives shares
             unionPirex.deposit(assets, receiver);
         }
-
-        // Transfer CVX to self in preparation for lock
-        CVX.safeTransferFrom(msg.sender, address(this), assets);
-
-        // Lock CVX
-        pendingLocks += assets;
     }
 
     /**
