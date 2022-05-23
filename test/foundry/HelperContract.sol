@@ -181,12 +181,15 @@ abstract contract HelperContract is
         uint256 amount,
         uint8 fVal,
         bool shouldInitiate
-    ) internal returns (
-        uint256 unlockTime,
-        uint256[] memory lockIndexes,
-        uint256[] memory redemptionAssets
-    ) {
-        _mintAndDepositCVX(amount, account, false, true);
+    )
+        internal
+        returns (
+            uint256 unlockTime,
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        )
+    {
+        _mintAndDepositCVX(amount, account, false, address(0), true);
 
         (, , , CvxLockerV2.LockedBalance[] memory lockData) = CVX_LOCKER
             .lockedBalances(address(pirexCvx));
@@ -323,6 +326,22 @@ abstract contract HelperContract is
         vm.store(pirexCvxAddr, reads[1], zero);
         vm.store(pirexCvxAddr, reads[2], zero);
         vm.store(pirexCvxAddr, reads[3], zero);
+    }
+
+    /**
+        @notice Transfer rpCVX to other receiver
+        @param  receiver  address  rpCVX receiver
+        @param  epoch     address  rpCVX id
+        @param  amount    uin256   rpCVX amount
+     */
+    function _transferRpCvx(
+        address receiver,
+        uint256 epoch,
+        uint256 amount
+    ) internal {
+        vm.prank(PRIMARY_ACCOUNT);
+
+        rpCvx.safeTransferFrom(PRIMARY_ACCOUNT, receiver, epoch, amount, "");
     }
 
     /**
