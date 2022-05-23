@@ -329,22 +329,6 @@ abstract contract HelperContract is
     }
 
     /**
-        @notice Transfer rpCVX to other receiver
-        @param  receiver  address  rpCVX receiver
-        @param  epoch     address  rpCVX id
-        @param  amount    uin256   rpCVX amount
-     */
-    function _transferRpCvx(
-        address receiver,
-        uint256 epoch,
-        uint256 amount
-    ) internal {
-        vm.prank(PRIMARY_ACCOUNT);
-
-        rpCvx.safeTransferFrom(PRIMARY_ACCOUNT, receiver, epoch, amount, "");
-    }
-
-    /**
         @notice Handle the receipt of a single ERC1155 token type.
         @dev An ERC1155-compliant smart contract MUST call this function on the token recipient contract, at the end of a `safeTransferFrom` after the balance has been updated.        
         This function MUST return `bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))` (i.e. 0xf23a6e61) if it accepts the transfer.

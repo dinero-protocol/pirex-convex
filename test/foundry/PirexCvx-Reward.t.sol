@@ -50,6 +50,22 @@ contract PirexCvxRewardTest is Test, HelperContract {
     }
 
     /**
+        @notice Transfer rpCVX to other receiver
+        @param  receiver  address  rpCVX receiver
+        @param  epoch     address  rpCVX id
+        @param  amount    uin256   rpCVX amount
+     */
+    function _transferRpCvx(
+        address receiver,
+        uint256 epoch,
+        uint256 amount
+    ) internal {
+        vm.prank(PRIMARY_ACCOUNT);
+
+        rpCvx.safeTransferFrom(PRIMARY_ACCOUNT, receiver, epoch, amount, "");
+    }
+
+    /**
         @notice Transfer rpCVX to secondary accounts and redeem rewards
         @param  assets                     uint256  Total rpCVX to distribute to secondaryAccounts
         @param  selector                   bytes4   Function select of a redeem futures rewards method
