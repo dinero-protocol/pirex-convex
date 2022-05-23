@@ -42,6 +42,8 @@ abstract contract HelperContract is
         0x9d37A22cEc2f6b3635c61C253D192E68e85b1790;
     address public constant PRIMARY_ACCOUNT =
         0x5409ED021D9299bf6814279A6A1411A7e866A631;
+    address public constant TREASURY =
+        0x086C98855dF3C78C6b481b6e1D47BeF42E9aC36B;
     uint256 public constant EPOCH_DURATION = 1209600;
 
     PirexCvxMock public immutable pirexCvx;
@@ -53,6 +55,7 @@ abstract contract HelperContract is
     UnionPirexVault public immutable unionPirex;
     UnionPirexStrategyMock public immutable unionPirexStrategy;
     PirexFees public immutable pirexFees;
+    uint32 public immutable FEE_MAX;
 
     address[3] public secondaryAccounts = [
         0x6Ecbe1DB9EF729CBe972C83Fb886247691Fb6beb,
@@ -62,7 +65,7 @@ abstract contract HelperContract is
 
     constructor() {
         pxCvx = new PxCvx();
-        pirexFees = new PirexFees(msg.sender, msg.sender);
+        pirexFees = new PirexFees(TREASURY, msg.sender);
         spCvx = new ERC1155Solmate();
         upCvx = new ERC1155Solmate();
         vpCvx = new ERC1155PresetMinterSupply("");
@@ -102,10 +105,13 @@ abstract contract HelperContract is
 
         bytes32 minterRole = keccak256("MINTER_ROLE");
 
+        vpCvx.grantRole(minterRole, address(pirexCvx));
         rpCvx.grantRole(minterRole, address(pirexCvx));
         upCvx.grantRole(minterRole, address(pirexCvx));
         unionPirex.setPlatform(address(this));
         unionPirex.setStrategy(address(unionPirexStrategy));
+
+        FEE_MAX = pirexCvx.FEE_MAX();
 
         // Set maxSupply to the largest possible value
         vm.store(address(CVX), bytes32(uint256(7)), bytes32(type(uint256).max));
@@ -144,7 +150,9 @@ abstract contract HelperContract is
         bool lock
     ) internal {
         _mintCvx(receiver, assets);
+
         vm.startPrank(receiver);
+
         CVX.approve(address(pirexCvx), CVX.balanceOf(receiver));
         pirexCvx.deposit(assets, receiver, shouldCompound);
 
@@ -153,6 +161,51 @@ abstract contract HelperContract is
         }
 
         vm.stopPrank();
+    }
+
+    /**
+        @notice Setup for redemption tests
+        @param  account           address    Account
+        @param  amount            uint256    Amount of assets for redemption
+        @param  fVal              uint8      Integer representation of the futures enum
+        @param  shouldInitiate    bool       Whether should also initiate
+        @return unlockTime        uint256    Unlock time
+        @return lockIndexes       uint256[]  Lock data indexes
+        @return redemptionAssets  uint256[]  Assets to redeem
+     */
+    function _setupRedemption(
+        address account,
+        uint256 amount,
+        uint8 fVal,
+        bool shouldInitiate
+    ) internal returns (
+        uint256 unlockTime,
+        uint256[] memory lockIndexes,
+        uint256[] memory redemptionAssets
+    ) {
+        _mintAndDepositCVX(amount, account, false, true);
+
+        (, , , CvxLockerV2.LockedBalance[] memory lockData) = CVX_LOCKER
+            .lockedBalances(address(pirexCvx));
+
+        lockIndexes = new uint256[](1);
+        redemptionAssets = new uint256[](1);
+        uint256 lockIndex = lockData.length - 1;
+        lockIndexes[0] = lockIndex;
+        redemptionAssets[0] = amount;
+
+        unlockTime = lockData[lockIndex].unlockTime;
+
+        if (shouldInitiate) {
+            vm.prank(account);
+
+            pirexCvx.initiateRedemptions(
+                lockIndexes,
+                PirexCvx.Futures(fVal),
+                redemptionAssets,
+                account
+            );
+        }
     }
 
     /**
@@ -171,6 +224,7 @@ abstract contract HelperContract is
 
         // Set reward merkle root
         vm.prank(VOTIUM_OWNER);
+
         MultiMerkleStash(VOTIUM_MULTI_MERKLE_STASH).updateMerkleRoot(
             token,
             merkleRoot
@@ -192,6 +246,7 @@ abstract contract HelperContract is
         PirexCvx.VotiumReward[]
             memory votiumRewards = new PirexCvx.VotiumReward[](1);
         votiumRewards[0] = votiumReward;
+
         pirexCvx.claimVotiumRewards(votiumRewards);
     }
 
@@ -212,6 +267,32 @@ abstract contract HelperContract is
 
         // Claim reward for PirexCvx, resulting in reward data updating for token holders
         _claimSingleReward(address(this), assets);
+    }
+
+    /**
+        @notice Validate future notes balances of the specified settings
+        @param  fVal     uint8    Number representation of the futures enum
+        @param  rounds   uint256  Number of rounds
+        @param  account  uint256  Account
+        @param  amount   uint256  Amount
+     */
+    function _validateFutureNotesBalances(
+        uint8 fVal,
+        uint256 rounds,
+        address account,
+        uint256 amount
+    ) internal {
+        uint256 startingEpoch = pirexCvx.getCurrentEpoch() + EPOCH_DURATION;
+        ERC1155PresetMinterSupply fToken = (
+            PirexCvx.Futures(fVal) == PirexCvx.Futures.Reward ? rpCvx : vpCvx
+        );
+
+        for (uint256 i; i < rounds; ++i) {
+            assertEq(
+                fToken.balanceOf(account, startingEpoch + i * EPOCH_DURATION),
+                amount
+            );
+        }
     }
 
     /**

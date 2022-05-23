@@ -187,4 +187,26 @@ contract PirexCvxMock is PirexCvx {
     {
         return (emergencyMigration.recipient, emergencyMigration.tokens);
     }
+
+    function calculateRewards(
+        uint32 feePercent,
+        uint256 snapshotSupply,
+        uint256 rpCvxSupply,
+        uint256 received
+    )
+        external
+        pure
+        returns (
+            uint256 rewardFee,
+            uint256 snapshotRewards,
+            uint256 futuresRewards
+        )
+    {
+        (rewardFee, snapshotRewards, futuresRewards) = _calculateRewards(
+            feePercent,
+            snapshotSupply,
+            rpCvxSupply,
+            received
+        );
+    }
 }
