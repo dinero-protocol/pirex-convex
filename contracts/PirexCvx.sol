@@ -82,10 +82,6 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     // Unused ERC1155 `data` param value
     bytes private constant UNUSED_1155_DATA = "";
 
-    // Developers who are eligible for incentives as part of the new initiative
-    // to enable builders to sustainably build apps for the Pirex ecosystem
-    mapping(address => bool) public developers;
-
     PxCvx public pxCvx;
     PirexFees public pirexFees;
     IVotiumMultiMerkleStash public votiumMultiMerkleStash;
@@ -100,6 +96,10 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
     // Convex unlock timestamps mapped to amount being redeemed
     mapping(uint256 => uint256) public redemptions;
+
+    // Developers who are eligible for incentives as part of the new initiative
+    // to enable builders to sustainably build apps for the Pirex ecosystem
+    mapping(address => bool) public developers;
 
     // Emergency migration data
     EmergencyMigration public emergencyMigration;
@@ -501,11 +501,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         // Transfer CVX to self in preparation for lock
         CVX.safeTransferFrom(msg.sender, address(this), assets);
 
-        if (
-            developer != address(0) &&
-            developers[developer] == true &&
-            developerIncentive != 0
-        ) {
+        if (developerIncentive != 0) {
             // Mint pxCVX for the developer
             pxCvx.mint(developer, developerIncentive);
 
