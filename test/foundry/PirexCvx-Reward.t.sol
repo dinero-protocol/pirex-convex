@@ -202,7 +202,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
         // Populate and stake PxCvx for the snapshot
         uint256 asset = 1e18;
 
-        _mintAndDepositCVX(asset, PRIMARY_ACCOUNT, false, true);
+        _mintAndDepositCVX(asset, PRIMARY_ACCOUNT, false, address(0), true);
 
         vm.prank(PRIMARY_ACCOUNT);
 
@@ -261,7 +261,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
         uint256 amount = 10e18;
 
         // Lock CVX so we are eligible for some misc locker rewards
-        _mintAndDepositCVX(amount, address(this), false, true);
+        _mintAndDepositCVX(amount, address(this), false, address(0), true);
 
         // Mint and approve the rewards to be included in the misc rewards
         _mint(sender, amount);
@@ -364,7 +364,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
         uint256 amount = 1e18;
         address account = secondaryAccounts[0];
 
-        _mintAndDepositCVX(1e18, account, false, true);
+        _mintAndDepositCVX(1e18, account, false, address(0), true);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
 
@@ -396,6 +396,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
                 1e18 * (i + 1),
                 secondaryAccounts[i],
                 false,
+                address(0),
                 true
             );
         }
@@ -441,7 +442,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
         uint256 amount = 1e18;
         address account = secondaryAccounts[0];
 
-        _mintAndDepositCVX(1e18, account, false, true);
+        _mintAndDepositCVX(1e18, account, false, address(0), true);
 
         vm.warp(block.timestamp + EPOCH_DURATION);
 
@@ -484,7 +485,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
-        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
+        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, address(0), true);
 
         vm.prank(PRIMARY_ACCOUNT);
 
@@ -534,7 +535,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
         uint256 stakeAmount = (assets * stakePercent) / 255;
 
-        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
+        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, address(0), true);
 
         vm.prank(PRIMARY_ACCOUNT);
 
@@ -625,7 +626,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
     ) external {
         _redeemFuturesRewardsFuzzParameters(rounds, assets, stakePercent);
 
-        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, true);
+        _mintAndDepositCVX(assets, PRIMARY_ACCOUNT, false, address(0), true);
 
         vm.prank(PRIMARY_ACCOUNT);
 
@@ -752,7 +753,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
         uint256 epoch = pirexCvx.getCurrentEpoch() + EPOCH_DURATION;
 
-        _mintAndDepositCVX(amount, account, false, true);
+        _mintAndDepositCVX(amount, account, false, address(0), true);
 
         vm.startPrank(account);
 

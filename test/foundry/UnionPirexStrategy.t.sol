@@ -7,7 +7,7 @@ import {HelperContract} from "./HelperContract.sol";
 contract UnionPirexStrategy is Test, HelperContract {
     uint256 private constant SEED_AMOUNT = 1e18;
     bytes private constant NO_REWARDS_ERROR_MSG = bytes("No rewards");
-    
+
     uint256 private immutable rewardsDuration;
 
     constructor() {
@@ -19,7 +19,7 @@ contract UnionPirexStrategy is Test, HelperContract {
      */
     function setUp() external {
         // Deposit CVX to seed the vault with a non-zero totalSupply and balance
-        _mintAndDepositCVX(SEED_AMOUNT, address(this), true, true);
+        _mintAndDepositCVX(SEED_AMOUNT, address(this), true, address(0), true);
     }
 
     /**
@@ -27,7 +27,7 @@ contract UnionPirexStrategy is Test, HelperContract {
      */
     function _mintAndTransferRewards(uint256 amount) internal {
         // Deposit CVX and mint pxCVX which will be deposited as rewards
-        _mintAndDepositCVX(amount, address(this), false, true);
+        _mintAndDepositCVX(amount, address(this), false, address(0), true);
 
         // Transfer pxCVX to strategy contract and notify rewards
         pxCvx.transfer(address(unionPirexStrategy), amount);

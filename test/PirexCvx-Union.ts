@@ -58,7 +58,7 @@ describe('PirexCvx-UnionPirex*', function () {
 
     // Mint pCVX for testing
     await cvx.approve(pCvx.address, toBN(50e18));
-    await pCvx.deposit(toBN(50e18), admin.address, false);
+    await pCvx.deposit(toBN(50e18), admin.address, false, zeroAddress);
 
     // For making pxCVX deposits outside of the pCvx.deposit flow
     await pxCvx.approve(unionPirex.address, toBN2(1000e18).toFixed(0));
@@ -236,7 +236,7 @@ describe('PirexCvx-UnionPirex*', function () {
       await cvx.approve(pCvx.address, reward);
 
       // Get pxCVX and deposit as vault reward
-      await pCvx.deposit(reward, admin.address, false);
+      await pCvx.deposit(reward, admin.address, false, zeroAddress);
       await pxCvx.transfer(unionPirexStrategy.address, reward);
 
       const events = await callAndReturnEvents(

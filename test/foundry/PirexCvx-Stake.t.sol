@@ -71,7 +71,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
         for (uint256 i; i < tLen; ++i) {
             address account = secondaryAccounts[i];
 
-            _mintAndDepositCVX(amount, account, false, true);
+            _mintAndDepositCVX(amount, account, false, address(0), true);
 
             assertEq(pxCvx.balanceOf(account), amount);
 
@@ -150,7 +150,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
         for (uint256 i; i < tLen; ++i) {
             address account = secondaryAccounts[i];
 
-            _mintAndDepositCVX(amount, account, false, true);
+            _mintAndDepositCVX(amount, account, false, address(0), true);
 
             // Simulate staking first before unstaking
             vm.prank(account);

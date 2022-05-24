@@ -94,6 +94,7 @@ abstract contract HelperContract is
         pirexCvx.setFee(PirexCvx.Fees.Reward, uint32(40000));
         pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, uint32(50000));
         pirexCvx.setFee(PirexCvx.Fees.RedemptionMin, uint32(10000));
+        pirexCvx.setFee(PirexCvx.Fees.Developers, uint32(5000));
         pirexCvx.setContract(
             PirexCvx.Contract.UnionPirexVault,
             address(unionPirex)
@@ -141,12 +142,14 @@ abstract contract HelperContract is
         @param  assets          uint256  Amount of CVX to mint and deposit
         @param  receiver        address  Recipient of pxCVX or uCVX
         @param  shouldCompound  bool     Whether to compound with UnionPirexVault
+        @param  developer       address  Developer incentive receiver
         @param  lock            bool     Whether to lock deposited CVX
      */
     function _mintAndDepositCVX(
         uint256 assets,
         address receiver,
         bool shouldCompound,
+        address developer,
         bool lock
     ) internal {
         _mintCvx(receiver, assets);
@@ -154,7 +157,7 @@ abstract contract HelperContract is
         vm.startPrank(receiver);
 
         CVX.approve(address(pirexCvx), CVX.balanceOf(receiver));
-        pirexCvx.deposit(assets, receiver, shouldCompound);
+        pirexCvx.deposit(assets, receiver, shouldCompound, developer);
 
         if (lock) {
             pirexCvx.lock();
@@ -178,12 +181,15 @@ abstract contract HelperContract is
         uint256 amount,
         uint8 fVal,
         bool shouldInitiate
-    ) internal returns (
-        uint256 unlockTime,
-        uint256[] memory lockIndexes,
-        uint256[] memory redemptionAssets
-    ) {
-        _mintAndDepositCVX(amount, account, false, true);
+    )
+        internal
+        returns (
+            uint256 unlockTime,
+            uint256[] memory lockIndexes,
+            uint256[] memory redemptionAssets
+        )
+    {
+        _mintAndDepositCVX(amount, account, false, address(0), true);
 
         (, , , CvxLockerV2.LockedBalance[] memory lockData) = CVX_LOCKER
             .lockedBalances(address(pirexCvx));
@@ -304,18 +310,22 @@ abstract contract HelperContract is
         (
             uint32 rewardFee,
             uint32 redemptionMax,
-            uint32 redemptionMin
+            uint32 redemptionMin,
+            uint32 developers
         ) = pirexCvx.getFees();
 
         // Retrieve accessed storage slots and use to reset data
         (bytes32[] memory reads, bytes32[] memory writes) = vm.accesses(
             address(pirexCvx)
         );
+        address pirexCvxAddr = address(pirexCvx);
+        bytes32 zero = bytes32(uint256(0));
 
         // Set fees to 0
-        vm.store(address(pirexCvx), reads[0], bytes32(uint256(0)));
-        vm.store(address(pirexCvx), reads[1], bytes32(uint256(0)));
-        vm.store(address(pirexCvx), reads[2], bytes32(uint256(0)));
+        vm.store(pirexCvxAddr, reads[0], zero);
+        vm.store(pirexCvxAddr, reads[1], zero);
+        vm.store(pirexCvxAddr, reads[2], zero);
+        vm.store(pirexCvxAddr, reads[3], zero);
     }
 
     /**

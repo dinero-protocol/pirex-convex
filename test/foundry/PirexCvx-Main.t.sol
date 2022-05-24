@@ -75,7 +75,7 @@ contract PirexCvxMainTest is Test, HelperContract {
     function testCannotDepositZeroAmount() external {
         vm.expectRevert(PirexCvx.ZeroAmount.selector);
 
-        pirexCvx.deposit(0, address(this), false);
+        pirexCvx.deposit(0, address(this), false, address(0));
     }
 
     /**
@@ -84,7 +84,7 @@ contract PirexCvxMainTest is Test, HelperContract {
     function testCannotDepositZeroAddress() external {
         vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
 
-        pirexCvx.deposit(1, address(0), false);
+        pirexCvx.deposit(1, address(0), false, address(0));
     }
 
     /**
@@ -95,7 +95,7 @@ contract PirexCvxMainTest is Test, HelperContract {
 
         vm.expectRevert("Pausable: paused");
 
-        pirexCvx.deposit(1, address(this), false);
+        pirexCvx.deposit(1, address(this), false, address(0));
     }
 
     /**
@@ -104,7 +104,7 @@ contract PirexCvxMainTest is Test, HelperContract {
     function testCannotDepositInsufficientBalance() external {
         vm.expectRevert("TRANSFER_FROM_FAILED");
 
-        pirexCvx.deposit(1, secondaryAccounts[0], false);
+        pirexCvx.deposit(1, secondaryAccounts[0], false, address(0));
     }
 
     /**
@@ -123,7 +123,7 @@ contract PirexCvxMainTest is Test, HelperContract {
 
             totalAssets += asset;
 
-            _mintAndDepositCVX(asset, account, false, false);
+            _mintAndDepositCVX(asset, account, false, address(0), false);
 
             // Check the PxCvx balance of the account
             assertEq(pxCvx.balanceOf(account), asset);
@@ -136,35 +136,6 @@ contract PirexCvxMainTest is Test, HelperContract {
         assertEq(pirexCvx.pendingLocks(), totalAssets);
         assertEq(pxCvx.totalSupply(), totalAssets);
         assertEq(locked, 0);
-    }
-
-    /**
-        @notice Test deposit and immediate lock without compounding
-        @param  amount  uint72  Amount of assets for deposit
-     */
-    function testDeposit(uint72 amount) external {
-        vm.assume(amount != 0);
-
-        uint256 totalAssets;
-        uint256 tLen = secondaryAccounts.length;
-
-        for (uint256 i; i < tLen; ++i) {
-            address account = secondaryAccounts[i];
-            uint256 asset = amount * (i + 1);
-
-            totalAssets += asset;
-
-            _mintAndDepositCVX(asset, account, false, true);
-
-            // Check the PxCvx balance of the account
-            assertEq(pxCvx.balanceOf(account), asset);
-            assertEq(CVX.balanceOf(account), 0);
-        }
-
-        uint256 locked = CVX_LOCKER.lockedBalanceOf(address(pirexCvx));
-
-        assertEq(pxCvx.totalSupply(), totalAssets);
-        assertEq(locked, totalAssets);
     }
 
     /**
@@ -183,7 +154,7 @@ contract PirexCvxMainTest is Test, HelperContract {
 
             totalAssets += asset;
 
-            _mintAndDepositCVX(asset, account, true, true);
+            _mintAndDepositCVX(asset, account, true, address(0), true);
 
             // Check the balance of the account in the UnionVault
             assertEq(unionPirex.balanceOf(account), asset);
@@ -197,6 +168,80 @@ contract PirexCvxMainTest is Test, HelperContract {
         assertEq(pxCvx.totalSupply(), totalAssets);
         assertEq(locked, totalAssets);
         assertEq(unionPirex.totalAssets(), totalAssets);
+    }
+
+    /**
+        @notice Fuzz test deposit
+     */
+    function testDeposit(
+        uint256 assets,
+        uint32 fee,
+        bool shouldCompound,
+        bool shouldLock,
+        bool shouldAddDeveloper
+    ) external {
+        vm.assume(assets != 0);
+        vm.assume(assets < 100e18);
+        vm.assume(fee < pirexCvx.FEE_MAX());
+
+        address receiver = address(this);
+        address developer = PRIMARY_ACCOUNT;
+
+        // Add developer to whitelist (WL)
+        if (shouldAddDeveloper) {
+            pirexCvx.addDeveloper(developer);
+        }
+
+        // Set fee even if the developer is not on WL, to test whether they receive incentives
+        pirexCvx.setFee(PirexCvx.Fees.Developers, fee);
+
+        // Developer assertions
+        assertEq(pirexCvx.developers(developer), shouldAddDeveloper);
+        assertEq(pirexCvx.fees(PirexCvx.Fees.Developers), fee);
+
+        _mintCvx(address(this), assets);
+        CVX.approve(address(pirexCvx), assets);
+        pirexCvx.deposit(assets, receiver, shouldCompound, developer);
+
+        if (shouldLock) {
+            pirexCvx.lock();
+        }
+
+        uint256 feeAmount = shouldAddDeveloper
+            ? (assets * fee) / pirexCvx.FEE_DENOMINATOR()
+            : 0;
+        uint256 receivedAmount = assets - feeAmount;
+
+        // Balance assertions based on whether shouldCompound is true
+        assertEq(
+            pxCvx.balanceOf(address(unionPirexStrategy)),
+            shouldCompound ? receivedAmount : 0
+        );
+        assertEq(
+            unionPirex.balanceOf(receiver),
+            shouldCompound ? receivedAmount : 0
+        );
+        assertEq(
+            pxCvx.balanceOf(address(this)),
+            shouldCompound ? 0 : receivedAmount
+        );
+        assertEq(
+            unionPirex.balanceOf(address(this)),
+            shouldCompound ? receivedAmount : 0
+        );
+
+        // Balance assertions based on whether CVX is locked
+        assertEq(CVX.balanceOf(address(pirexCvx)), shouldLock ? 0 : assets);
+        assertEq(
+            CVX_LOCKER.lockedBalanceOf(address(pirexCvx)),
+            shouldLock ? assets : 0
+        );
+
+        // Balance assertions based on whether developer should receive incentives
+        assertEq(
+            pxCvx.balanceOf(developer),
+            shouldAddDeveloper ? feeAmount : 0
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -264,7 +309,7 @@ contract PirexCvxMainTest is Test, HelperContract {
         @notice Test tx reversion if initiating redemption with zero asset
      */
     function testCannotInitiateRedemptionsZeroAmount() external {
-        _mintAndDepositCVX(1e18, address(this), false, true);
+        _mintAndDepositCVX(1e18, address(this), false, address(0), true);
 
         uint256[] memory locks = new uint256[](1);
         uint256[] memory assets = new uint256[](1);
@@ -285,7 +330,7 @@ contract PirexCvxMainTest is Test, HelperContract {
         @notice Test tx reversion if initiating redemption for zero address as recipient
      */
     function testCannotInitiateRedemptionsZeroAddress() external {
-        _mintAndDepositCVX(1e18, address(this), false, true);
+        _mintAndDepositCVX(1e18, address(this), false, address(0), true);
 
         uint256[] memory locks = new uint256[](1);
         uint256[] memory assets = new uint256[](1);
@@ -331,7 +376,7 @@ contract PirexCvxMainTest is Test, HelperContract {
     {
         address account = secondaryAccounts[0];
 
-        _mintAndDepositCVX(1e18, account, false, true);
+        _mintAndDepositCVX(1e18, account, false, address(0), true);
 
         (, , , CvxLockerV2.LockedBalance[] memory lockData) = CVX_LOCKER
             .lockedBalances(address(pirexCvx));
@@ -389,7 +434,7 @@ contract PirexCvxMainTest is Test, HelperContract {
             uint256[] memory lockIndexes,
             uint256[] memory redemptionAssets
         ) = _setupRedemption(address(this), 1e18, 0, false);
-        (, uint32 redemptionMax, uint32 redemptionMin) = pirexCvx.getFees();
+        (, uint32 redemptionMax, uint32 redemptionMin, ) = pirexCvx.getFees();
 
         assertEq(redemptionMax, 0);
         assertEq(redemptionMin, 0);
@@ -414,7 +459,7 @@ contract PirexCvxMainTest is Test, HelperContract {
             uint256[] memory lockIndexes,
             uint256[] memory redemptionAssets
         ) = _setupRedemption(address(this), 1e18, 0, false);
-        (, uint32 redemptionMax, uint32 redemptionMin) = pirexCvx.getFees();
+        (, uint32 redemptionMax, uint32 redemptionMin, ) = pirexCvx.getFees();
 
         assertEq(redemptionMax, FEE_MAX);
 
@@ -444,7 +489,7 @@ contract PirexCvxMainTest is Test, HelperContract {
             uint256[] memory lockIndexes,
             uint256[] memory redemptionAssets
         ) = _setupRedemption(address(this), 1e18, 0, false);
-        (, uint32 redemptionMax, uint32 redemptionMin) = pirexCvx.getFees();
+        (, uint32 redemptionMax, uint32 redemptionMin, ) = pirexCvx.getFees();
 
         assertEq(redemptionMax, redemptionMin);
 

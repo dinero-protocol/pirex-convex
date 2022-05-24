@@ -63,7 +63,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     enum Fees {
         Reward,
         RedemptionMax,
-        RedemptionMin
+        RedemptionMin,
+        Developers
     }
 
     // Convex voting round duration (1,209,600 seconds)
@@ -96,6 +97,10 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     // Convex unlock timestamps mapped to amount being redeemed
     mapping(uint256 => uint256) public redemptions;
 
+    // Developers who are eligible for incentives as part of the new initiative
+    // to enable builders to sustainably build apps for the Pirex ecosystem
+    mapping(address => bool) public developers;
+
     // Emergency migration data
     EmergencyMigration public emergencyMigration;
 
@@ -108,6 +113,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
     event SetContract(Contract indexed c, address contractAddress);
     event SetFee(Fees indexed f, uint32 fee);
+    event AddDeveloper(address developer);
+    event RemoveDeveloper(address developer);
     event MintFutures(
         uint256 rounds,
         Futures indexed f,
@@ -117,7 +124,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     event Deposit(
         uint256 assets,
         address indexed receiver,
-        bool indexed shouldCompound
+        bool indexed shouldCompound,
+        address indexed developer
     );
     event InitiateRedemptions(
         uint256[] lockIndexes,
@@ -308,6 +316,30 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         emit SetFee(f, fee);
     }
 
+    /** 
+        @notice Add developer to whitelist mapping
+        @param  developer  address  Developer
+     */
+    function addDeveloper(address developer) external onlyOwner {
+        if (developer == address(0)) revert ZeroAddress();
+
+        developers[developer] = true;
+
+        emit AddDeveloper(developer);
+    }
+
+    /** 
+        @notice Remove developer from whitelist mapping
+        @param  developer  address  Developer
+     */
+    function removeDeveloper(address developer) external onlyOwner {
+        if (developer == address(0)) revert ZeroAddress();
+
+        developers[developer] = false;
+
+        emit RemoveDeveloper(developer);
+    }
+
     /**
         @notice Get current epoch
         @return uint256  Current epoch
@@ -435,33 +467,52 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @param  assets          uint256  CVX amount
         @param  receiver        address  Receives pCVX
         @param  shouldCompound  bool     Whether to auto-compound
+        @param  developer       address  Developer incentive receiver
      */
     function deposit(
         uint256 assets,
         address receiver,
-        bool shouldCompound
+        bool shouldCompound,
+        address developer
     ) external whenNotPaused nonReentrant {
         if (assets == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
+        emit Deposit(assets, receiver, shouldCompound, developer);
+
+        // Track amount of CVX waiting to be locked before assets is modified
+        pendingLocks += assets;
+
+        // Calculate the dev incentive, which will come out of the minted pxCVX
+        uint256 developerIncentive = developer != address(0) &&
+            developers[developer]
+            ? (assets * fees[Fees.Developers]) / FEE_DENOMINATOR
+            : 0;
+
         // Take snapshot if necessary
         pxCvx.takeEpochSnapshot();
 
-        // Mint pCVX - recipient depends on whether or not to compound
-        pxCvx.mint(shouldCompound ? address(this) : receiver, assets);
+        // Mint pxCVX sans developer incentive - recipient depends on shouldCompound
+        pxCvx.mint(
+            shouldCompound ? address(this) : receiver,
+            assets - developerIncentive
+        );
 
-        emit Deposit(assets, receiver, shouldCompound);
-
-        if (shouldCompound) {
-            // Deposit pCVX into Union vault - user receives shares
-            unionPirex.deposit(assets, receiver);
-        }
-
-        // Transfer CVX to self in prepartion for lock
+        // Transfer CVX to self in preparation for lock
         CVX.safeTransferFrom(msg.sender, address(this), assets);
 
-        // Lock CVX
-        pendingLocks += assets;
+        if (developerIncentive != 0) {
+            // Mint pxCVX for the developer
+            pxCvx.mint(developer, developerIncentive);
+
+            // Update assets to ensure only the appropriate amount is deposited in vault
+            assets -= developerIncentive;
+        }
+
+        if (shouldCompound) {
+            // Deposit pxCVX into Union vault - user receives shares
+            unionPirex.deposit(assets, receiver);
+        }
     }
 
     /**
