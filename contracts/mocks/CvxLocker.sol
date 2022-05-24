@@ -359,7 +359,7 @@ contract CvxLockerV2 is ReentrancyGuard, Ownable {
         address _cvx,
         address _cvxCrv,
         address _cvxcrvStaking
-    ) public Ownable() {
+    ) Ownable() {
         stakingToken = IERC20(_cvx);
         cvxCrv = _cvxCrv;
         cvxcrvStaking = _cvxcrvStaking;
@@ -386,7 +386,7 @@ contract CvxLockerV2 is ReentrancyGuard, Ownable {
         return _symbol;
     }
 
-    function version() public view returns (uint256) {
+    function version() public pure returns (uint256) {
         return 2;
     }
 

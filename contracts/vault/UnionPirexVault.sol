@@ -111,9 +111,8 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     /**
         @notice Withdraw assets from the staking contract to prepare for transfer to user
         @param  assets  uint256  Assets
-        @param  shares  uint256  Shares
      */
-    function beforeWithdraw(uint256 assets, uint256 shares) internal override {
+    function beforeWithdraw(uint256 assets, uint256) internal override {
         // Harvest rewards in the event where there is not enough staked assets to cover the withdrawal
         if (assets > strategy.totalSupply()) harvest();
 
@@ -123,9 +122,8 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     /**
         @notice Stake assets so that rewards can be properly distributed
         @param  assets  uint256  Assets
-        @param  shares  uint256  Shares
      */
-    function afterDeposit(uint256 assets, uint256 shares) internal override {
+    function afterDeposit(uint256 assets, uint256) internal override {
         strategy.stake(assets);
     }
 
