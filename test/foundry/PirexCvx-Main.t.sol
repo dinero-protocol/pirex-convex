@@ -406,7 +406,7 @@ contract PirexCvxMainTest is Test, HelperContract {
         _resetFees();
 
         (
-            uint256 unlockTime,
+            ,
             uint256[] memory lockIndexes,
             uint256[] memory redemptionAssets
         ) = _setupRedemption(address(this), 1e18, 0, false);
@@ -430,7 +430,7 @@ contract PirexCvxMainTest is Test, HelperContract {
         _resetFees();
 
         (
-            uint256 unlockTime,
+            ,
             uint256[] memory lockIndexes,
             uint256[] memory redemptionAssets
         ) = _setupRedemption(address(this), 1e18, 0, false);
@@ -455,11 +455,11 @@ contract PirexCvxMainTest is Test, HelperContract {
         pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, FEE_MAX);
 
         (
-            uint256 unlockTime,
+            ,
             uint256[] memory lockIndexes,
             uint256[] memory redemptionAssets
         ) = _setupRedemption(address(this), 1e18, 0, false);
-        (, uint32 redemptionMax, uint32 redemptionMin, ) = pirexCvx.getFees();
+        (, uint32 redemptionMax, , ) = pirexCvx.getFees();
 
         assertEq(redemptionMax, FEE_MAX);
 
@@ -485,7 +485,7 @@ contract PirexCvxMainTest is Test, HelperContract {
         pirexCvx.setFee(PirexCvx.Fees.RedemptionMin, redemptionFee);
 
         (
-            uint256 unlockTime,
+            ,
             uint256[] memory lockIndexes,
             uint256[] memory redemptionAssets
         ) = _setupRedemption(address(this), 1e18, 0, false);

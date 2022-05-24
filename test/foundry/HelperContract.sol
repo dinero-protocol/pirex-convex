@@ -307,17 +307,11 @@ abstract contract HelperContract is
     function _resetFees() internal {
         vm.record();
 
-        (
-            uint32 rewardFee,
-            uint32 redemptionMax,
-            uint32 redemptionMin,
-            uint32 developers
-        ) = pirexCvx.getFees();
+        // Call fee-getter to provide storage read data
+        pirexCvx.getFees();
 
         // Retrieve accessed storage slots and use to reset data
-        (bytes32[] memory reads, bytes32[] memory writes) = vm.accesses(
-            address(pirexCvx)
-        );
+        (bytes32[] memory reads, ) = vm.accesses(address(pirexCvx));
         address pirexCvxAddr = address(pirexCvx);
         bytes32 zero = bytes32(uint256(0));
 
@@ -334,19 +328,14 @@ abstract contract HelperContract is
         This function MUST return `bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))` (i.e. 0xf23a6e61) if it accepts the transfer.
         This function MUST revert if it rejects the transfer.
         Return of any other value than the prescribed keccak256 generated value MUST result in the transaction being reverted by the caller.
-        @param  _operator  address  The address which initiated the transfer (i.e. msg.sender)
-        @param  _from      address  The address which previously owned the token
-        @param  _id        uint256  The ID of the token being transferred
-        @param  _value     uint256  The amount of tokens being transferred
-        @param  _data      bytes    Additional data with no specified format
         @return bytes4              `bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))`
     */
     function onERC1155Received(
-        address _operator,
-        address _from,
-        uint256 _id,
-        uint256 _value,
-        bytes calldata _data
+        address,
+        address,
+        uint256,
+        uint256,
+        bytes calldata
     ) external pure override returns (bytes4) {
         return ERC1155TokenReceiver.onERC1155Received.selector;
     }
@@ -357,19 +346,14 @@ abstract contract HelperContract is
         This function MUST return `bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"))` (i.e. 0xbc197c81) if it accepts the transfer(s).
         This function MUST revert if it rejects the transfer(s).
         Return of any other value than the prescribed keccak256 generated value MUST result in the transaction being reverted by the caller.
-        @param  _operator  address    The address which initiated the batch transfer (i.e. msg.sender)
-        @param  _from      address    The address which previously owned the token
-        @param  _ids       uint256[]  An array containing ids of each token being transferred (order and length must match _values array)
-        @param  _values    uint256[]  An array containing amounts of each token being transferred (order and length must match _ids array)
-        @param  _data      bytes      Additional data with no specified format
         @return bytes4                `bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"))`
     */
     function onERC1155BatchReceived(
-        address _operator,
-        address _from,
-        uint256[] calldata _ids,
-        uint256[] calldata _values,
-        bytes calldata _data
+        address,
+        address,
+        uint256[] calldata,
+        uint256[] calldata,
+        bytes calldata
     ) external pure override returns (bytes4) {
         return ERC1155TokenReceiver.onERC1155BatchReceived.selector;
     }
