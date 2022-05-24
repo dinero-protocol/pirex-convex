@@ -21,7 +21,7 @@ let admin: SignerWithAddress;
 let notAdmin: SignerWithAddress;
 let treasury: SignerWithAddress;
 let contributors: SignerWithAddress;
-let pCvx: PirexCvx;
+let pirexCvx: PirexCvx;
 let pxCvx: PxCvx;
 let pirexFees: PirexFees;
 let unionPirex: UnionPirexVault;
@@ -136,29 +136,29 @@ before(async function () {
   pirexFees = await (
     await ethers.getContractFactory('PirexFees')
   ).deploy(treasury.address, contributors.address);
-  const upCvx = await (
+  const upxCvx = await (
     await ethers.getContractFactory('ERC1155Solmate')
   ).deploy();
-  const spCvx = await (
+  const spxCvx = await (
     await ethers.getContractFactory('ERC1155Solmate')
   ).deploy();
-  const vpCvx = await (
+  const vpxCvx = await (
     await ethers.getContractFactory('ERC1155PresetMinterSupply')
   ).deploy('');
-  const rpCvx = await (
+  const rpxCvx = await (
     await ethers.getContractFactory('ERC1155PresetMinterSupply')
   ).deploy('');
-  pCvx = await (
+  pirexCvx = await (
     await ethers.getContractFactory('PirexCvx')
   ).deploy(
     cvx.address,
     cvxLocker.address,
     cvxDelegateRegistry.address,
     pxCvx.address,
-    upCvx.address,
-    spCvx.address,
-    vpCvx.address,
-    rpCvx.address,
+    upxCvx.address,
+    spxCvx.address,
+    vpxCvx.address,
+    rpxCvx.address,
     pirexFees.address,
     votiumMultiMerkleStash.address
   );
@@ -168,7 +168,7 @@ before(async function () {
   unionPirex = await unionPirexVault.deploy(pxCvx.address);
   unionPirexStrategy = await (
     await ethers.getContractFactory('UnionPirexStrategy')
-  ).deploy(pCvx.address, pxCvx.address, admin.address, unionPirex.address);
+  ).deploy(pirexCvx.address, pxCvx.address, admin.address, unionPirex.address);
 
   await unionPirex.setStrategy(unionPirexStrategy.address);
 
@@ -187,17 +187,17 @@ before(async function () {
   this.votiumMultiMerkleStash = votiumMultiMerkleStash;
   this.pirexFees = pirexFees;
   this.pxCvx = pxCvx;
-  this.pCvx = pCvx;
+  this.pirexCvx = pirexCvx;
   this.unionPirex = unionPirex;
   this.unionPirexStrategy = unionPirexStrategy;
 
-  await this.pirexFees.grantFeeDistributorRole(pCvx.address);
+  await this.pirexFees.grantFeeDistributorRole(pirexCvx.address);
 
-  await pxCvx.setOperator(this.pCvx.address);
+  await pxCvx.setOperator(this.pirexCvx.address);
 
   // Common constants
   this.feePercentDenominator = await pirexFees.PERCENT_DENOMINATOR();
-  this.feeDenominator = await pCvx.FEE_DENOMINATOR();
+  this.feeDenominator = await pirexCvx.FEE_DENOMINATOR();
   this.epochDuration = toBN(1209600);
   this.delegationSpace = 'cvx.eth';
   this.delegationSpaceBytes32 = ethers.utils.formatBytes32String(
@@ -206,10 +206,10 @@ before(async function () {
   this.contractEnum = {
     pxCvx: 0,
     pirexFees: 1,
-    upCvx: 2,
-    spCvx: 3,
-    vpCvx: 4,
-    rpCvx: 5,
+    upxCvx: 2,
+    spxCvx: 3,
+    vpxCvx: 4,
+    rpxCvx: 5,
     unionPirex: 6,
   };
   this.convexContractEnum = {
@@ -227,11 +227,11 @@ before(async function () {
   };
 
   // Enable minting rights for PirexCvx contract
-  const minterRole = await vpCvx.MINTER_ROLE();
-  await upCvx.grantRole(minterRole, pCvx.address);
-  await spCvx.grantRole(minterRole, pCvx.address);
-  await vpCvx.grantRole(minterRole, pCvx.address);
-  await rpCvx.grantRole(minterRole, pCvx.address);
+  const minterRole = await vpxCvx.MINTER_ROLE();
+  await upxCvx.grantRole(minterRole, pirexCvx.address);
+  await spxCvx.grantRole(minterRole, pirexCvx.address);
+  await vpxCvx.grantRole(minterRole, pirexCvx.address);
+  await rpxCvx.grantRole(minterRole, pirexCvx.address);
 
   // Common helper methods
   this.getFuturesCvxBalances = async (
@@ -248,20 +248,20 @@ before(async function () {
         const futuresCvx: any = await ethers.getContractAt(
           'ERC1155PresetMinterSupply',
           futures === this.futuresEnum.vote
-            ? await pCvx.vpCvx()
-            : await pCvx.rpCvx()
+            ? await pirexCvx.vpxCvx()
+            : await pirexCvx.rpxCvx()
         );
 
         return [...acc, await futuresCvx.balanceOf(admin.address, epoch)];
       },
       []
     );
-  this.getUpCvx = async (address: string) =>
+  this.getUpxCvx = async (address: string) =>
     await ethers.getContractAt('ERC1155Solmate', address);
-  this.getSpCvx = async (address: string) =>
+  this.getSpxCvx = async (address: string) =>
     await ethers.getContractAt('ERC1155Solmate', address);
-  this.getRpCvx = async (address: string) =>
+  this.getRpxCvx = async (address: string) =>
     await ethers.getContractAt('ERC1155PresetMinterSupply', address);
-  this.getVpCvx = async (address: string) =>
+  this.getVpxCvx = async (address: string) =>
     await ethers.getContractAt('ERC1155PresetMinterSupply', address);
 });

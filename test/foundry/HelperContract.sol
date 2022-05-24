@@ -48,10 +48,10 @@ abstract contract HelperContract is
 
     PirexCvxMock public immutable pirexCvx;
     PxCvx public immutable pxCvx;
-    ERC1155Solmate public immutable spCvx;
-    ERC1155Solmate public immutable upCvx;
-    ERC1155PresetMinterSupply public immutable vpCvx;
-    ERC1155PresetMinterSupply public immutable rpCvx;
+    ERC1155Solmate public immutable spxCvx;
+    ERC1155Solmate public immutable upxCvx;
+    ERC1155PresetMinterSupply public immutable vpxCvx;
+    ERC1155PresetMinterSupply public immutable rpxCvx;
     UnionPirexVault public immutable unionPirex;
     UnionPirexStrategyMock public immutable unionPirexStrategy;
     PirexFees public immutable pirexFees;
@@ -66,19 +66,19 @@ abstract contract HelperContract is
     constructor() {
         pxCvx = new PxCvx();
         pirexFees = new PirexFees(TREASURY, msg.sender);
-        spCvx = new ERC1155Solmate();
-        upCvx = new ERC1155Solmate();
-        vpCvx = new ERC1155PresetMinterSupply("");
-        rpCvx = new ERC1155PresetMinterSupply("");
+        spxCvx = new ERC1155Solmate();
+        upxCvx = new ERC1155Solmate();
+        vpxCvx = new ERC1155PresetMinterSupply("");
+        rpxCvx = new ERC1155PresetMinterSupply("");
         pirexCvx = new PirexCvxMock(
             address(CVX),
             address(CVX_LOCKER),
             CVX_DELEGATE_REGISTRY,
             address(pxCvx),
-            address(upCvx),
-            address(spCvx),
-            address(vpCvx),
-            address(rpCvx),
+            address(upxCvx),
+            address(spxCvx),
+            address(vpxCvx),
+            address(rpxCvx),
             address(pirexFees),
             VOTIUM_MULTI_MERKLE_STASH
         );
@@ -101,14 +101,14 @@ abstract contract HelperContract is
         );
         pirexCvx.setPauseState(false);
         pxCvx.setOperator(address(pirexCvx));
-        spCvx.grantMinterRole(address(pirexCvx));
+        spxCvx.grantMinterRole(address(pirexCvx));
         pirexFees.grantFeeDistributorRole(address(pirexCvx));
 
         bytes32 minterRole = keccak256("MINTER_ROLE");
 
-        vpCvx.grantRole(minterRole, address(pirexCvx));
-        rpCvx.grantRole(minterRole, address(pirexCvx));
-        upCvx.grantRole(minterRole, address(pirexCvx));
+        vpxCvx.grantRole(minterRole, address(pirexCvx));
+        rpxCvx.grantRole(minterRole, address(pirexCvx));
+        upxCvx.grantRole(minterRole, address(pirexCvx));
         unionPirex.setPlatform(address(this));
         unionPirex.setStrategy(address(unionPirexStrategy));
 
@@ -290,7 +290,7 @@ abstract contract HelperContract is
     ) internal {
         uint256 startingEpoch = pirexCvx.getCurrentEpoch() + EPOCH_DURATION;
         ERC1155PresetMinterSupply fToken = (
-            PirexCvx.Futures(fVal) == PirexCvx.Futures.Reward ? rpCvx : vpCvx
+            PirexCvx.Futures(fVal) == PirexCvx.Futures.Reward ? rpxCvx : vpxCvx
         );
 
         for (uint256 i; i < rounds; ++i) {

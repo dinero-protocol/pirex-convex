@@ -23,7 +23,7 @@ import { BalanceTree } from '../lib/merkle';
 describe('PirexCvx-UnionPirex*', function () {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
-  let pCvx: PirexCvx;
+  let pirexCvx: PirexCvx;
   let pxCvx: PxCvx;
   let unionPirex: UnionPirexVault;
   let unionPirexStrategy: UnionPirexStrategy;
@@ -40,7 +40,7 @@ describe('PirexCvx-UnionPirex*', function () {
       admin,
       notAdmin,
       cvx,
-      pCvx,
+      pirexCvx,
       pxCvx,
       unionPirex,
       unionPirexStrategy,
@@ -50,17 +50,17 @@ describe('PirexCvx-UnionPirex*', function () {
       votiumMultiMerkleStash,
     } = this);
 
-    if (await pCvx.paused()) await pCvx.setPauseState(false);
+    if (await pirexCvx.paused()) await pirexCvx.setPauseState(false);
 
-    if ((await pCvx.unionPirex()) === zeroAddress) {
-      await pCvx.setContract(contractEnum.unionPirex, unionPirex.address);
+    if ((await pirexCvx.unionPirex()) === zeroAddress) {
+      await pirexCvx.setContract(contractEnum.unionPirex, unionPirex.address);
     }
 
-    // Mint pCVX for testing
-    await cvx.approve(pCvx.address, toBN(50e18));
-    await pCvx.deposit(toBN(50e18), admin.address, false, zeroAddress);
+    // Mint pxCVX for testing
+    await cvx.approve(pirexCvx.address, toBN(50e18));
+    await pirexCvx.deposit(toBN(50e18), admin.address, false, zeroAddress);
 
-    // For making pxCVX deposits outside of the pCvx.deposit flow
+    // For making pxCVX deposits outside of the pirexCvx.deposit flow
     await pxCvx.approve(unionPirex.address, toBN2(1000e18).toFixed(0));
   });
 
@@ -102,7 +102,7 @@ describe('PirexCvx-UnionPirex*', function () {
 
   describe('UnionPirexStrategy: constructor', function () {
     it('Should set up contract state', async function () {
-      const pirexCvx = await unionPirexStrategy.pirexCvx();
+      const _pirexCvx = await unionPirexStrategy.pirexCvx();
       const vault = await unionPirexStrategy.vault();
       const token = await unionPirexStrategy.token();
       const distributor = await unionPirexStrategy.distributor();
@@ -111,11 +111,11 @@ describe('PirexCvx-UnionPirex*', function () {
       const token2 = await unionPirexStrategy.token();
       const distributor2 = await unionPirexStrategy.distributor();
 
-      expect(pirexCvx).to.equal(pCvx.address);
+      expect(_pirexCvx).to.equal(pirexCvx.address);
       expect(vault).to.equal(unionPirex.address);
       expect(token).to.equal(pxCvx.address);
       expect(distributor).to.equal(admin.address);
-      expect(pirexCvx2).to.equal(pirexCvx);
+      expect(pirexCvx2).to.equal(_pirexCvx);
       expect(vault2).to.equal(vault);
       expect(token2).to.equal(token);
       expect(distributor2).to.equal(distributor);
@@ -233,10 +233,10 @@ describe('PirexCvx-UnionPirex*', function () {
       const lastUpdateTimeBefore = await unionPirexStrategy.lastUpdateTime();
       const periodFinishBefore = await unionPirexStrategy.periodFinish();
 
-      await cvx.approve(pCvx.address, reward);
+      await cvx.approve(pirexCvx.address, reward);
 
       // Get pxCVX and deposit as vault reward
-      await pCvx.deposit(reward, admin.address, false, zeroAddress);
+      await pirexCvx.deposit(reward, admin.address, false, zeroAddress);
       await pxCvx.transfer(unionPirexStrategy.address, reward);
 
       const events = await callAndReturnEvents(
@@ -698,13 +698,13 @@ describe('PirexCvx-UnionPirex*', function () {
     before(async function () {
       const cvxRewardDistribution = [
         {
-          account: pCvx.address,
+          account: pirexCvx.address,
           amount: toBN(2e18),
         },
       ];
       const crvRewardDistribution = [
         {
-          account: pCvx.address,
+          account: pirexCvx.address,
           amount: toBN(2e18),
         },
       ];
@@ -731,12 +731,12 @@ describe('PirexCvx-UnionPirex*', function () {
       const proofs = [
         cvxTree.getProof(
           indexes[0],
-          pCvx.address,
+          pirexCvx.address,
           cvxRewardDistribution[0].amount
         ),
         crvTree.getProof(
           indexes[1],
-          pCvx.address,
+          pirexCvx.address,
           crvRewardDistribution[0].amount
         ),
       ];
@@ -745,11 +745,11 @@ describe('PirexCvx-UnionPirex*', function () {
         [tokens[1], indexes[1], amounts[1], proofs[1]],
       ];
 
-      await pCvx.claimVotiumRewards(votiumRewards);
+      await pirexCvx.claimVotiumRewards(votiumRewards);
     });
 
     it('Should redeem rewards', async function () {
-      const currentEpoch = await pCvx.getCurrentEpoch();
+      const currentEpoch = await pirexCvx.getCurrentEpoch();
       const { snapshotId, snapshotRewards } = await pxCvx.getEpoch(
         currentEpoch
       );
@@ -774,7 +774,7 @@ describe('PirexCvx-UnionPirex*', function () {
         unionPirexStrategy.redeemRewards,
         [currentEpoch, rewardIndexes]
       );
-      const redeemEvent = parseLog(pCvx, events[0]);
+      const redeemEvent = parseLog(pirexCvx, events[0]);
       const cvxTransferEvent = parseLog(cvx, events[1]);
       const crvTransferEvent = parseLog(crv, events[2]);
       const cvxBalanceAfter = await cvx.balanceOf(admin.address);
@@ -802,13 +802,13 @@ describe('PirexCvx-UnionPirex*', function () {
       );
 
       validateEvent(cvxTransferEvent, 'Transfer(address,address,uint256)', {
-        from: pCvx.address,
+        from: pirexCvx.address,
         to: distributor,
         value: expectedCvxRewards,
       });
 
       validateEvent(crvTransferEvent, 'Transfer(address,address,uint256)', {
-        from: pCvx.address,
+        from: pirexCvx.address,
         to: distributor,
         value: expectedCrvRewards,
       });

@@ -6,11 +6,11 @@ Liquid vote-locked Convex with the ability to sell your future bribes and votes 
 
 We have a "difficulty mode" for every type of user:
 
-- Easy mode: Deposit CVX and we will auto-compound your bribes every round into more liquid pCVX
+- Easy mode: Deposit CVX and we will auto-compound your bribes every round into more liquid pxCVX
 - Intermediate mode: Deposit your CVX and unlock in 17 weeks - same as Convex - but get all 17 weeks of your bribes upfront in the form of tokens. Sell, trade, or keep them - it’s up to you
 - Expert mode: Deposit your CVX, sell your bribes upfront or borrow against your CVX to buy more CVX. Rinse and repeat
 
-Users can deposit CVX and manage their own pCVX or let our partner Union compound their bribes into more pCVX. Users will be able to collateralize both uCVX (UnionPirex vault shares) and/or pCVX tokens and borrow against them.
+Users can deposit CVX and manage their own pxCVX or let our partner Union compound their bribes into more pxCVX. Users will be able to collateralize both uCVX (UnionPirex vault shares) and/or pxCVX tokens and borrow against them.
 
 And more!
 
@@ -23,10 +23,10 @@ Pirex provides a similar experience to locking CVX directly with the Convex prot
 - Flexible CVX redemptions which allow users to withdraw their CVX anywhere from 1-17 weeks
 - No upfront fees - Pirex's goal is to provide the user with the same APR as Convex and will only share in any surplus
 - Efficient and novel ERC1155-based system used for segregating tokens by time
-  - upCVX: Represents CVX being unlocked which can be redeemed after a specific timestamp
-  - rpCVX: Represents bribes which can be claimed for a specific Convex voting round
-  - vpCVX: Represents votes which can be used for a specific Convex voting round
-  - spCVX: Represents pCVX which can be unstaked after a specific timestamp
+  - upxCVX: Represents CVX being unlocked which can be redeemed after a specific timestamp
+  - rpxCVX: Represents bribes which can be claimed for a specific Convex voting round
+  - vpxCVX: Represents votes which can be used for a specific Convex voting round
+  - spxCVX: Represents pxCVX which can be unstaked after a specific timestamp
 
 ### Setup
 
@@ -47,7 +47,7 @@ NPM: 8.5.0
 **PirexCvx.sol**
 
 - Custodies deposited CVX and manages it through interactions with Convex's contracts
-- Produces tokenized versions of vlCVX (i.e. pCVX, upCVX, and spCVX) and derivatives (i.e. futures notes: rpCVX and vpCVX)
+- Produces tokenized versions of vlCVX (i.e. pxCVX, upxCVX, and spxCVX) and derivatives (i.e. futures notes: rpxCVX and vpxCVX)
 - Claims rewards from Votium and Convex and maintains the logic for their distribution
 
 **PirexCvxConvex.sol**
@@ -62,7 +62,7 @@ NPM: 8.5.0
 
 **UnionPirexVault.sol**
 
-Work-in-progress! See [this implementation](https://github.com/convex-community/union_contracts/tree/feat/pcvx/contracts/strategies/pCVX) by our partners, the Union, which will be continuously updated.
+Work-in-progress! See [this implementation](https://github.com/convex-community/union_contracts/tree/feat/pcvx/contracts/strategies/pxCVX) by our partners, the Union, which will be continuously updated.
 
 ### User Roles
 

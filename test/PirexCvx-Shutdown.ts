@@ -20,89 +20,89 @@ describe('PirexCvx-Migration', function () {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let pxCvx: PxCvx;
-  let pCvx: PirexCvx;
+  let pirexCvx: PirexCvx;
   let cvx: ConvexToken;
   let zeroAddress: string;
-  let oldUpCvx: ERC1155Solmate;
+  let oldUpxCvx: ERC1155Solmate;
 
   before(async function () {
-    ({ admin, notAdmin, pxCvx, pCvx, cvx, zeroAddress } = this);
+    ({ admin, notAdmin, pxCvx, pirexCvx, cvx, zeroAddress } = this);
 
-    const oldUpCvxAddress = await pCvx.upCvx();
-    oldUpCvx = await this.getUpCvx(oldUpCvxAddress);
+    const oldUpxCvxAddress = await pirexCvx.upxCvx();
+    oldUpxCvx = await this.getUpxCvx(oldUpxCvxAddress);
   });
 
-  describe('setUpCvxDeprecated', function () {
+  describe('setUpxCvxDeprecated', function () {
     it('Should revert if not owner', async function () {
       await expect(
-        pCvx.connect(notAdmin).setUpCvxDeprecated(true)
+        pirexCvx.connect(notAdmin).setUpxCvxDeprecated(true)
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('Should revert if not paused', async function () {
-      const paused = await pCvx.paused();
+      const paused = await pirexCvx.paused();
 
       expect(paused).to.equal(false);
-      await expect(pCvx.setUpCvxDeprecated(true)).to.be.revertedWith(
+      await expect(pirexCvx.setUpxCvxDeprecated(true)).to.be.revertedWith(
         'Pausable: not paused'
       );
     });
 
-    it('Should set upCvx deprecation state by owner', async function () {
-      await pCvx.setPauseState(true);
+    it('Should set upxCvx deprecation state by owner', async function () {
+      await pirexCvx.setPauseState(true);
 
-      const paused = await pCvx.paused();
+      const paused = await pirexCvx.paused();
       const state = true;
-      const stateBefore = await pCvx.upCvxDeprecated();
-      const setEvent = await callAndReturnEvent(pCvx.setUpCvxDeprecated, [
+      const stateBefore = await pirexCvx.upxCvxDeprecated();
+      const setEvent = await callAndReturnEvent(pirexCvx.setUpxCvxDeprecated, [
         state,
       ]);
-      const stateAfter = await pCvx.upCvxDeprecated();
+      const stateAfter = await pirexCvx.upxCvxDeprecated();
 
       expect(paused).to.equal(true);
       expect(stateBefore).to.not.equal(stateAfter);
       expect(stateAfter).to.equal(state);
 
-      validateEvent(setEvent, 'SetUpCvxDeprecated(bool)', {
+      validateEvent(setEvent, 'SetUpxCvxDeprecated(bool)', {
         state,
       });
     });
   });
 
   describe('redeemLegacy', function () {
-    it('Should revert redemption with legacy upCvx if not paused', async function () {
-      await pCvx.setPauseState(false);
+    it('Should revert redemption with legacy upxCvx if not paused', async function () {
+      await pirexCvx.setPauseState(false);
 
       const unlockTimes: any = [0];
       const assets: any = [0];
 
       await expect(
-        pCvx.redeemLegacy(unlockTimes, assets, admin.address)
+        pirexCvx.redeemLegacy(unlockTimes, assets, admin.address)
       ).to.be.revertedWith('Pausable: not paused');
     });
 
-    it('Should revert redemption with legacy upCvx if not deprecated', async function () {
-      await pCvx.setPauseState(true);
+    it('Should revert redemption with legacy upxCvx if not deprecated', async function () {
+      await pirexCvx.setPauseState(true);
 
-      await pCvx.setUpCvxDeprecated(false);
+      await pirexCvx.setUpxCvxDeprecated(false);
 
       const unlockTimes: any = [0];
       const assets: any = [0];
 
       await expect(
-        pCvx.redeemLegacy(unlockTimes, assets, admin.address)
+        pirexCvx.redeemLegacy(unlockTimes, assets, admin.address)
       ).to.be.revertedWith('RedeemClosed()');
     });
 
     it('Should revert if unlockTimes is an empty array', async function () {
-      await pCvx.setUpCvxDeprecated(true);
+      await pirexCvx.setUpxCvxDeprecated(true);
 
       const invalidUnlockTimes: any = [];
       const assets = [0];
       const receiver = admin.address;
 
       await expect(
-        pCvx.redeemLegacy(invalidUnlockTimes, assets, receiver)
+        pirexCvx.redeemLegacy(invalidUnlockTimes, assets, receiver)
       ).to.be.revertedWith('EmptyArray()');
     });
 
@@ -112,18 +112,18 @@ describe('PirexCvx-Migration', function () {
       const receiver = admin.address;
 
       await expect(
-        pCvx.redeemLegacy(unlockTimes, assets, receiver)
+        pirexCvx.redeemLegacy(unlockTimes, assets, receiver)
       ).to.be.revertedWith('MismatchedArrayLengths()');
     });
 
-    it('should allow legacy upCvx holders to immediately redeem for Cvx', async function () {
-      // Parse transfer logs to fetch ids and balances of the upCvx owned by the admin
+    it('should allow legacy upxCvx holders to immediately redeem for Cvx', async function () {
+      // Parse transfer logs to fetch ids and balances of the upxCvx owned by the admin
       const unlockTimes: any = [];
       const assets: any = [];
       const receiver = admin.address;
       let totalAssets: BigNumber = BigNumber.from(0);
-      const transferLogs = await oldUpCvx.queryFilter(
-        oldUpCvx.filters.TransferSingle(
+      const transferLogs = await oldUpxCvx.queryFilter(
+        oldUpxCvx.filters.TransferSingle(
           null,
           zeroAddress,
           admin.address,
@@ -133,7 +133,7 @@ describe('PirexCvx-Migration', function () {
       );
       await Promise.each(transferLogs, async (log: any) => {
         const { id } = log.args;
-        const balance = await oldUpCvx.balanceOf(admin.address, id);
+        const balance = await oldUpxCvx.balanceOf(admin.address, id);
 
         unlockTimes.push(id);
         assets.push(balance);
@@ -141,9 +141,10 @@ describe('PirexCvx-Migration', function () {
       });
 
       const cvxBalanceBefore = await cvx.balanceOf(receiver);
-      const outstandingRedemptionsBefore = await pCvx.outstandingRedemptions();
+      const outstandingRedemptionsBefore =
+        await pirexCvx.outstandingRedemptions();
 
-      const events = await callAndReturnEvents(pCvx.redeemLegacy, [
+      const events = await callAndReturnEvents(pirexCvx.redeemLegacy, [
         unlockTimes,
         assets,
         receiver,
@@ -152,7 +153,8 @@ describe('PirexCvx-Migration', function () {
       const cvxBalanceAfter = await cvx.balanceOf(receiver);
       expect(cvxBalanceAfter).to.equal(cvxBalanceBefore.add(totalAssets));
 
-      const outstandingRedemptionsAfter = await pCvx.outstandingRedemptions();
+      const outstandingRedemptionsAfter =
+        await pirexCvx.outstandingRedemptions();
       expect(outstandingRedemptionsAfter).to.equal(
         outstandingRedemptionsBefore.sub(totalAssets)
       );
@@ -167,15 +169,15 @@ describe('PirexCvx-Migration', function () {
         legacy: true,
       });
       validateEvent(cvxTransferEvent, 'Transfer(address,address,uint256)', {
-        from: pCvx.address,
+        from: pirexCvx.address,
         to: receiver,
         amount: totalAssets,
       });
 
-      // Assert the updated balances of the legacy upCvx
+      // Assert the updated balances of the legacy upxCvx
       await Promise.each(transferLogs, async (log: any) => {
         const { id } = log.args;
-        const balance = await oldUpCvx.balanceOf(admin.address, id);
+        const balance = await oldUpxCvx.balanceOf(admin.address, id);
 
         expect(balance).to.equal(0);
       });
