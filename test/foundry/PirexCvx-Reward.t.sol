@@ -9,6 +9,8 @@ import {PxCvx} from "contracts/PxCvx.sol";
 import {HelperContract} from "./HelperContract.sol";
 import {ERC1155PresetMinterSupply} from "contracts/tokens/ERC1155PresetMinterSupply.sol";
 import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
+import {MultiMerkleStash} from "contracts/mocks/MultiMerkleStash.sol";
+import {IVotiumMultiMerkleStash} from "contracts/interfaces/IVotiumMultiMerkleStash.sol";
 
 contract PirexCvxRewardTest is Test, HelperContract {
     /**
@@ -21,8 +23,8 @@ contract PirexCvxRewardTest is Test, HelperContract {
     {
         uint256 tLen = tokens.length;
 
-        PirexCvx.VotiumReward[]
-            memory votiumRewards = new PirexCvx.VotiumReward[](tLen);
+        IVotiumMultiMerkleStash.claimParam[]
+            memory votiumRewards = new IVotiumMultiMerkleStash.claimParam[](tLen);
 
         for (uint256 i; i < tLen; ++i) {
             // Mint tokens before adding it as a claimable votium reward record
@@ -37,7 +39,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
                 )
             );
 
-            PirexCvx.VotiumReward memory votiumReward;
+            IVotiumMultiMerkleStash.claimParam memory votiumReward;
             votiumReward.token = token;
             votiumReward.index = i;
             votiumReward.amount = amount;
@@ -166,8 +168,8 @@ contract PirexCvxRewardTest is Test, HelperContract {
         @notice Test tx reversion if claiming with empty array
      */
     function testCannotClaimVotiumRewardsEmptyArray() external {
-        PirexCvx.VotiumReward[]
-            memory votiumRewards = new PirexCvx.VotiumReward[](0);
+        IVotiumMultiMerkleStash.claimParam[]
+            memory votiumRewards = new IVotiumMultiMerkleStash.claimParam[](0);
 
         vm.expectRevert(PirexCvx.EmptyArray.selector);
 

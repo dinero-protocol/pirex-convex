@@ -16,6 +16,7 @@ import {UnionPirexVault} from "contracts/vault/UnionPirexVault.sol";
 import {UnionPirexStrategyMock} from "contracts/mocks/UnionPirexStrategyMock.sol";
 import {MultiMerkleStash} from "contracts/mocks/MultiMerkleStash.sol";
 import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
+import {IVotiumMultiMerkleStash} from "contracts/interfaces/IVotiumMultiMerkleStash.sol";
 
 interface IConvexToken is IERC20 {
     function mint(address _to, uint256 _amount) external;
@@ -244,13 +245,13 @@ abstract contract HelperContract is
      */
     function _claimSingleReward(address token, uint256 amount) internal {
         // Claim rewards for snapshotted pxCVX holders
-        PirexCvx.VotiumReward memory votiumReward;
+        IVotiumMultiMerkleStash.claimParam memory votiumReward;
         votiumReward.token = token;
         votiumReward.index = 0;
         votiumReward.amount = amount;
         votiumReward.merkleProof = new bytes32[](0);
-        PirexCvx.VotiumReward[]
-            memory votiumRewards = new PirexCvx.VotiumReward[](1);
+        IVotiumMultiMerkleStash.claimParam[]
+            memory votiumRewards = new IVotiumMultiMerkleStash.claimParam[](1);
         votiumRewards[0] = votiumReward;
 
         pirexCvx.claimVotiumRewards(votiumRewards);

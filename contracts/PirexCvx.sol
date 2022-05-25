@@ -19,20 +19,6 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     using Bytes32AddressLib for address;
 
     /**
-        @notice Votium reward metadata
-        @param  token        address    Reward token address
-        @param  index        uint256    Merkle tree node index
-        @param  amount       uint256    Reward token amount
-        @param  merkleProof  bytes32[]  Merkle proof
-     */
-    struct VotiumReward {
-        address token;
-        uint256 index;
-        uint256 amount;
-        bytes32[] merkleProof;
-    }
-
-    /**
         @notice Data pertaining to an emergency migration
         @param  recipient  address    Recipient of the tokens (e.g. new PirexCvx contract)
         @param  tokens     address[]  Token addresses
@@ -107,8 +93,8 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     // Non-Pirex multisig which has authority to fulfill emergency procedures
     address public emergencyExecutor;
 
-    // In the case of a mass unlock by Convex, the current upxCvx would be deprecated
-    // and should allow holders to immediately redeem their CVX by burning upxCvx
+    // In the case of a mass unlock by Convex, the current upxCVX would be deprecated
+    // and should allow holders to immediately redeem their CVX by burning upxCVX
     bool public upxCvxDeprecated;
 
     event SetContract(Contract indexed c, address contractAddress);
@@ -350,7 +336,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
     /**
         @notice Mint futures tokens
-        @param  rounds    uint256    Rounds (i.e. Convex voting rounds)
+        @param  rounds    uint256  Rounds (i.e. Convex voting rounds)
         @param  f         enum     Futures enum
         @param  assets    uint256  Futures amount
         @param  receiver  address  Receives futures
@@ -378,10 +364,10 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
     /**
         @notice Redeem CVX for specified unlock times
-        @param  unlockTimes  uint256[]  CVX unlock timestamps
+        @param  unlockTimes  uint256[]  vlCVX unlock timestamps
         @param  assets       uint256[]  upxCVX amounts
         @param  receiver     address    Receives CVX
-        @param  legacy       bool       Type of the upxCVX
+        @param  legacy       bool       Whether upxCVX has been deprecated
      */
     function _redeem(
         uint256[] calldata unlockTimes,
@@ -390,6 +376,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         bool legacy
     ) internal {
         uint256 unlockLen = unlockTimes.length;
+
         if (unlockLen == 0) revert EmptyArray();
         if (unlockLen != assets.length) revert MismatchedArrayLengths();
         if (receiver == address(0)) revert ZeroAddress();
@@ -408,7 +395,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
             totalAssets += asset;
         }
 
-        // Unlock and relock if balance is greater than outstandingRedemptions
+        // Perform unlocking and locking procedure to ensure enough CVX is available
         if (!legacy) {
             _lock();
         }
@@ -416,7 +403,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         // Subtract redemption amount from outstanding CVX amount
         outstandingRedemptions -= totalAssets;
 
-        // Reverts if sender has an insufficient amount of upxCVX with unlockTime id
+        // Reverts if sender has an insufficient upxCVX balance for any `unlockTime` id
         upxCvx.burnBatch(msg.sender, unlockTimes, assets);
 
         // Validates `to`
@@ -480,7 +467,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
         emit Deposit(assets, receiver, shouldCompound, developer);
 
-        // Track amount of CVX waiting to be locked before assets is modified
+        // Track amount of CVX waiting to be locked before `assets` is modified
         pendingLocks += assets;
 
         // Calculate the dev incentive, which will come out of the minted pxCVX
@@ -725,11 +712,9 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         @notice Claim multiple Votium rewards
         @param  votiumRewards  VotiumRewards[]  Votium rewards metadata
     */
-    function claimVotiumRewards(VotiumReward[] calldata votiumRewards)
-        external
-        whenNotPaused
-        nonReentrant
-    {
+    function claimVotiumRewards(
+        IVotiumMultiMerkleStash.claimParam[] calldata votiumRewards
+    ) external whenNotPaused nonReentrant {
         uint256 tLen = votiumRewards.length;
         if (tLen == 0) revert EmptyArray();
 
