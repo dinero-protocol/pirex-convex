@@ -114,7 +114,7 @@ contract ERC1155Solmate is AccessControl, ERC1155 {
     // Necessary override due to AccessControl having the same method
     function supportsInterface(bytes4 interfaceId)
         public
-        view
+        pure
         override(AccessControl, ERC1155)
         returns (bool)
     {

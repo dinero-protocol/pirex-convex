@@ -14,27 +14,30 @@ contract PirexCvxConvexTest is Test, HelperContract {
     /**
         @notice Redeem CVX for the specified account and verify the subsequent balances
         @param  account     address  Account redeeming CVX
-        @param  unlockTime  uint256  upCVX token id
+        @param  unlockTime  uint256  upxCVX token id
      */
     function _redeemCVX(address account, uint256 unlockTime) internal {
-        uint256[] memory upCvxIds = new uint256[](1);
+        uint256[] memory upxCvxIds = new uint256[](1);
         uint256[] memory redeemableAssets = new uint256[](1);
 
-        upCvxIds[0] = unlockTime;
+        upxCvxIds[0] = unlockTime;
 
-        uint256 upCvxBalanceBefore = upCvx.balanceOf(account, upCvxIds[0]);
+        uint256 upxCvxBalanceBefore = upxCvx.balanceOf(account, upxCvxIds[0]);
         uint256 cvxBalanceBefore = CVX.balanceOf(account);
 
-        redeemableAssets[0] = upCvxBalanceBefore;
+        redeemableAssets[0] = upxCvxBalanceBefore;
 
         vm.prank(account);
-        pirexCvx.redeem(upCvxIds, redeemableAssets, account);
+        pirexCvx.redeem(upxCvxIds, redeemableAssets, account);
 
-        // upCVX must be zero since we specified the balance when redeeming
-        assertEq(upCvx.balanceOf(account, upCvxIds[0]), 0);
+        // upxCVX must be zero since we specified the balance when redeeming
+        assertEq(upxCvx.balanceOf(account, upxCvxIds[0]), 0);
 
-        // CVX balance must have increased by the amount of upCVX burned as they are 1 to 1
-        assertEq(CVX.balanceOf(account), cvxBalanceBefore + upCvxBalanceBefore);
+        // CVX balance must have increased by the amount of upxCVX burned as they are 1 to 1
+        assertEq(
+            CVX.balanceOf(account),
+            cvxBalanceBefore + upxCvxBalanceBefore
+        );
     }
 
     /**
@@ -68,7 +71,13 @@ contract PirexCvxConvexTest is Test, HelperContract {
             address secondaryAccount = secondaryAccounts[i];
 
             // Deposit and lock CVX so that there are locked balances to redeem against
-            _mintAndDepositCVX(assets, secondaryAccount, false, address(0), true);
+            _mintAndDepositCVX(
+                assets,
+                secondaryAccount,
+                false,
+                address(0),
+                true
+            );
 
             uint256[] memory lockIndexes = new uint256[](1);
             uint256[] memory lockableAssets = new uint256[](1);
@@ -106,8 +115,8 @@ contract PirexCvxConvexTest is Test, HelperContract {
                 address(pirexCvx)
             );
 
-            // Increment by the user's upCVX balance to track the amount of CVX that must be present in the contract
-            minimumCvxBalanceRequired += upCvx.balanceOf(
+            // Increment by the user's upxCVX balance to track the amount of CVX that must be present in the contract
+            minimumCvxBalanceRequired += upxCvx.balanceOf(
                 secondaryAccount,
                 lockData[i].unlockTime
             );

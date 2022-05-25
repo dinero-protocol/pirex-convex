@@ -23,7 +23,7 @@ describe('PxCvx', function () {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let pxCvx: PxCvx;
-  let pCvx: PirexCvx;
+  let pirexCvx: PirexCvx;
   let cvx: ConvexToken;
   let crv: Crv;
   let votiumMultiMerkleStash: MultiMerkleStash;
@@ -36,7 +36,7 @@ describe('PxCvx', function () {
       admin,
       notAdmin,
       pxCvx,
-      pCvx,
+      pirexCvx,
       cvx,
       crv,
       votiumMultiMerkleStash,
@@ -53,7 +53,7 @@ describe('PxCvx', function () {
     });
 
     it('Should set up contract state', async function () {
-      const { snapshotId } = await pxCvx.getEpoch(await pCvx.getCurrentEpoch());
+      const { snapshotId } = await pxCvx.getEpoch(await pirexCvx.getCurrentEpoch());
       const _name = await pxCvx.name();
       const _symbol = await pxCvx.symbol();
 
@@ -65,7 +65,7 @@ describe('PxCvx', function () {
 
   describe('getCurrentSnapshotId', function () {
     it('Should return the current snapshot id', async function () {
-      const currentEpoch = await pCvx.getCurrentEpoch();
+      const currentEpoch = await pirexCvx.getCurrentEpoch();
       const { snapshotId } = await pxCvx.getEpoch(currentEpoch);
       const currentSnapshotId = await pxCvx.getCurrentSnapshotId();
 
@@ -220,8 +220,8 @@ describe('PxCvx', function () {
 
   describe('updateEpochFuturesRewards', function () {
     before(async function () {
-      await pxCvx.setOperator(pCvx.address);
-      await pCvx.stake(
+      await pxCvx.setOperator(pirexCvx.address);
+      await pirexCvx.stake(
         1,
         futuresEnum.reward,
         (await pxCvx.balanceOf(admin.address)).div(2),
@@ -238,7 +238,7 @@ describe('PxCvx', function () {
         cvx.address,
         new BalanceTree([
           {
-            account: pCvx.address,
+            account: pirexCvx.address,
             amount: cvxRewards,
           },
         ]).getHexRoot()
@@ -247,12 +247,12 @@ describe('PxCvx', function () {
         crv.address,
         new BalanceTree([
           {
-            account: pCvx.address,
+            account: pirexCvx.address,
             amount: crvRewards,
           },
         ]).getHexRoot()
       );
-      await pCvx.claimVotiumRewards([
+      await pirexCvx.claimVotiumRewards([
         {
           token: cvx.address,
           index: 0,
@@ -364,24 +364,24 @@ describe('PxCvx', function () {
     });
 
     it('Should revert if msg.sender is not operator and operator is paused', async function () {
-      await pxCvx.setOperator(pCvx.address);
-      await pCvx.setPauseState(true);
+      await pxCvx.setOperator(pirexCvx.address);
+      await pirexCvx.setPauseState(true);
 
-      const operatorPaused = await pCvx.paused();
+      const operatorPaused = await pirexCvx.paused();
 
       expect(operatorPaused).to.equal(true);
       await expect(
         pxCvx.connect(notAdmin).takeEpochSnapshot()
       ).to.be.revertedWith('Paused()');
 
-      await pCvx.setPauseState(false);
+      await pirexCvx.setPauseState(false);
     });
 
     // If sender is the operator then `paused` won't be called (would revert if operator is admin EOA)
     it('Should take a snapshot if msg.sender is operator and paused is uncallable/falsy', async function () {
       await pxCvx.setOperator(admin.address);
 
-      const currentEpochBefore = await pCvx.getCurrentEpoch();
+      const currentEpochBefore = await pirexCvx.getCurrentEpoch();
       const epochBefore = await pxCvx.getEpoch(currentEpochBefore);
       const snapshotIdBefore = await pxCvx.getCurrentSnapshotId();
 
@@ -389,7 +389,7 @@ describe('PxCvx', function () {
 
       const events = await callAndReturnEvents(pxCvx.takeEpochSnapshot, []);
       const snapshotEvent = events[0];
-      const currentEpochAfter = await pCvx.getCurrentEpoch();
+      const currentEpochAfter = await pirexCvx.getCurrentEpoch();
       const epochAfter = await pxCvx.getEpoch(currentEpochAfter);
       const snapshotIdAfter = await pxCvx.getCurrentSnapshotId();
 
@@ -405,10 +405,10 @@ describe('PxCvx', function () {
     });
 
     it('Should take a snapshot if not operator and operator is unpaused', async function () {
-      await pxCvx.setOperator(pCvx.address);
+      await pxCvx.setOperator(pirexCvx.address);
 
       const snapshotIdBefore = await pxCvx.getCurrentSnapshotId();
-      const operatorPaused = await pCvx.paused();
+      const operatorPaused = await pirexCvx.paused();
 
       await increaseBlockTimestamp(epochDuration.toNumber());
 

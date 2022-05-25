@@ -8,7 +8,7 @@ import {ERC20SnapshotSolmate} from "./tokens/ERC20SnapshotSolmate.sol";
 contract PxCvx is ERC20SnapshotSolmate("Pirex CVX", "pxCVX", 18), Ownable {
     /**
         @notice Epoch details
-        @notice Reward/snapshotRewards/futuresRewards indexes are associated with 1 reward
+                Reward/snapshotRewards/futuresRewards indexes are associated with 1 reward
         @param  snapshotId               uint256    Snapshot id
         @param  rewards                  bytes32[]  Rewards
         @param  snapshotRewards          uint256[]  Snapshot reward amounts
@@ -123,7 +123,7 @@ contract PxCvx is ERC20SnapshotSolmate("Pirex CVX", "pxCVX", 18), Ownable {
         @notice Get redeemed snapshot rewards bitmap
         @param  account  address   Account
         @param  epoch    uint256   Epoch
-        @return uint256  Redeemed  snapshot bitmap
+        @return uint256  Redeemed snapshot bitmap
      */
     function getEpochRedeemedSnapshotRewards(address account, uint256 epoch)
         external
@@ -224,7 +224,8 @@ contract PxCvx is ERC20SnapshotSolmate("Pirex CVX", "pxCVX", 18), Ownable {
         address to,
         uint256 amount
     ) external onlyOperator {
-        if (from == address(0) || to == address(0)) revert ZeroAddress();
+        if (from == address(0)) revert ZeroAddress();
+        if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
         _approve(from, to, amount);

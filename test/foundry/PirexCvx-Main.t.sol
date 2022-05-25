@@ -406,7 +406,7 @@ contract PirexCvxMainTest is Test, HelperContract {
         _resetFees();
 
         (
-            uint256 unlockTime,
+            ,
             uint256[] memory lockIndexes,
             uint256[] memory redemptionAssets
         ) = _setupRedemption(address(this), 1e18, 0, false);
@@ -430,7 +430,7 @@ contract PirexCvxMainTest is Test, HelperContract {
         _resetFees();
 
         (
-            uint256 unlockTime,
+            ,
             uint256[] memory lockIndexes,
             uint256[] memory redemptionAssets
         ) = _setupRedemption(address(this), 1e18, 0, false);
@@ -455,11 +455,11 @@ contract PirexCvxMainTest is Test, HelperContract {
         pirexCvx.setFee(PirexCvx.Fees.RedemptionMax, FEE_MAX);
 
         (
-            uint256 unlockTime,
+            ,
             uint256[] memory lockIndexes,
             uint256[] memory redemptionAssets
         ) = _setupRedemption(address(this), 1e18, 0, false);
-        (, uint32 redemptionMax, uint32 redemptionMin, ) = pirexCvx.getFees();
+        (, uint32 redemptionMax, , ) = pirexCvx.getFees();
 
         assertEq(redemptionMax, FEE_MAX);
 
@@ -485,7 +485,7 @@ contract PirexCvxMainTest is Test, HelperContract {
         pirexCvx.setFee(PirexCvx.Fees.RedemptionMin, redemptionFee);
 
         (
-            uint256 unlockTime,
+            ,
             uint256[] memory lockIndexes,
             uint256[] memory redemptionAssets
         ) = _setupRedemption(address(this), 1e18, 0, false);
@@ -556,7 +556,7 @@ contract PirexCvxMainTest is Test, HelperContract {
                 oldOutstandingRedemptions + postFeeAmount
             );
             assertEq(pxCvx.balanceOf(account), 0);
-            assertEq(upCvx.balanceOf(account, unlockTime), postFeeAmount);
+            assertEq(upxCvx.balanceOf(account, unlockTime), postFeeAmount);
 
             // Check through all the future notes balances separately to avoid "stack too deep" issue
             _validateFutureNotesBalances(fVal, rounds, account, asset);
@@ -698,7 +698,7 @@ contract PirexCvxMainTest is Test, HelperContract {
             uint256 oldOutstandingRedemptions = pirexCvx
                 .outstandingRedemptions();
             uint256 oldCvxBalance = CVX.balanceOf(account);
-            uint256 oldUpCvxBalance = upCvx.balanceOf(account, unlockTime);
+            uint256 oldUpxCvxBalance = upxCvx.balanceOf(account, unlockTime);
 
             (uint256 postFeeAmount, ) = _processRedemption(unlockTime, asset);
 
@@ -716,8 +716,8 @@ contract PirexCvxMainTest is Test, HelperContract {
 
             assertEq(CVX.balanceOf(account), oldCvxBalance + postFeeAmount);
             assertEq(
-                upCvx.balanceOf(account, unlockTime),
-                oldUpCvxBalance - postFeeAmount
+                upxCvx.balanceOf(account, unlockTime),
+                oldUpxCvxBalance - postFeeAmount
             );
             assertEq(
                 pirexCvx.outstandingRedemptions(),
