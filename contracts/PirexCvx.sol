@@ -575,7 +575,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
     /**
         @notice Initiate CVX redemptions
-        @param  lockIndexes  uint256[]    Locked balance index
+        @param  lockIndexes  uint256[]  Locked balance index
         @param  f            enum       Futures enum
         @param  assets       uint256[]  pxCVX amounts
         @param  receiver     address    Receives upxCVX
@@ -587,6 +587,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         address receiver
     ) external whenNotPaused nonReentrant {
         uint256 lockLen = lockIndexes.length;
+
         if (lockLen == 0) revert EmptyArray();
         if (lockLen != assets.length) revert MismatchedArrayLengths();
 
@@ -635,11 +636,12 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         address receiver
     ) external whenNotPaused nonReentrant {
         if (upxCvxDeprecated) revert RedeemClosed();
+
         _redeem(unlockTimes, assets, receiver, false);
     }
 
     /**
-        @notice Redeem CVX for deprecated upxCvx holders if enabled
+        @notice Redeem CVX for deprecated upxCVX holders if enabled
         @param  unlockTimes  uint256[]  CVX unlock timestamps
         @param  assets       uint256[]  upxCVX amounts
         @param  receiver     address    Receives CVX
@@ -650,6 +652,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         address receiver
     ) external whenPaused nonReentrant {
         if (!upxCvxDeprecated) revert RedeemClosed();
+
         _redeem(unlockTimes, assets, receiver, true);
     }
 
@@ -718,6 +721,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         IVotiumMultiMerkleStash.claimParam[] calldata votiumRewards
     ) external whenNotPaused nonReentrant {
         uint256 tLen = votiumRewards.length;
+
         if (tLen == 0) revert EmptyArray();
 
         // Take snapshot before claiming rewards, if necessary
@@ -817,7 +821,9 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     ) external whenNotPaused nonReentrant {
         if (epoch == 0) revert InvalidEpoch();
         if (receiver == address(0)) revert ZeroAddress();
+
         uint256 rewardLen = rewardIndexes.length;
+
         if (rewardLen == 0) revert EmptyArray();
 
         (
@@ -836,6 +842,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         // Check whether msg.sender maintained a positive balance before the snapshot
         uint256 snapshotBalance = pxCvx.balanceOfAt(msg.sender, snapshotId);
         uint256 snapshotSupply = pxCvx.totalSupplyAt(snapshotId);
+
         if (snapshotBalance == 0) revert InsufficientBalance();
 
         emit RedeemSnapshotRewards(
@@ -849,7 +856,9 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         for (uint256 i; i < rewardLen; ++i) {
             uint256 index = rewardIndexes[i];
             uint256 indexRedeemed = (1 << index);
+
             if ((redeemed & indexRedeemed) != 0) revert AlreadyRedeemed();
+
             redeemed |= indexRedeemed;
 
             ERC20(address(uint160(bytes20(rewards[index])))).safeTransfer(
@@ -863,7 +872,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     }
 
     /**
-        @notice Redeem Futures rewards for rpxCVX holders for an epoch
+        @notice Redeem futures rewards for rpxCVX holders for an epoch
         @param  epoch     uint256  Epoch (ERC1155 token id)
         @param  receiver  address  Receives futures rewards
     */
@@ -886,6 +895,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
         // Check sender rpxCVX balance
         uint256 rpxCvxBalance = rpxCvx.balanceOf(msg.sender, epoch);
+        
         if (rpxCvxBalance == 0) revert InsufficientBalance();
 
         // Store rpxCVX total supply before burning
@@ -995,11 +1005,13 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         if (msg.sender != emergencyExecutor) revert NotAuthorized();
 
         address migrationRecipient = emergencyMigration.recipient;
+
         if (migrationRecipient == address(0))
             revert InvalidEmergencyMigration();
 
         address[] memory migrationTokens = emergencyMigration.tokens;
         uint256 tLen = migrationTokens.length;
+        
         if (tLen == 0) revert InvalidEmergencyMigration();
 
         uint256 o = outstandingRedemptions;
