@@ -62,12 +62,11 @@ contract PirexCvxConvex is Ownable, Pausable {
         address _cvxDelegateRegistry
     ) {
         if (_CVX == address(0)) revert ZeroAddress();
-        CVX = ERC20(_CVX);
-
         if (_cvxLocker == address(0)) revert ZeroAddress();
-        cvxLocker = ICvxLocker(_cvxLocker);
-
         if (_cvxDelegateRegistry == address(0)) revert ZeroAddress();
+        
+        CVX = ERC20(_CVX);
+        cvxLocker = ICvxLocker(_cvxLocker);
         cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
 
         // Max allowance for cvxLocker

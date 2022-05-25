@@ -208,24 +208,19 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         _pause();
 
         if (_pxCvx == address(0)) revert ZeroAddress();
-        pxCvx = PxCvx(_pxCvx);
-
         if (_pirexFees == address(0)) revert ZeroAddress();
-        pirexFees = PirexFees(_pirexFees);
-
         if (_upxCvx == address(0)) revert ZeroAddress();
-        upxCvx = ERC1155Solmate(_upxCvx);
-
         if (_spxCvx == address(0)) revert ZeroAddress();
-        spxCvx = ERC1155Solmate(_spxCvx);
-
         if (_vpxCvx == address(0)) revert ZeroAddress();
-        vpxCvx = ERC1155PresetMinterSupply(_vpxCvx);
-
         if (_rpxCvx == address(0)) revert ZeroAddress();
-        rpxCvx = ERC1155PresetMinterSupply(_rpxCvx);
-
         if (_votiumMultiMerkleStash == address(0)) revert ZeroAddress();
+
+        pxCvx = PxCvx(_pxCvx);
+        pirexFees = PirexFees(_pirexFees);
+        upxCvx = ERC1155Solmate(_upxCvx);
+        spxCvx = ERC1155Solmate(_spxCvx);
+        vpxCvx = ERC1155PresetMinterSupply(_vpxCvx);
+        rpxCvx = ERC1155PresetMinterSupply(_rpxCvx);
         votiumMultiMerkleStash = IVotiumMultiMerkleStash(
             _votiumMultiMerkleStash
         );
@@ -895,7 +890,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
         // Check sender rpxCVX balance
         uint256 rpxCvxBalance = rpxCvx.balanceOf(msg.sender, epoch);
-        
+
         if (rpxCvxBalance == 0) revert InsufficientBalance();
 
         // Store rpxCVX total supply before burning
@@ -1011,7 +1006,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
         address[] memory migrationTokens = emergencyMigration.tokens;
         uint256 tLen = migrationTokens.length;
-        
+
         if (tLen == 0) revert InvalidEmergencyMigration();
 
         uint256 o = outstandingRedemptions;
