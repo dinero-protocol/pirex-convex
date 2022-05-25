@@ -491,12 +491,12 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         if (developerIncentive != 0) {
             // Mint pxCVX for the developer
             pxCvx.mint(developer, developerIncentive);
-
-            // Update assets to ensure only the appropriate amount is deposited in vault
-            assets -= developerIncentive;
         }
 
         if (shouldCompound) {
+            // Update assets to ensure only the appropriate amount is deposited in vault
+            assets -= developerIncentive;
+
             // Deposit pxCVX into Union vault - user receives shares
             unionPirex.deposit(assets, receiver);
         }
