@@ -678,15 +678,11 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
         _mintAndDepositCVX(assets, account, false, address(0), true);
 
-        vm.startPrank(PRIMARY_ACCOUNT);
+        vm.startPrank(account);
 
-        pirexCvx.stake(
-            rounds,
-            PirexCvx.Futures.Reward,
-            assets,
-            account
-        );
+        pirexCvx.stake(rounds, PirexCvx.Futures.Reward, assets, account);
 
+        // Approve the futures notes contract to allow burning on behalf of the account
         rpCvx.setApprovalForAll(address(pirexCvx), true);
 
         vm.stopPrank();
@@ -707,9 +703,85 @@ contract PirexCvxRewardTest is Test, HelperContract {
                 vm.expectRevert(PirexCvx.InsufficientBalance.selector);
             }
 
-            vm.prank(PRIMARY_ACCOUNT);
+            vm.prank(account);
 
-            // Attempt redeeming rewards with rpCvx balance (can be invalid or valid)
+            // Should revert on the selected round, otherwise the redemption should succeed
+            pirexCvx.redeemFuturesRewards(epoch, account);
+        }
+    }
+
+    /**
+        @notice Test mixing both exchanging futures notes and redeeming futures rewards
+        @param  rounds       uint8    Number of staking rounds
+        @param  assets       uint112  pxCVX amount
+        @param  chosenRound  uint8    Randomly selected round for the transfer event
+     */
+    function testRedeemFuturesRewardsWithExchange(
+        uint8 rounds,
+        uint112 assets,
+        uint8 chosenRound
+    ) external {
+        vm.assume(rounds != 0 && rounds < 30);
+        vm.assume(assets > 1e18 && assets < 10000e18);
+        vm.assume(chosenRound < rounds && chosenRound != 0);
+
+        address account = PRIMARY_ACCOUNT;
+        address secondaryAccount = secondaryAccounts[0];
+
+        _mintAndDepositCVX(assets, account, false, address(0), true);
+        _mintAndDepositCVX(assets, secondaryAccount, false, address(0), true);
+
+        vm.startPrank(account);
+
+        // Approve the futures notes contract to allow burning on behalf of the account
+        rpCvx.setApprovalForAll(address(pirexCvx), true);
+
+        // Stake and then immediately exchange all the original futures notes to the other type
+        // then proceed to do the validations
+        pirexCvx.stake(rounds, PirexCvx.Futures.Reward, assets, account);
+
+        // Perform partial exchange on the selected round epoch
+        uint256 selectedEpoch = pxCvx.getCurrentEpoch() +
+            EPOCH_DURATION +
+            (chosenRound * EPOCH_DURATION);
+        pirexCvx.exchangeFutures(
+            selectedEpoch,
+            assets,
+            account,
+            PirexCvx.Futures.Reward
+        );
+
+        vm.stopPrank();
+
+        // Perform staking on another account to make sure we won't run into 0 rpCvx supply error on all rounds
+        vm.startPrank(secondaryAccount);
+
+        rpCvx.setApprovalForAll(address(pirexCvx), true);
+
+        pirexCvx.stake(
+            rounds,
+            PirexCvx.Futures.Reward,
+            assets,
+            secondaryAccount
+        );
+
+        vm.stopPrank();
+
+        for (uint256 i; i < rounds; ++i) {
+            vm.warp(block.timestamp + EPOCH_DURATION);
+
+            _distributeEpochRewards(assets);
+
+            uint256 epoch = pxCvx.getCurrentEpoch();
+
+            if (i == chosenRound) {
+                // if it's the selected round, it should trigger the revert due to insufficient rpCvx balance after the exchange
+                vm.expectRevert(PirexCvx.InsufficientBalance.selector);
+            }
+
+            vm.prank(account);
+
+            // Should revert on the selected round, otherwise the redemption should succeed
             pirexCvx.redeemFuturesRewards(epoch, account);
         }
     }
