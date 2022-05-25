@@ -24,7 +24,9 @@ contract PirexCvxRewardTest is Test, HelperContract {
         uint256 tLen = tokens.length;
 
         IVotiumMultiMerkleStash.claimParam[]
-            memory votiumRewards = new IVotiumMultiMerkleStash.claimParam[](tLen);
+            memory votiumRewards = new IVotiumMultiMerkleStash.claimParam[](
+                tLen
+            );
 
         for (uint256 i; i < tLen; ++i) {
             // Mint tokens before adding it as a claimable votium reward record
@@ -662,7 +664,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
     }
 
     /**
-        @notice Fuzz to correctly handle redemptions based on the rpCvx balance after a random transfer
+        @notice Fuzz to correctly handle redemptions based on the rpxCvx balance after a random transfer
         @param  rounds       uint8    Number of staking rounds
         @param  assets       uint112  pxCVX amount
         @param  chosenRound  uint8    Randomly selected round for the transfer event
@@ -685,7 +687,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
         pirexCvx.stake(rounds, PirexCvx.Futures.Reward, assets, account);
 
         // Approve the futures notes contract to allow burning on behalf of the account
-        rpCvx.setApprovalForAll(address(pirexCvx), true);
+        rpxCvx.setApprovalForAll(address(pirexCvx), true);
 
         vm.stopPrank();
 
@@ -700,7 +702,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
             if (i == chosenRound) {
                 // Transfer out entire balance of rpCvx for the selected round
                 // which should revert when attempting to redeem for rewards in the same round
-                _transferRpCvx(secondaryAccounts[0], epoch, assets);
+                _transferRpxCvx(secondaryAccounts[0], epoch, assets);
 
                 vm.expectRevert(PirexCvx.InsufficientBalance.selector);
             }
@@ -731,12 +733,14 @@ contract PirexCvxRewardTest is Test, HelperContract {
         address secondaryAccount = secondaryAccounts[0];
 
         _mintAndDepositCVX(assets, account, false, address(0), true);
+
+        // Perform deposit on another account to make sure we won't run into 0 rpCvx+snapshot supply error on all rounds
         _mintAndDepositCVX(assets, secondaryAccount, false, address(0), true);
 
         vm.startPrank(account);
 
         // Approve the futures notes contract to allow burning on behalf of the account
-        rpCvx.setApprovalForAll(address(pirexCvx), true);
+        rpxCvx.setApprovalForAll(address(pirexCvx), true);
 
         // Stake and then immediately exchange all the original futures notes to the other type
         // then proceed to do the validations
@@ -751,20 +755,6 @@ contract PirexCvxRewardTest is Test, HelperContract {
             assets,
             account,
             PirexCvx.Futures.Reward
-        );
-
-        vm.stopPrank();
-
-        // Perform staking on another account to make sure we won't run into 0 rpCvx supply error on all rounds
-        vm.startPrank(secondaryAccount);
-
-        rpCvx.setApprovalForAll(address(pirexCvx), true);
-
-        pirexCvx.stake(
-            rounds,
-            PirexCvx.Futures.Reward,
-            assets,
-            secondaryAccount
         );
 
         vm.stopPrank();
