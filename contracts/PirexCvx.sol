@@ -524,14 +524,16 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         if (receiver == address(0)) revert ZeroAddress();
 
         uint256 unlockTime = lockData.unlockTime;
-        uint256 lockAmount = lockData.amount;
 
-        // Calculate the fee based on the duration a user has to wait before redeeming CVX
+        // Used for calculating the fee and conditionally adding a round
         uint256 waitTime = unlockTime - block.timestamp;
-        uint256 feePercent = feeMax -
-            (((feeMax - feeMin) * waitTime) / MAX_REDEMPTION_TIME);
 
-        feeAmount = (assets * feePercent) / FEE_DENOMINATOR;
+        if (feeMax != 0) {
+            uint256 feePercent = feeMax -
+                (((feeMax - feeMin) * waitTime) / MAX_REDEMPTION_TIME);
+
+            feeAmount = (assets * feePercent) / FEE_DENOMINATOR;
+        }
 
         uint256 postFeeAmount = assets - feeAmount;
 
@@ -539,7 +541,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
         redemptions[unlockTime] += postFeeAmount;
 
         // Check if there is any sufficient allowance after factoring in redemptions by others
-        if (redemptions[unlockTime] > lockAmount)
+        if (redemptions[unlockTime] > lockData.amount)
             revert InsufficientRedemptionAllowance();
 
         // Track assets that needs to remain unlocked for redemptions
