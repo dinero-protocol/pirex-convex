@@ -4,13 +4,13 @@
 
 Liquid vote-locked Convex with the ability to sell your future bribes and votes and collect upfront liquidity.
 
-We have a "difficulty mode" for every type of user:
+We have a "difficulty mode" which we hope will allow us to cater to every type of user:
 
-- Easy mode: Deposit CVX and we will auto-compound your bribes every round into more liquid pxCVX
-- Intermediate mode: Deposit your CVX and unlock in 17 weeks - same as Convex - but get all 17 weeks of your bribes upfront in the form of tokens. Sell, trade, or keep them - it’s up to you
-- Expert mode: Deposit your CVX, sell your bribes upfront or borrow against your CVX to buy more CVX. Rinse and repeat
+- Easy mode: Deposit CVX and we'll auto-compound your bribes every round into more pxCVX
+- Intermediate mode: Mimic locking with Convex but with the added benefits of liquid CVX (pxCVX) and all 17 weeks' worth of your bribes tokenized
+- Expert mode: Borrow against your pxCVX to buy more CVX, tokenize bribes for an arbitrary amount of rounds by staking, and more
 
-Users can deposit CVX and manage their own pxCVX or let our partner Union compound their bribes into more pxCVX. Users will be able to collateralize both uCVX (UnionPirex vault shares) and/or pxCVX tokens and borrow against them.
+Users can deposit CVX and manage their own pxCVX or let our partner Union compound their bribes into more pxCVX. Users will be able to collateralize both uCVX (UnionPirex vault shares) and/or pxCVX tokens and borrow against their value via Rari Capital's Fuse (coming in the near future).
 
 And more!
 
@@ -19,14 +19,9 @@ And more!
 Pirex provides a similar experience to locking CVX directly with the Convex protocol, with these added benefits (to name a few):
 
 - Fungible, liquid CVX wrapper token which be used as collateral for Fuse and more
-- Native auto-compounding integration with our partners in crime, Alu and Benny from the Union
+- Native auto-compounding integration with our partners in crime, Alu and Benny from Llama Airforce/The Union
 - Flexible CVX redemptions which allow users to withdraw their CVX anywhere from 1-17 weeks
-- No upfront fees - Pirex's goal is to provide the user with the same APR as Convex and will only share in any surplus
-- Efficient and novel ERC1155-based system used for segregating tokens by time
-  - upxCVX: Represents CVX being unlocked which can be redeemed after a specific timestamp
-  - rpxCVX: Represents bribes which can be claimed for a specific Convex voting round
-  - vpxCVX: Represents votes which can be used for a specific Convex voting round
-  - spxCVX: Represents pxCVX which can be unstaked after a specific timestamp
+- The ability to tokenize future yield and trade them freely with others (native marketplace coming soon)
 
 ### Setup
 
@@ -40,15 +35,22 @@ NPM: 8.5.0
 2. Install global and local dependencies
    `npm i -g typescript && npm i`
 3. Compile contracts and run tests to ensure the project is set up correctly
-   `npx hardhat compile && npx hardhat test` (`npx hardhat clean` may be required if an older version is cached)
+   - Hardhat tests: `npx hardhat compile && npx hardhat test` (`npx hardhat clean` may be required if an older version is cached)
+   - Forge tests: `forge test --fork-url <RPC_PROVIDER>`
 
 ### Core Contract Overview
 
 **PirexCvx.sol**
 
 - Custodies deposited CVX and manages it through interactions with Convex's contracts
-- Produces tokenized versions of vlCVX (i.e. pxCVX, upxCVX, and spxCVX) and derivatives (i.e. futures notes: rpxCVX and vpxCVX)
+- Has the ability to mint tokenized components of vlCVX (i.e. pxCVX, upxCVX, and spxCVX) and derivatives (i.e. futures notes: rpxCVX and vpxCVX)
 - Claims rewards from Votium and Convex and maintains the logic for their distribution
+
+**PxCvx.sol**
+
+- Enables the PirexCvx contract to perform token-related operations for pxCVX (e.g. mint, burn, etc.)
+- Takes token balance snapshots to enable solely on-chain reward redemptions by pxCVX holders over a period of epochs
+- Maintains general protocol state related to epochs, rewards, and token balances
 
 **PirexCvxConvex.sol**
 
@@ -62,10 +64,8 @@ NPM: 8.5.0
 
 **UnionPirexVault.sol**
 
-Work-in-progress! See [this implementation](https://github.com/convex-community/union_contracts/tree/feat/pcvx/contracts/strategies/pxCVX) by our partners, the Union, which will be continuously updated.
+- Offers an ERC-4626 interface for pxCVX deposits and withdrawals, while taking into consideration protocol fees when computing asset/share values
+- Works in conjunction with the UnionPirexStrategy contract for streaming rewards
 
-### User Roles
-
-- Owner: Pirex 3/5 multi-sig that has permission to call owner-only methods within the PirexCvx and PirexCvxConvex contract
-- Admin: Pirex 3/5 multi-sig that has permission to call admin-only methods within the PirexFees contract
-- Fee Distributor: Addresses that have permission to call the PirexFees contract's `distributeFees` method
+**UnionPirexStrategy.sol**
+- Utilizes a modified version of Synthetix's StakingRewards contract to stream rewards over 14-day periods
