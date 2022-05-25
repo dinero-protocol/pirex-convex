@@ -659,6 +659,61 @@ contract PirexCvxRewardTest is Test, HelperContract {
         }
     }
 
+    /**
+        @notice Fuzz to correctly handle redemptions based on the rpCvx balance after a random transfer
+        @param  rounds       uint8    Number of staking rounds
+        @param  assets       uint112  pxCVX amount
+        @param  chosenRound  uint8    Randomly selected round for the transfer event
+     */
+    function testRedeemFuturesRewardsWithTransfers(
+        uint8 rounds,
+        uint112 assets,
+        uint8 chosenRound
+    ) external {
+        vm.assume(rounds != 0 && rounds < 30);
+        vm.assume(assets > 1e18 && assets < 10000e18);
+        vm.assume(chosenRound < rounds);
+
+        address account = PRIMARY_ACCOUNT;
+
+        _mintAndDepositCVX(assets, account, false, address(0), true);
+
+        vm.startPrank(PRIMARY_ACCOUNT);
+
+        pirexCvx.stake(
+            rounds,
+            PirexCvx.Futures.Reward,
+            assets,
+            account
+        );
+
+        rpCvx.setApprovalForAll(address(pirexCvx), true);
+
+        vm.stopPrank();
+
+        // Attempt to redeem with the rpCvx from other rounds
+        for (uint256 i; i < rounds; ++i) {
+            vm.warp(block.timestamp + EPOCH_DURATION);
+
+            _distributeEpochRewards(assets);
+
+            uint256 epoch = pxCvx.getCurrentEpoch();
+
+            if (i == chosenRound) {
+                // Transfer out entire balance of rpCvx for the selected round
+                // which should revert when attempting to redeem for rewards in the same round
+                _transferRpCvx(secondaryAccounts[0], epoch, assets);
+
+                vm.expectRevert(PirexCvx.InsufficientBalance.selector);
+            }
+
+            vm.prank(PRIMARY_ACCOUNT);
+
+            // Attempt redeeming rewards with rpCvx balance (can be invalid or valid)
+            pirexCvx.redeemFuturesRewards(epoch, account);
+        }
+    }
+
     /*//////////////////////////////////////////////////////////////
                         exchangeFutures TESTS
     //////////////////////////////////////////////////////////////*/
