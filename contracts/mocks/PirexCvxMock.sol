@@ -26,10 +26,10 @@ contract PirexCvxMock is PirexCvx {
         @param  _cvxLocker               address  CvxLocker address
         @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
         @param  _pxCvx                   address  PxCvx address
-        @param  _upCvx                   address  UpCvx address
-        @param  _spCvx                   address  SpCvx address
-        @param  _vpCvx                   address  VpCvx address
-        @param  _rpCvx                   address  RpCvx address
+        @param  _upxCvx                  address  UpxCvx address
+        @param  _spxCvx                  address  SpxCvx address
+        @param  _vpxCvx                  address  VpxCvx address
+        @param  _rpxCvx                  address  RpxCvx address
         @param  _pirexFees               address  PirexFees address
         @param  _votiumMultiMerkleStash  address  VotiumMultiMerkleStash address
      */
@@ -38,10 +38,10 @@ contract PirexCvxMock is PirexCvx {
         address _cvxLocker,
         address _cvxDelegateRegistry,
         address _pxCvx,
-        address _upCvx,
-        address _spCvx,
-        address _vpCvx,
-        address _rpCvx,
+        address _upxCvx,
+        address _spxCvx,
+        address _vpxCvx,
+        address _rpxCvx,
         address _pirexFees,
         address _votiumMultiMerkleStash
     )
@@ -50,17 +50,17 @@ contract PirexCvxMock is PirexCvx {
             _cvxLocker,
             _cvxDelegateRegistry,
             _pxCvx,
-            _upCvx,
-            _spCvx,
-            _vpCvx,
-            _rpCvx,
+            _upxCvx,
+            _spxCvx,
+            _vpxCvx,
+            _rpxCvx,
             _pirexFees,
             _votiumMultiMerkleStash
         )
     {}
 
     /**
-        @notice Redeem Futures rewards for rpCVX holders for an epoch
+        @notice Redeem Futures rewards for rpxCVX holders for an epoch
         @param  epoch     uint256  Epoch (ERC1155 token id)
         @param  receiver  address  Receives futures rewards
     */
@@ -81,24 +81,24 @@ contract PirexCvxMock is PirexCvx {
 
         emit RedeemFuturesRewards(epoch, receiver, rewards);
 
-        // Check sender rpCVX balance
-        uint256 rpCvxBalance = rpCvx.balanceOf(msg.sender, epoch);
-        if (rpCvxBalance == 0) revert InsufficientBalance();
+        // Check sender rpxCVX balance
+        uint256 rpxCvxBalance = rpxCvx.balanceOf(msg.sender, epoch);
+        if (rpxCvxBalance == 0) revert InsufficientBalance();
 
-        // Store rpCVX total supply before burning
-        uint256 rpCvxTotalSupply = rpCvx.totalSupply(epoch);
+        // Store rpxCVX total supply before burning
+        uint256 rpxCvxTotalSupply = rpxCvx.totalSupply(epoch);
 
-        // Burn rpCVX tokens
-        rpCvx.burn(msg.sender, epoch, rpCvxBalance);
+        // Burn rpxCVX tokens
+        rpxCvx.burn(msg.sender, epoch, rpxCvxBalance);
 
         uint256 rLen = rewards.length;
 
-        // Loop over rewards and transfer the amount entitled to the rpCVX token holder
+        // Loop over rewards and transfer the amount entitled to the rpxCVX token holder
         for (uint256 i; i < rLen; ++i) {
-            // Proportionate to the % of rpCVX owned out of the rpCVX total supply
+            // Proportionate to the % of rpxCVX owned out of the rpxCVX total supply
             ERC20(address(uint160(bytes20(rewards[i])))).safeTransfer(
                 receiver,
-                (futuresRewards[i] * rpCvxBalance) / rpCvxTotalSupply
+                (futuresRewards[i] * rpxCvxBalance) / rpxCvxTotalSupply
             );
         }
     }
@@ -131,10 +131,10 @@ contract PirexCvxMock is PirexCvx {
 
     /**
         @notice Initiate CVX redemptions
-        @param  lockIndexes  uint256[]    Locked balance index
+        @param  lockIndexes  uint256[]  Locked balance index
         @param  f            enum       Futures enum
-        @param  assets       uint256[]  pCVX amounts
-        @param  receiver     address    Receives upCVX
+        @param  assets       uint256[]  pxCVX amounts
+        @param  receiver     address    Receives upxCVX
      */
     function initiateRedemptionsFaulty(
         uint256[] calldata lockIndexes,
@@ -167,7 +167,7 @@ contract PirexCvxMock is PirexCvx {
             );
         }
 
-        // Burn pCVX - reverts if sender balance is insufficient
+        // Burn pxCVX - reverts if sender balance is insufficient
         pxCvx.burn(msg.sender, totalAssets - feeAmount);
 
         // NOTE: Reverts (zero amount check) if redemption fees are zero
@@ -193,7 +193,7 @@ contract PirexCvxMock is PirexCvx {
     function calculateRewards(
         uint32 feePercent,
         uint256 snapshotSupply,
-        uint256 rpCvxSupply,
+        uint256 rpxCvxSupply,
         uint256 received
     )
         external
@@ -207,7 +207,7 @@ contract PirexCvxMock is PirexCvx {
         (rewardFee, snapshotRewards, futuresRewards) = _calculateRewards(
             feePercent,
             snapshotSupply,
-            rpCvxSupply,
+            rpxCvxSupply,
             received
         );
     }

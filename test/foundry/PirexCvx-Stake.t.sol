@@ -81,7 +81,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
 
             assertEq(pxCvx.balanceOf(account), 0);
             assertEq(
-                spCvx.balanceOf(
+                spxCvx.balanceOf(
                     account,
                     pirexCvx.getCurrentEpoch() + EPOCH_DURATION * rounds
                 ),
@@ -144,7 +144,7 @@ contract PirexCvxStakeTest is Test, HelperContract {
         // Tune down the rounds since it takes too long for large rounds
         vm.assume(rounds > 0 && rounds < 50);
 
-        uint256 spCvxId = pirexCvx.getCurrentEpoch() + EPOCH_DURATION * rounds;
+        uint256 spxCvxId = pirexCvx.getCurrentEpoch() + EPOCH_DURATION * rounds;
         uint256 tLen = secondaryAccounts.length;
 
         for (uint256 i; i < tLen; ++i) {
@@ -158,21 +158,21 @@ contract PirexCvxStakeTest is Test, HelperContract {
             pirexCvx.stake(rounds, PirexCvx.Futures.Reward, amount, account);
 
             assertEq(pxCvx.balanceOf(account), 0);
-            assertEq(spCvx.balanceOf(account, spCvxId), amount);
+            assertEq(spxCvx.balanceOf(account, spxCvxId), amount);
         }
 
         // Time-skip beyond the expiry
-        vm.warp(spCvxId + EPOCH_DURATION);
+        vm.warp(spxCvxId + EPOCH_DURATION);
 
         for (uint256 i; i < tLen; ++i) {
             address account = secondaryAccounts[i];
 
             vm.prank(account);
 
-            pirexCvx.unstake(spCvxId, amount, account);
+            pirexCvx.unstake(spxCvxId, amount, account);
 
             assertEq(pxCvx.balanceOf(account), amount);
-            assertEq(spCvx.balanceOf(account, spCvxId), 0);
+            assertEq(spxCvx.balanceOf(account, spxCvxId), 0);
         }
     }
 }

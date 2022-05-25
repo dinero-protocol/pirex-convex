@@ -16,6 +16,7 @@ contract UnionPirexStrategy is UnionPirexStaking {
         address _vault
     ) UnionPirexStaking(_pxCVX, _distributor, _vault) {
         if (_pirexCvx == address(0)) revert ZeroAddress();
+        
         pirexCvx = PirexCvx(_pirexCvx);
     }
 

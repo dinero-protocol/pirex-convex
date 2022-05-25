@@ -40,9 +40,9 @@ contract PirexFees is AccessControl {
      */
     constructor(address _treasury, address _contributors) {
         if (_treasury == address(0)) revert ZeroAddress();
-        treasury = _treasury;
-
         if (_contributors == address(0)) revert ZeroAddress();
+        
+        treasury = _treasury;
         contributors = _contributors;
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);

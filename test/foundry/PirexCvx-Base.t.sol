@@ -85,60 +85,60 @@ contract PirexCvxBaseTest is Test, HelperContract {
     }
 
     /**
-        @notice Test setting UpCvx
+        @notice Test setting UpxCvx
      */
-    function testSetContractUpCvx() external {
-        address oldContract = address(pirexCvx.upCvx());
+    function testSetContractUpxCvx() external {
+        address oldContract = address(pirexCvx.upxCvx());
         address newContract = address(this);
 
-        _setContract(PirexCvx.Contract.UpCvx, newContract);
+        _setContract(PirexCvx.Contract.UpxCvx, newContract);
 
-        address updatedContract = address(pirexCvx.upCvx());
+        address updatedContract = address(pirexCvx.upxCvx());
 
         assertFalse(oldContract == newContract);
         assertEq(updatedContract, newContract);
     }
 
     /**
-        @notice Test setting SpCvx
+        @notice Test setting SpxCvx
      */
-    function testSetContractSpCvx() external {
-        address oldContract = address(pirexCvx.spCvx());
+    function testSetContractSpxCvx() external {
+        address oldContract = address(pirexCvx.spxCvx());
         address newContract = address(this);
 
-        _setContract(PirexCvx.Contract.SpCvx, newContract);
+        _setContract(PirexCvx.Contract.SpxCvx, newContract);
 
-        address updatedContract = address(pirexCvx.spCvx());
+        address updatedContract = address(pirexCvx.spxCvx());
 
         assertFalse(oldContract == newContract);
         assertEq(updatedContract, newContract);
     }
 
     /**
-        @notice Test setting RpCvx
+        @notice Test setting RpxCvx
      */
-    function testSetContractRpCvx() external {
-        address oldContract = address(pirexCvx.rpCvx());
+    function testSetContractRpxCvx() external {
+        address oldContract = address(pirexCvx.rpxCvx());
         address newContract = address(this);
 
-        _setContract(PirexCvx.Contract.RpCvx, newContract);
+        _setContract(PirexCvx.Contract.RpxCvx, newContract);
 
-        address updatedContract = address(pirexCvx.rpCvx());
+        address updatedContract = address(pirexCvx.rpxCvx());
 
         assertFalse(oldContract == newContract);
         assertEq(updatedContract, newContract);
     }
 
     /**
-        @notice Test setting VpCvx
+        @notice Test setting VpxCvx
      */
-    function testSetContractVpCvx() external {
-        address oldContract = address(pirexCvx.vpCvx());
+    function testSetContractVpxCvx() external {
+        address oldContract = address(pirexCvx.vpxCvx());
         address newContract = address(this);
 
-        _setContract(PirexCvx.Contract.VpCvx, newContract);
+        _setContract(PirexCvx.Contract.VpxCvx, newContract);
 
-        address updatedContract = address(pirexCvx.vpCvx());
+        address updatedContract = address(pirexCvx.vpxCvx());
 
         assertFalse(oldContract == newContract);
         assertEq(updatedContract, newContract);

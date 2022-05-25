@@ -9,6 +9,8 @@ import {PxCvx} from "contracts/PxCvx.sol";
 import {HelperContract} from "./HelperContract.sol";
 import {ERC1155PresetMinterSupply} from "contracts/tokens/ERC1155PresetMinterSupply.sol";
 import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
+import {MultiMerkleStash} from "contracts/mocks/MultiMerkleStash.sol";
+import {IVotiumMultiMerkleStash} from "contracts/interfaces/IVotiumMultiMerkleStash.sol";
 
 contract PirexCvxRewardTest is Test, HelperContract {
     /**
@@ -21,8 +23,8 @@ contract PirexCvxRewardTest is Test, HelperContract {
     {
         uint256 tLen = tokens.length;
 
-        PirexCvx.VotiumReward[]
-            memory votiumRewards = new PirexCvx.VotiumReward[](tLen);
+        IVotiumMultiMerkleStash.claimParam[]
+            memory votiumRewards = new IVotiumMultiMerkleStash.claimParam[](tLen);
 
         for (uint256 i; i < tLen; ++i) {
             // Mint tokens before adding it as a claimable votium reward record
@@ -37,7 +39,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
                 )
             );
 
-            PirexCvx.VotiumReward memory votiumReward;
+            IVotiumMultiMerkleStash.claimParam memory votiumReward;
             votiumReward.token = token;
             votiumReward.index = i;
             votiumReward.amount = amount;
@@ -50,24 +52,24 @@ contract PirexCvxRewardTest is Test, HelperContract {
     }
 
     /**
-        @notice Transfer rpCVX to other receiver
-        @param  receiver  address  rpCVX receiver
-        @param  epoch     address  rpCVX id
-        @param  amount    uin256   rpCVX amount
+        @notice Transfer rpxCVX to other receiver
+        @param  receiver  address  rpxCVX receiver
+        @param  epoch     address  rpxCVX id
+        @param  amount    uin256   rpxCVX amount
      */
-    function _transferRpCvx(
+    function _transferRpxCvx(
         address receiver,
         uint256 epoch,
         uint256 amount
     ) internal {
         vm.prank(PRIMARY_ACCOUNT);
 
-        rpCvx.safeTransferFrom(PRIMARY_ACCOUNT, receiver, epoch, amount, "");
+        rpxCvx.safeTransferFrom(PRIMARY_ACCOUNT, receiver, epoch, amount, "");
     }
 
     /**
-        @notice Transfer rpCVX to secondary accounts and redeem rewards
-        @param  assets                     uint256  Total rpCVX to distribute to secondaryAccounts
+        @notice Transfer rpxCVX to secondary accounts and redeem rewards
+        @param  assets                     uint256  Total rpxCVX to distribute to secondaryAccounts
         @param  selector                   bytes4   Function select of a redeem futures rewards method
         @return totalRedeemedRewards       uint256  Total amount of rewards that have been redeemed
         @return totalFuturesRewards        uint256  The maximum amount of futures rewards (i.e. 1st element in this test)
@@ -91,25 +93,25 @@ contract PirexCvxRewardTest is Test, HelperContract {
                 epoch
             );
 
-            // Different amounts of rpCVX distributed based on loop index and secondary account ordering
+            // Different amounts of rpxCVX distributed based on loop index and secondary account ordering
             // If it's the last iteration, transfer the remaining balance to ensure all rewards redeemed
             uint256 transferAmount = (tLen - 1) != i
                 ? assets / (tLen - i)
-                : rpCvx.balanceOf(PRIMARY_ACCOUNT, epoch);
+                : rpxCvx.balanceOf(PRIMARY_ACCOUNT, epoch);
             address secondaryAccount = secondaryAccounts[i];
 
             // Cumulative attempted redemptions amounts using the same formula as `redeemFuturesRewards`
             totalAttemptedRedemptions +=
                 (currentFuturesRewards[0] * transferAmount) /
-                rpCvx.totalSupply(epoch);
+                rpxCvx.totalSupply(epoch);
 
-            // Transfer rpCVX so that secondaryAccount can redeem futures rewards
-            _transferRpCvx(secondaryAccount, epoch, transferAmount);
+            // Transfer rpxCVX so that secondaryAccount can redeem futures rewards
+            _transferRpxCvx(secondaryAccount, epoch, transferAmount);
 
             // Impersonate secondaryAccount and redeem futures rewards
             vm.startPrank(secondaryAccount);
 
-            rpCvx.setApprovalForAll(address(pirexCvx), true);
+            rpxCvx.setApprovalForAll(address(pirexCvx), true);
 
             // Call either the patched or bugged redeemFuturesReward method
             // `success` inconsistently returns false for bugged method so is not checked
@@ -166,8 +168,8 @@ contract PirexCvxRewardTest is Test, HelperContract {
         @notice Test tx reversion if claiming with empty array
      */
     function testCannotClaimVotiumRewardsEmptyArray() external {
-        PirexCvx.VotiumReward[]
-            memory votiumRewards = new PirexCvx.VotiumReward[](0);
+        IVotiumMultiMerkleStash.claimParam[]
+            memory votiumRewards = new IVotiumMultiMerkleStash.claimParam[](0);
 
         vm.expectRevert(PirexCvx.EmptyArray.selector);
 
@@ -235,7 +237,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
             ) = pirexCvx.calculateRewards(
                     pirexCvx.fees(PirexCvx.Fees.Reward),
                     pxCvx.totalSupplyAt(snapshotId),
-                    rpCvx.totalSupply(epoch),
+                    rpxCvx.totalSupply(epoch),
                     amount
                 );
 
@@ -496,13 +498,13 @@ contract PirexCvxRewardTest is Test, HelperContract {
             PRIMARY_ACCOUNT
         );
 
-        // Forward 1 epoch, since rpCVX has claim to rewards in subsequent epochs
+        // Forward 1 epoch, since rpxCVX has claim to rewards in subsequent epochs
         vm.warp(block.timestamp + EPOCH_DURATION);
 
         for (uint256 i; i < rounds; ++i) {
             _distributeEpochRewards(assets);
 
-            // Distribute rpCVX to secondaryAccounts and redeem their futures rewards
+            // Distribute rpxCVX to secondaryAccounts and redeem their futures rewards
             (
                 uint256 totalRedeemedRewards,
                 uint256 totalFuturesRewards,
@@ -614,7 +616,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
     }
 
     /**
-        @notice Fuzz to verify tx reverts if receiver does not have any rpCVX
+        @notice Fuzz to verify tx reverts if receiver does not have any rpxCVX
         @param  rounds        uint8    Number of staking rounds
         @param  assets        uint256  pxCVX amount
         @param  stakePercent  uint8    Percent of pxCVX to stake
@@ -748,7 +750,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
                 : uint8(PirexCvx.Futures.Reward)
         );
         ERC1155PresetMinterSupply fromT = (
-            fromF == PirexCvx.Futures.Reward ? rpCvx : vpCvx
+            fromF == PirexCvx.Futures.Reward ? rpxCvx : vpxCvx
         );
 
         uint256 epoch = pirexCvx.getCurrentEpoch() + EPOCH_DURATION;

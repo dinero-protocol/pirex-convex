@@ -39,6 +39,8 @@ contract PirexCvxConvex is Ownable, Pausable {
 
     // The amount of CVX that needs to remain unlocked for redemptions
     uint256 public outstandingRedemptions;
+
+    // The amount of new CVX deposits that is awaiting lock
     uint256 public pendingLocks;
 
     event SetConvexContract(ConvexContract c, address contractAddress);
@@ -50,9 +52,9 @@ contract PirexCvxConvex is Ownable, Pausable {
     error EmptyString();
 
     /**
-        @param  _CVX                     address  CVX address    
-        @param  _cvxLocker               address  CvxLocker address
-        @param  _cvxDelegateRegistry     address  CvxDelegateRegistry address
+        @param  _CVX                  address  CVX address    
+        @param  _cvxLocker            address  CvxLocker address
+        @param  _cvxDelegateRegistry  address  CvxDelegateRegistry address
      */
     constructor(
         address _CVX,
@@ -60,12 +62,11 @@ contract PirexCvxConvex is Ownable, Pausable {
         address _cvxDelegateRegistry
     ) {
         if (_CVX == address(0)) revert ZeroAddress();
-        CVX = ERC20(_CVX);
-
         if (_cvxLocker == address(0)) revert ZeroAddress();
-        cvxLocker = ICvxLocker(_cvxLocker);
-
         if (_cvxDelegateRegistry == address(0)) revert ZeroAddress();
+        
+        CVX = ERC20(_CVX);
+        cvxLocker = ICvxLocker(_cvxLocker);
         cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
 
         // Max allowance for cvxLocker
@@ -88,7 +89,9 @@ contract PirexCvxConvex is Ownable, Pausable {
         if (c == ConvexContract.CvxLocker) {
             // Revoke approval from the old locker and add allowances to the new locker
             CVX.safeApprove(address(cvxLocker), 0);
+            
             cvxLocker = ICvxLocker(contractAddress);
+
             CVX.safeApprove(contractAddress, type(uint256).max);
             return;
         }
@@ -192,7 +195,9 @@ contract PirexCvxConvex is Ownable, Pausable {
         }
 
         bytes memory d = bytes(_delegationSpace);
+
         if (d.length == 0) revert EmptyString();
+        
         delegationSpace = bytes32(d);
 
         emit SetDelegationSpace(_delegationSpace, shouldClear);

@@ -16,6 +16,7 @@ import {UnionPirexVault} from "contracts/vault/UnionPirexVault.sol";
 import {UnionPirexStrategyMock} from "contracts/mocks/UnionPirexStrategyMock.sol";
 import {MultiMerkleStash} from "contracts/mocks/MultiMerkleStash.sol";
 import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
+import {IVotiumMultiMerkleStash} from "contracts/interfaces/IVotiumMultiMerkleStash.sol";
 
 interface IConvexToken is IERC20 {
     function mint(address _to, uint256 _amount) external;
@@ -48,10 +49,10 @@ abstract contract HelperContract is
 
     PirexCvxMock public immutable pirexCvx;
     PxCvx public immutable pxCvx;
-    ERC1155Solmate public immutable spCvx;
-    ERC1155Solmate public immutable upCvx;
-    ERC1155PresetMinterSupply public immutable vpCvx;
-    ERC1155PresetMinterSupply public immutable rpCvx;
+    ERC1155Solmate public immutable spxCvx;
+    ERC1155Solmate public immutable upxCvx;
+    ERC1155PresetMinterSupply public immutable vpxCvx;
+    ERC1155PresetMinterSupply public immutable rpxCvx;
     UnionPirexVault public immutable unionPirex;
     UnionPirexStrategyMock public immutable unionPirexStrategy;
     PirexFees public immutable pirexFees;
@@ -66,19 +67,19 @@ abstract contract HelperContract is
     constructor() {
         pxCvx = new PxCvx();
         pirexFees = new PirexFees(TREASURY, msg.sender);
-        spCvx = new ERC1155Solmate();
-        upCvx = new ERC1155Solmate();
-        vpCvx = new ERC1155PresetMinterSupply("");
-        rpCvx = new ERC1155PresetMinterSupply("");
+        spxCvx = new ERC1155Solmate();
+        upxCvx = new ERC1155Solmate();
+        vpxCvx = new ERC1155PresetMinterSupply("");
+        rpxCvx = new ERC1155PresetMinterSupply("");
         pirexCvx = new PirexCvxMock(
             address(CVX),
             address(CVX_LOCKER),
             CVX_DELEGATE_REGISTRY,
             address(pxCvx),
-            address(upCvx),
-            address(spCvx),
-            address(vpCvx),
-            address(rpCvx),
+            address(upxCvx),
+            address(spxCvx),
+            address(vpxCvx),
+            address(rpxCvx),
             address(pirexFees),
             VOTIUM_MULTI_MERKLE_STASH
         );
@@ -101,14 +102,14 @@ abstract contract HelperContract is
         );
         pirexCvx.setPauseState(false);
         pxCvx.setOperator(address(pirexCvx));
-        spCvx.grantMinterRole(address(pirexCvx));
+        spxCvx.grantMinterRole(address(pirexCvx));
         pirexFees.grantFeeDistributorRole(address(pirexCvx));
 
         bytes32 minterRole = keccak256("MINTER_ROLE");
 
-        vpCvx.grantRole(minterRole, address(pirexCvx));
-        rpCvx.grantRole(minterRole, address(pirexCvx));
-        upCvx.grantRole(minterRole, address(pirexCvx));
+        vpxCvx.grantRole(minterRole, address(pirexCvx));
+        rpxCvx.grantRole(minterRole, address(pirexCvx));
+        upxCvx.grantRole(minterRole, address(pirexCvx));
         unionPirex.setPlatform(address(this));
         unionPirex.setStrategy(address(unionPirexStrategy));
 
@@ -244,13 +245,13 @@ abstract contract HelperContract is
      */
     function _claimSingleReward(address token, uint256 amount) internal {
         // Claim rewards for snapshotted pxCVX holders
-        PirexCvx.VotiumReward memory votiumReward;
+        IVotiumMultiMerkleStash.claimParam memory votiumReward;
         votiumReward.token = token;
         votiumReward.index = 0;
         votiumReward.amount = amount;
         votiumReward.merkleProof = new bytes32[](0);
-        PirexCvx.VotiumReward[]
-            memory votiumRewards = new PirexCvx.VotiumReward[](1);
+        IVotiumMultiMerkleStash.claimParam[]
+            memory votiumRewards = new IVotiumMultiMerkleStash.claimParam[](1);
         votiumRewards[0] = votiumReward;
 
         pirexCvx.claimVotiumRewards(votiumRewards);
@@ -290,7 +291,7 @@ abstract contract HelperContract is
     ) internal {
         uint256 startingEpoch = pirexCvx.getCurrentEpoch() + EPOCH_DURATION;
         ERC1155PresetMinterSupply fToken = (
-            PirexCvx.Futures(fVal) == PirexCvx.Futures.Reward ? rpCvx : vpCvx
+            PirexCvx.Futures(fVal) == PirexCvx.Futures.Reward ? rpxCvx : vpxCvx
         );
 
         for (uint256 i; i < rounds; ++i) {
@@ -307,17 +308,11 @@ abstract contract HelperContract is
     function _resetFees() internal {
         vm.record();
 
-        (
-            uint32 rewardFee,
-            uint32 redemptionMax,
-            uint32 redemptionMin,
-            uint32 developers
-        ) = pirexCvx.getFees();
+        // Call fee-getter to provide storage read data
+        pirexCvx.getFees();
 
         // Retrieve accessed storage slots and use to reset data
-        (bytes32[] memory reads, bytes32[] memory writes) = vm.accesses(
-            address(pirexCvx)
-        );
+        (bytes32[] memory reads, ) = vm.accesses(address(pirexCvx));
         address pirexCvxAddr = address(pirexCvx);
         bytes32 zero = bytes32(uint256(0));
 
@@ -334,19 +329,14 @@ abstract contract HelperContract is
         This function MUST return `bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))` (i.e. 0xf23a6e61) if it accepts the transfer.
         This function MUST revert if it rejects the transfer.
         Return of any other value than the prescribed keccak256 generated value MUST result in the transaction being reverted by the caller.
-        @param  _operator  address  The address which initiated the transfer (i.e. msg.sender)
-        @param  _from      address  The address which previously owned the token
-        @param  _id        uint256  The ID of the token being transferred
-        @param  _value     uint256  The amount of tokens being transferred
-        @param  _data      bytes    Additional data with no specified format
         @return bytes4              `bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))`
     */
     function onERC1155Received(
-        address _operator,
-        address _from,
-        uint256 _id,
-        uint256 _value,
-        bytes calldata _data
+        address,
+        address,
+        uint256,
+        uint256,
+        bytes calldata
     ) external pure override returns (bytes4) {
         return ERC1155TokenReceiver.onERC1155Received.selector;
     }
@@ -357,19 +347,14 @@ abstract contract HelperContract is
         This function MUST return `bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"))` (i.e. 0xbc197c81) if it accepts the transfer(s).
         This function MUST revert if it rejects the transfer(s).
         Return of any other value than the prescribed keccak256 generated value MUST result in the transaction being reverted by the caller.
-        @param  _operator  address    The address which initiated the batch transfer (i.e. msg.sender)
-        @param  _from      address    The address which previously owned the token
-        @param  _ids       uint256[]  An array containing ids of each token being transferred (order and length must match _values array)
-        @param  _values    uint256[]  An array containing amounts of each token being transferred (order and length must match _ids array)
-        @param  _data      bytes      Additional data with no specified format
         @return bytes4                `bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"))`
     */
     function onERC1155BatchReceived(
-        address _operator,
-        address _from,
-        uint256[] calldata _ids,
-        uint256[] calldata _values,
-        bytes calldata _data
+        address,
+        address,
+        uint256[] calldata,
+        uint256[] calldata,
+        bytes calldata
     ) external pure override returns (bytes4) {
         return ERC1155TokenReceiver.onERC1155BatchReceived.selector;
     }

@@ -25,7 +25,7 @@ describe('PirexCvx-Base', function () {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let pxCvx: PxCvx;
-  let pCvx: PirexCvx;
+  let pirexCvx: PirexCvx;
   let pirexFees: PirexFees;
   let unionPirex: UnionPirexVault;
   let cvx: ConvexToken;
@@ -52,7 +52,7 @@ describe('PirexCvx-Base', function () {
       votiumMultiMerkleStash,
       pirexFees,
       pxCvx,
-      pCvx,
+      pirexCvx,
       unionPirex,
       zeroAddress,
       epochDuration,
@@ -66,10 +66,10 @@ describe('PirexCvx-Base', function () {
 
   describe('initial state', function () {
     it('Should have initialized state variables', async function () {
-      const EPOCH_DURATION = await pCvx.EPOCH_DURATION();
-      const FEE_DENOMINATOR = await pCvx.FEE_DENOMINATOR();
-      const MAX_REDEMPTION_TIME = await pCvx.MAX_REDEMPTION_TIME();
-      const _delegationSpace = await pCvx.delegationSpace();
+      const EPOCH_DURATION = await pirexCvx.EPOCH_DURATION();
+      const FEE_DENOMINATOR = await pirexCvx.FEE_DENOMINATOR();
+      const MAX_REDEMPTION_TIME = await pirexCvx.MAX_REDEMPTION_TIME();
+      const _delegationSpace = await pirexCvx.delegationSpace();
 
       expect(EPOCH_DURATION).to.equal(1209600);
       expect(FEE_DENOMINATOR).to.equal(1000000);
@@ -80,18 +80,18 @@ describe('PirexCvx-Base', function () {
 
   describe('constructor', function () {
     it('Should set up contract state', async function () {
-      const _CVX = await pCvx.CVX();
-      const _cvxLocker = await pCvx.cvxLocker();
-      const _cvxDelegateRegistry = await pCvx.cvxDelegateRegistry();
-      const _pirexFees = await pCvx.pirexFees();
-      const _votiumMultiMerkleStash = await pCvx.votiumMultiMerkleStash();
-      const upCvx = await pCvx.upCvx();
-      const vpCvx = await pCvx.vpCvx();
-      const rpCvx = await pCvx.rpCvx();
-      const spCvx = await pCvx.spCvx();
-      const paused = await pCvx.paused();
-      const outstandingRedemptions = await pCvx.outstandingRedemptions();
-      const upCvxDeprecated = await pCvx.upCvxDeprecated();
+      const _CVX = await pirexCvx.CVX();
+      const _cvxLocker = await pirexCvx.cvxLocker();
+      const _cvxDelegateRegistry = await pirexCvx.cvxDelegateRegistry();
+      const _pirexFees = await pirexCvx.pirexFees();
+      const _votiumMultiMerkleStash = await pirexCvx.votiumMultiMerkleStash();
+      const upxCvx = await pirexCvx.upxCvx();
+      const vpxCvx = await pirexCvx.vpxCvx();
+      const rpxCvx = await pirexCvx.rpxCvx();
+      const spxCvx = await pirexCvx.spxCvx();
+      const paused = await pirexCvx.paused();
+      const outstandingRedemptions = await pirexCvx.outstandingRedemptions();
+      const upxCvxDeprecated = await pirexCvx.upxCvxDeprecated();
 
       expect(_CVX).to.equal(cvx.address);
       expect(_CVX).to.not.equal(zeroAddress);
@@ -103,13 +103,13 @@ describe('PirexCvx-Base', function () {
       expect(_pirexFees).to.not.equal(zeroAddress);
       expect(_votiumMultiMerkleStash).to.equal(votiumMultiMerkleStash.address);
       expect(_votiumMultiMerkleStash).to.not.equal(zeroAddress);
-      expect(upCvx).to.not.equal(zeroAddress);
-      expect(vpCvx).to.not.equal(zeroAddress);
-      expect(rpCvx).to.not.equal(zeroAddress);
-      expect(spCvx).to.not.equal(zeroAddress);
+      expect(upxCvx).to.not.equal(zeroAddress);
+      expect(vpxCvx).to.not.equal(zeroAddress);
+      expect(rpxCvx).to.not.equal(zeroAddress);
+      expect(spxCvx).to.not.equal(zeroAddress);
       expect(paused).to.be.true;
       expect(outstandingRedemptions).to.equal(0);
-      expect(upCvxDeprecated).to.be.false;
+      expect(upxCvxDeprecated).to.be.false;
     });
   });
 
@@ -119,7 +119,7 @@ describe('PirexCvx-Base', function () {
       const invalidContractAddress = zeroAddress;
 
       await expect(
-        pCvx.setContract(c, invalidContractAddress)
+        pirexCvx.setContract(c, invalidContractAddress)
       ).to.be.revertedWith('ZeroAddress()');
     });
 
@@ -128,28 +128,28 @@ describe('PirexCvx-Base', function () {
       const contractAddress = admin.address;
 
       await expect(
-        pCvx.connect(notAdmin).setContract(c, contractAddress)
+        pirexCvx.connect(notAdmin).setContract(c, contractAddress)
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('Should set pxCvx', async function () {
-      const pxCvxBefore = await pCvx.pxCvx();
+      const pxCvxBefore = await pirexCvx.pxCvx();
       const c = contractEnum.pxCvx;
 
       // Deplyo a new temporary PxCvx contract for testing purposes
       const newContract = await (
         await ethers.getContractFactory('PxCvx')
       ).deploy();
-      await newContract.setOperator(pCvx.address);
+      await newContract.setOperator(pirexCvx.address);
       const contractAddress = newContract.address;
 
-      const [setEvent] = await callAndReturnEvents(pCvx.setContract, [
+      const [setEvent] = await callAndReturnEvents(pirexCvx.setContract, [
         c,
         contractAddress,
       ]);
-      const pxCvxAfter = await pCvx.pxCvx();
+      const pxCvxAfter = await pirexCvx.pxCvx();
 
-      await pCvx.setContract(c, pxCvxBefore);
+      await pirexCvx.setContract(c, pxCvxBefore);
 
       expect(pxCvxBefore).to.not.equal(pxCvxAfter);
       expect(pxCvxAfter).to.equal(contractAddress);
@@ -160,16 +160,16 @@ describe('PirexCvx-Base', function () {
     });
 
     it('Should set pirexFees', async function () {
-      const pirexFeesBefore = await pCvx.pirexFees();
+      const pirexFeesBefore = await pirexCvx.pirexFees();
       const c = contractEnum.pirexFees;
       const contractAddress = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+      const setEvent = await callAndReturnEvent(pirexCvx.setContract, [
         c,
         contractAddress,
       ]);
-      const pirexFeesAfter = await pCvx.pirexFees();
+      const pirexFeesAfter = await pirexCvx.pirexFees();
 
-      await pCvx.setContract(c, pirexFeesBefore);
+      await pirexCvx.setContract(c, pirexFeesBefore);
 
       expect(pirexFeesBefore).to.not.equal(pirexFeesAfter);
       expect(pirexFeesAfter).to.equal(contractAddress);
@@ -179,81 +179,81 @@ describe('PirexCvx-Base', function () {
       });
     });
 
-    it('Should set upCvx', async function () {
-      const upCvxBefore = await pCvx.upCvx();
-      const c = contractEnum.upCvx;
+    it('Should set upxCvx', async function () {
+      const upxCvxBefore = await pirexCvx.upxCvx();
+      const c = contractEnum.upxCvx;
       const contractAddress = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+      const setEvent = await callAndReturnEvent(pirexCvx.setContract, [
         c,
         contractAddress,
       ]);
-      const upCvxAfter = await pCvx.upCvx();
+      const upxCvxAfter = await pirexCvx.upxCvx();
 
-      await pCvx.setContract(c, upCvxBefore);
+      await pirexCvx.setContract(c, upxCvxBefore);
 
-      expect(upCvxBefore).to.not.equal(upCvxAfter);
-      expect(upCvxAfter).to.equal(contractAddress);
+      expect(upxCvxBefore).to.not.equal(upxCvxAfter);
+      expect(upxCvxAfter).to.equal(contractAddress);
       validateEvent(setEvent, 'SetContract(uint8,address)', {
         c,
         contractAddress: contractAddress,
       });
     });
 
-    it('Should set spCvx', async function () {
-      const spCvxBefore = await pCvx.spCvx();
-      const c = contractEnum.spCvx;
+    it('Should set spxCvx', async function () {
+      const spxCvxBefore = await pirexCvx.spxCvx();
+      const c = contractEnum.spxCvx;
       const contractAddress = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+      const setEvent = await callAndReturnEvent(pirexCvx.setContract, [
         c,
         contractAddress,
       ]);
-      const spCvxAfter = await pCvx.spCvx();
+      const spxCvxAfter = await pirexCvx.spxCvx();
 
-      await pCvx.setContract(c, spCvxBefore);
+      await pirexCvx.setContract(c, spxCvxBefore);
 
-      expect(spCvxBefore).to.not.equal(spCvxAfter);
-      expect(spCvxAfter).to.equal(contractAddress);
+      expect(spxCvxBefore).to.not.equal(spxCvxAfter);
+      expect(spxCvxAfter).to.equal(contractAddress);
       validateEvent(setEvent, 'SetContract(uint8,address)', {
         c,
         contractAddress,
       });
-      expect(spCvxBefore).to.equal(await pCvx.spCvx());
+      expect(spxCvxBefore).to.equal(await pirexCvx.spxCvx());
     });
 
-    it('Should set vpCvx', async function () {
-      const vpCvxBefore = await pCvx.vpCvx();
-      const c = contractEnum.vpCvx;
+    it('Should set vpxCvx', async function () {
+      const vpxCvxBefore = await pirexCvx.vpxCvx();
+      const c = contractEnum.vpxCvx;
       const contractAddress = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+      const setEvent = await callAndReturnEvent(pirexCvx.setContract, [
         c,
         contractAddress,
       ]);
-      const vpCvxAfter = await pCvx.vpCvx();
+      const vpxCvxAfter = await pirexCvx.vpxCvx();
 
-      await pCvx.setContract(c, vpCvxBefore);
+      await pirexCvx.setContract(c, vpxCvxBefore);
 
-      expect(vpCvxBefore).to.not.equal(vpCvxAfter);
-      expect(vpCvxAfter).to.equal(contractAddress);
+      expect(vpxCvxBefore).to.not.equal(vpxCvxAfter);
+      expect(vpxCvxAfter).to.equal(contractAddress);
       validateEvent(setEvent, 'SetContract(uint8,address)', {
         c,
         contractAddress,
       });
     });
 
-    it('Should set rpCvx', async function () {
-      const rpCvxBefore = await pCvx.rpCvx();
-      const c = contractEnum.rpCvx;
+    it('Should set rpxCvx', async function () {
+      const rpxCvxBefore = await pirexCvx.rpxCvx();
+      const c = contractEnum.rpxCvx;
       const contractAddress = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setContract, [
+      const setEvent = await callAndReturnEvent(pirexCvx.setContract, [
         c,
         contractAddress,
       ]);
-      const rpCvxAfter = await pCvx.rpCvx();
+      const rpxCvxAfter = await pirexCvx.rpxCvx();
 
-      await pCvx.setContract(c, rpCvxBefore);
+      await pirexCvx.setContract(c, rpxCvxBefore);
 
-      expect(rpCvxBefore).to.not.equal(rpCvxAfter);
-      expect(rpCvxAfter).to.equal(contractAddress);
+      expect(rpxCvxBefore).to.not.equal(rpxCvxAfter);
+      expect(rpxCvxAfter).to.equal(contractAddress);
       validateEvent(setEvent, 'SetContract(uint8,address)', {
         c,
         contractAddress,
@@ -261,16 +261,16 @@ describe('PirexCvx-Base', function () {
     });
 
     it('Should set unionPirex', async function () {
-      const unionPirexBefore = await pCvx.unionPirex();
+      const unionPirexBefore = await pirexCvx.unionPirex();
       const c = contractEnum.unionPirex;
       const contractAddress = unionPirex.address;
-      const events = await callAndReturnEvents(pCvx.setContract, [
+      const events = await callAndReturnEvents(pirexCvx.setContract, [
         c,
         contractAddress,
       ]);
       const setEvent = events[0];
       const approvalEvent = parseLog(pxCvx, events[1]);
-      const unionPirexAfter = await pCvx.unionPirex();
+      const unionPirexAfter = await pirexCvx.unionPirex();
 
       expect(unionPirexBefore).to.not.equal(unionPirexAfter);
       expect(unionPirexAfter).to.equal(contractAddress);
@@ -279,7 +279,7 @@ describe('PirexCvx-Base', function () {
         contractAddress,
       });
       validateEvent(approvalEvent, 'Approval(address,address,uint256)', {
-        owner: pCvx.address,
+        owner: pirexCvx.address,
         spender: contractAddress,
         amount: uint256Max,
       });
@@ -287,30 +287,30 @@ describe('PirexCvx-Base', function () {
 
     it('Should replace unionPirex', async function () {
       const unionPirexAllowanceBefore = await pxCvx.allowance(
-        pCvx.address,
+        pirexCvx.address,
         unionPirex.address
       );
       const adminAllowanceBefore = await pxCvx.allowance(
-        pCvx.address,
+        pirexCvx.address,
         admin.address
       );
-      const unionPirexBefore = await pCvx.unionPirex();
+      const unionPirexBefore = await pirexCvx.unionPirex();
       const c = contractEnum.unionPirex;
       const contractAddress = admin.address;
-      const events = await callAndReturnEvents(pCvx.setContract, [
+      const events = await callAndReturnEvents(pirexCvx.setContract, [
         c,
         contractAddress,
       ]);
       const setEvent = events[0];
       const approvalEvent1 = parseLog(pxCvx, events[1]);
       const approvalEvent2 = parseLog(pxCvx, events[2]);
-      const unionPirexAfter = await pCvx.unionPirex();
+      const unionPirexAfter = await pirexCvx.unionPirex();
       const unionPirexAllowanceAfter = await pxCvx.allowance(
-        pCvx.address,
+        pirexCvx.address,
         unionPirex.address
       );
       const adminAllowanceAfter = await pxCvx.allowance(
-        pCvx.address,
+        pirexCvx.address,
         admin.address
       );
 
@@ -327,18 +327,18 @@ describe('PirexCvx-Base', function () {
         contractAddress,
       });
       validateEvent(approvalEvent1, 'Approval(address,address,uint256)', {
-        owner: pCvx.address,
+        owner: pirexCvx.address,
         spender: unionPirex.address,
         amount: 0,
       });
       validateEvent(approvalEvent2, 'Approval(address,address,uint256)', {
-        owner: pCvx.address,
+        owner: pirexCvx.address,
         spender: contractAddress,
         amount: uint256Max,
       });
 
       // Re-set to unionPirex.address to resume normal testing flow
-      await pCvx.setContract(c, unionPirex.address);
+      await pirexCvx.setContract(c, unionPirex.address);
     });
   });
 
@@ -348,7 +348,7 @@ describe('PirexCvx-Base', function () {
       const invalidContractAddress = zeroAddress;
 
       await expect(
-        pCvx.setConvexContract(c, invalidContractAddress)
+        pirexCvx.setConvexContract(c, invalidContractAddress)
       ).to.be.revertedWith('ZeroAddress()');
     });
 
@@ -357,23 +357,23 @@ describe('PirexCvx-Base', function () {
       const contractAddress = admin.address;
 
       await expect(
-        pCvx.connect(notAdmin).setConvexContract(c, contractAddress)
+        pirexCvx.connect(notAdmin).setConvexContract(c, contractAddress)
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('Should set cvxLocker', async function () {
-      const cvxLockerBefore = await pCvx.cvxLocker();
+      const cvxLockerBefore = await pirexCvx.cvxLocker();
       const c = convexContractEnum.cvxLocker;
       const contractAddress = admin.address;
-      const events = await callAndReturnEvents(pCvx.setConvexContract, [
+      const events = await callAndReturnEvents(pirexCvx.setConvexContract, [
         c,
         contractAddress,
       ]);
       const setEvent = events[0];
-      const cvxLockerAfter = await pCvx.cvxLocker();
+      const cvxLockerAfter = await pirexCvx.cvxLocker();
 
       // Revert change to appropriate value for future tests
-      await pCvx.setConvexContract(c, cvxLockerBefore);
+      await pirexCvx.setConvexContract(c, cvxLockerBefore);
 
       expect(cvxLockerBefore).to.not.equal(cvxLockerAfter);
       expect(cvxLockerAfter).to.equal(contractAddress);
@@ -384,16 +384,16 @@ describe('PirexCvx-Base', function () {
     });
 
     it('Should set cvxDelegateRegistry', async function () {
-      const cvxDelegateRegistryBefore = await pCvx.cvxDelegateRegistry();
+      const cvxDelegateRegistryBefore = await pirexCvx.cvxDelegateRegistry();
       const c = convexContractEnum.cvxDelegateRegistry;
       const contractAddress = admin.address;
-      const setEvent = await callAndReturnEvent(pCvx.setConvexContract, [
+      const setEvent = await callAndReturnEvent(pirexCvx.setConvexContract, [
         c,
         contractAddress,
       ]);
-      const cvxDelegateRegistryAfter = await pCvx.cvxDelegateRegistry();
+      const cvxDelegateRegistryAfter = await pirexCvx.cvxDelegateRegistry();
 
-      await pCvx.setConvexContract(c, cvxDelegateRegistryBefore);
+      await pirexCvx.setConvexContract(c, cvxDelegateRegistryBefore);
 
       expect(cvxDelegateRegistryBefore).to.not.equal(cvxDelegateRegistryAfter);
       expect(cvxDelegateRegistryAfter).to.equal(contractAddress);
@@ -407,7 +407,7 @@ describe('PirexCvx-Base', function () {
   describe('setFee', function () {
     after(async function () {
       // Unpause only after initial setup is completed on previous steps (setting all token contracts etc.)
-      await this.pCvx.setPauseState(false);
+      await this.pirexCvx.setPauseState(false);
 
       // Take a snapshot after setFee tests since we are forwarding an epoch below
       await pxCvx.takeEpochSnapshot();
@@ -417,23 +417,23 @@ describe('PirexCvx-Base', function () {
       const invalidF = 4;
       const fee = 1;
 
-      await expect(pCvx.setFee(invalidF, fee)).to.be.reverted;
+      await expect(pirexCvx.setFee(invalidF, fee)).to.be.reverted;
     });
 
     it('Should revert if not owner', async function () {
       const f = feesEnum.reward;
       const fee = 1;
 
-      await expect(pCvx.connect(notAdmin).setFee(f, fee)).to.be.revertedWith(
-        'Ownable: caller is not the owner'
-      );
+      await expect(
+        pirexCvx.connect(notAdmin).setFee(f, fee)
+      ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('Should revert if reward fee exceeds max', async function () {
       const f = feesEnum.reward;
-      const invalidFee = toBN(await pCvx.FEE_MAX()).add(1);
+      const invalidFee = toBN(await pirexCvx.FEE_MAX()).add(1);
 
-      await expect(pCvx.setFee(f, invalidFee)).to.be.revertedWith(
+      await expect(pirexCvx.setFee(f, invalidFee)).to.be.revertedWith(
         'InvalidFee()'
       );
     });
@@ -443,21 +443,23 @@ describe('PirexCvx-Base', function () {
       const fMin = feesEnum.redemptionMin;
 
       // Set up initial fees
-      await pCvx.setFee(f, 1);
-      await pCvx.setFee(fMin, 1);
+      await pirexCvx.setFee(f, 1);
+      await pirexCvx.setFee(fMin, 1);
 
-      const invalidFee = toBN(await pCvx.fees(fMin)).sub(1);
+      const invalidFee = toBN(await pirexCvx.fees(fMin)).sub(1);
 
-      await expect(pCvx.setFee(f, invalidFee)).to.be.revertedWith(
+      await expect(pirexCvx.setFee(f, invalidFee)).to.be.revertedWith(
         'InvalidFee()'
       );
     });
 
     it('Should revert if redemption min is greater than max', async function () {
       const f = feesEnum.redemptionMin;
-      const invalidFee = toBN(await pCvx.fees(feesEnum.redemptionMax)).add(1);
+      const invalidFee = toBN(await pirexCvx.fees(feesEnum.redemptionMax)).add(
+        1
+      );
 
-      await expect(pCvx.setFee(f, invalidFee)).to.be.revertedWith(
+      await expect(pirexCvx.setFee(f, invalidFee)).to.be.revertedWith(
         'InvalidFee()'
       );
     });
@@ -465,12 +467,12 @@ describe('PirexCvx-Base', function () {
     it('Should set the reward fee', async function () {
       const f = feesEnum.reward;
 
-      await pCvx.setFee(f, 0);
+      await pirexCvx.setFee(f, 0);
 
       const fee = 1;
-      const rewardFeeBefore = await pCvx.fees(f);
-      const event = await callAndReturnEvent(pCvx.setFee, [f, fee]);
-      const rewardFeeAfter = await pCvx.fees(f);
+      const rewardFeeBefore = await pirexCvx.fees(f);
+      const event = await callAndReturnEvent(pirexCvx.setFee, [f, fee]);
+      const rewardFeeAfter = await pirexCvx.fees(f);
 
       expect(rewardFeeBefore).to.equal(0);
       expect(rewardFeeAfter).to.equal(fee);
@@ -483,10 +485,10 @@ describe('PirexCvx-Base', function () {
 
     it('Should set the redemption max fee', async function () {
       const f = feesEnum.redemptionMax;
-      const redemptionMaxFeeBefore = await pCvx.fees(f);
+      const redemptionMaxFeeBefore = await pirexCvx.fees(f);
       const fee = toBN(redemptionMaxFeeBefore).add(1);
-      const event = await callAndReturnEvent(pCvx.setFee, [f, fee]);
-      const redemptionMaxFeeAfter = await pCvx.fees(f);
+      const event = await callAndReturnEvent(pirexCvx.setFee, [f, fee]);
+      const redemptionMaxFeeAfter = await pirexCvx.fees(f);
 
       expect(redemptionMaxFeeBefore).to.not.equal(redemptionMaxFeeAfter);
       expect(redemptionMaxFeeAfter).to.equal(fee);
@@ -499,10 +501,10 @@ describe('PirexCvx-Base', function () {
 
     it('Should set the redemption min fee', async function () {
       const f = feesEnum.redemptionMin;
-      const redemptionMinFeeBefore = await pCvx.fees(f);
+      const redemptionMinFeeBefore = await pirexCvx.fees(f);
       const fee = toBN(redemptionMinFeeBefore).sub(1);
-      const event = await callAndReturnEvent(pCvx.setFee, [f, fee]);
-      const redemptionMinFeeAfter = await pCvx.fees(f);
+      const event = await callAndReturnEvent(pirexCvx.setFee, [f, fee]);
+      const redemptionMinFeeAfter = await pirexCvx.fees(f);
 
       expect(redemptionMinFeeBefore).to.not.equal(redemptionMinFeeAfter);
       expect(redemptionMinFeeAfter).to.equal(fee);
@@ -520,7 +522,7 @@ describe('PirexCvx-Base', function () {
       const shouldClear = false;
 
       await expect(
-        pCvx.setDelegationSpace(invalidDelegationSpace, shouldClear)
+        pirexCvx.setDelegationSpace(invalidDelegationSpace, shouldClear)
       ).to.be.revertedWith('EmptyString()');
     });
 
@@ -528,7 +530,9 @@ describe('PirexCvx-Base', function () {
       const shouldClear = false;
 
       await expect(
-        pCvx.connect(notAdmin).setDelegationSpace(delegationSpace, shouldClear)
+        pirexCvx
+          .connect(notAdmin)
+          .setDelegationSpace(delegationSpace, shouldClear)
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
@@ -537,12 +541,12 @@ describe('PirexCvx-Base', function () {
       const shouldClear = false;
       const newDelegationSpaceBytes32 =
         ethers.utils.formatBytes32String(newDelegationSpace);
-      const delegationSpaceBefore = await pCvx.delegationSpace();
-      const setEvent = await callAndReturnEvent(pCvx.setDelegationSpace, [
+      const delegationSpaceBefore = await pirexCvx.delegationSpace();
+      const setEvent = await callAndReturnEvent(pirexCvx.setDelegationSpace, [
         newDelegationSpace,
         shouldClear,
       ]);
-      const delegationSpaceAfter = await pCvx.delegationSpace();
+      const delegationSpaceAfter = await pirexCvx.delegationSpace();
 
       expect(delegationSpaceBefore).to.not.equal(delegationSpaceAfter);
       expect(delegationSpaceAfter).to.equal(newDelegationSpaceBytes32);
@@ -554,21 +558,21 @@ describe('PirexCvx-Base', function () {
     });
 
     it('Should clear the vote delegate when setting the delegationSpace (if specified)', async function () {
-      await pCvx.setVoteDelegate(admin.address);
+      await pirexCvx.setVoteDelegate(admin.address);
 
       const newDelegationSpace = 'test2.eth';
       const shouldClear = true;
       const voteDelegateBefore = await cvxDelegateRegistry.delegation(
-        pCvx.address,
-        await pCvx.delegationSpace()
+        pirexCvx.address,
+        await pirexCvx.delegationSpace()
       );
-      const setEvent = await callAndReturnEvent(pCvx.setDelegationSpace, [
+      const setEvent = await callAndReturnEvent(pirexCvx.setDelegationSpace, [
         newDelegationSpace,
         shouldClear,
       ]);
       const voteDelegateAfter = await cvxDelegateRegistry.delegation(
-        pCvx.address,
-        await pCvx.delegationSpace()
+        pirexCvx.address,
+        await pirexCvx.delegationSpace()
       );
 
       expect(voteDelegateBefore).to.not.equal(voteDelegateAfter);
@@ -586,7 +590,7 @@ describe('PirexCvx-Base', function () {
       const invalidVoteDelegate = zeroAddress;
 
       await expect(
-        pCvx.setVoteDelegate(invalidVoteDelegate)
+        pirexCvx.setVoteDelegate(invalidVoteDelegate)
       ).to.be.revertedWith('ZeroAddress()');
     });
 
@@ -594,23 +598,23 @@ describe('PirexCvx-Base', function () {
       const voteDelegate = admin.address;
 
       await expect(
-        pCvx.connect(notAdmin).setVoteDelegate(voteDelegate)
+        pirexCvx.connect(notAdmin).setVoteDelegate(voteDelegate)
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('Should set voteDelegate', async function () {
-      const _delegationSpace = await pCvx.delegationSpace();
+      const _delegationSpace = await pirexCvx.delegationSpace();
       const convexDelegateBefore = await cvxDelegateRegistry.delegation(
-        pCvx.address,
+        pirexCvx.address,
         _delegationSpace
       );
       const voteDelegate = admin.address;
-      const events = await callAndReturnEvents(pCvx.setVoteDelegate, [
+      const events = await callAndReturnEvents(pirexCvx.setVoteDelegate, [
         voteDelegate,
       ]);
       const setEvent = events[0];
       const convexDelegateAfter = await cvxDelegateRegistry.delegation(
-        pCvx.address,
+        pirexCvx.address,
         _delegationSpace
       );
 
@@ -626,20 +630,20 @@ describe('PirexCvx-Base', function () {
   describe('clearVoteDelegate', function () {
     it('Should revert if not called by owner', async function () {
       await expect(
-        pCvx.connect(notAdmin).clearVoteDelegate()
+        pirexCvx.connect(notAdmin).clearVoteDelegate()
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('Should remove voteDelegate', async function () {
-      const _delegationSpace = await pCvx.delegationSpace();
+      const _delegationSpace = await pirexCvx.delegationSpace();
       const convexDelegateBefore = await cvxDelegateRegistry.delegation(
-        pCvx.address,
+        pirexCvx.address,
         _delegationSpace
       );
-      const events = await callAndReturnEvents(pCvx.clearVoteDelegate, []);
+      const events = await callAndReturnEvents(pirexCvx.clearVoteDelegate, []);
       const removeEvent = events[0];
       const convexDelegateAfter = await cvxDelegateRegistry.delegation(
-        pCvx.address,
+        pirexCvx.address,
         _delegationSpace
       );
 
@@ -657,7 +661,7 @@ describe('PirexCvx-Base', function () {
       )
         .div(epochDuration)
         .mul(epochDuration);
-      const currentEpoch = await pCvx.getCurrentEpoch();
+      const currentEpoch = await pirexCvx.getCurrentEpoch();
 
       expect(expectedCurrentEpoch).to.not.equal(0);
       expect(expectedCurrentEpoch).to.equal(currentEpoch);
@@ -667,27 +671,27 @@ describe('PirexCvx-Base', function () {
   describe('setPauseState', function () {
     it('Should revert if not called by owner', async function () {
       await expect(
-        pCvx.connect(notAdmin).setPauseState(true)
+        pirexCvx.connect(notAdmin).setPauseState(true)
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('Should pause the contract', async function () {
-      const isPausedBefore = await pCvx.paused();
+      const isPausedBefore = await pirexCvx.paused();
 
-      await pCvx.setPauseState(true);
+      await pirexCvx.setPauseState(true);
 
-      const isPausedAfter = await pCvx.paused();
+      const isPausedAfter = await pirexCvx.paused();
 
       expect(isPausedBefore).to.be.false;
       expect(isPausedAfter).to.be.true;
     });
 
     it('Should unpause the contract', async function () {
-      const isPausedBefore = await pCvx.paused();
+      const isPausedBefore = await pirexCvx.paused();
 
-      await pCvx.setPauseState(false);
+      await pirexCvx.setPauseState(false);
 
-      const isPausedAfter = await pCvx.paused();
+      const isPausedAfter = await pirexCvx.paused();
 
       expect(isPausedBefore).to.be.true;
       expect(isPausedAfter).to.be.false;
