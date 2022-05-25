@@ -46,7 +46,9 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         if (_penalty > MAX_WITHDRAWAL_PENALTY) revert ExceedsMax();
+
         withdrawalPenalty = _penalty;
+
         emit WithdrawalPenaltyUpdated(_penalty);
     }
 
@@ -59,7 +61,9 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         if (_fee > MAX_PLATFORM_FEE) revert ExceedsMax();
+
         platformFee = _fee;
+
         emit PlatformFeeUpdated(_fee);
     }
 
@@ -72,7 +76,9 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         if (_platform == address(0)) revert ZeroAddress();
+
         platform = _platform;
+
         emit PlatformUpdated(_platform);
     }
 
@@ -88,6 +94,7 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
 
         // Set new strategy contract and approve max allowance
         strategy = UnionPirexStaking(_strategy);
+
         asset.safeApprove(_strategy, type(uint256).max);
 
         emit StrategySet(_strategy);
@@ -105,7 +112,11 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
         // Deduct the exact reward amount staked (after fees are deducted when calling `harvest`)
         return
             _totalSupply +
-            (rewards - ((rewards * platformFee) / FEE_DENOMINATOR));
+            (
+                rewards == 0
+                    ? 0
+                    : (rewards - ((rewards * platformFee) / FEE_DENOMINATOR))
+            );
     }
 
     /**
