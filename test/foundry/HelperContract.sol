@@ -41,6 +41,8 @@ abstract contract HelperContract is
         0x378Ba9B73309bE80BF4C2c027aAD799766a7ED5A;
     address public constant VOTIUM_OWNER =
         0x9d37A22cEc2f6b3635c61C253D192E68e85b1790;
+    address public constant CVX_LOCKER_OWNER =
+        0xa3C5A1e09150B75ff251c1a7815A07182c3de2FB;
     address public constant PRIMARY_ACCOUNT =
         0x5409ED021D9299bf6814279A6A1411A7e866A631;
     address public constant TREASURY =
