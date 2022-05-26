@@ -746,7 +746,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
         // then proceed to do the validations
         pirexCvx.stake(rounds, PirexCvx.Futures.Reward, assets, account);
 
-        // Perform partial exchange on the selected round epoch
+        // Perform futures exchange on the selected round epoch
         uint256 selectedEpoch = pxCvx.getCurrentEpoch() +
             EPOCH_DURATION +
             (chosenRound * EPOCH_DURATION);
