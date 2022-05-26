@@ -101,19 +101,18 @@ contract PirexCvxConvex is Ownable, Pausable {
 
     /**
         @notice Unlock CVX
-        @param  isShutdown  bool  Whether should unlock regardless of the amount of unlockables
      */
-    function _unlock(bool isShutdown) internal {
+    function _unlock() internal {
         (, uint256 unlockable, , ) = cvxLocker.lockedBalances(address(this));
 
-        if (isShutdown || unlockable != 0) cvxLocker.processExpiredLocks(false);
+        if (unlockable != 0) cvxLocker.processExpiredLocks(false);
     }
 
     /**
         @notice Unlock CVX and relock excess
      */
     function _lock() internal {
-        _unlock(false);
+        _unlock();
 
         uint256 balance = CVX.balanceOf(address(this));
         bool balanceGreaterThanRedemptions = balance > outstandingRedemptions;
@@ -245,7 +244,7 @@ contract PirexCvxConvex is Ownable, Pausable {
         @notice Manually unlock CVX in the case of a mass unlock
      */
     function unlock() external whenPaused onlyOwner {
-        _unlock(true);
+        cvxLocker.processExpiredLocks(false);
     }
 
     /**

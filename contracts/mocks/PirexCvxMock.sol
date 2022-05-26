@@ -214,6 +214,6 @@ contract PirexCvxMock is PirexCvx {
 
     function unlockBugged() external whenPaused onlyOwner {
         // Bugged version where we always check for `unlockables` before calling `processExpiredLocks`
-        _unlock(false);
+        _unlock();
     }
 }
