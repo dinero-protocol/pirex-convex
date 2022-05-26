@@ -64,7 +64,7 @@ contract PirexCvxConvex is Ownable, Pausable {
         if (_CVX == address(0)) revert ZeroAddress();
         if (_cvxLocker == address(0)) revert ZeroAddress();
         if (_cvxDelegateRegistry == address(0)) revert ZeroAddress();
-        
+
         CVX = ERC20(_CVX);
         cvxLocker = ICvxLocker(_cvxLocker);
         cvxDelegateRegistry = ICvxDelegateRegistry(_cvxDelegateRegistry);
@@ -89,7 +89,7 @@ contract PirexCvxConvex is Ownable, Pausable {
         if (c == ConvexContract.CvxLocker) {
             // Revoke approval from the old locker and add allowances to the new locker
             CVX.safeApprove(address(cvxLocker), 0);
-            
+
             cvxLocker = ICvxLocker(contractAddress);
 
             CVX.safeApprove(contractAddress, type(uint256).max);
@@ -101,18 +101,19 @@ contract PirexCvxConvex is Ownable, Pausable {
 
     /**
         @notice Unlock CVX
+        @param  isShutdown  bool  Whether should unlock regardless of the amount of unlockables
      */
-    function _unlock() internal {
+    function _unlock(bool isShutdown) internal {
         (, uint256 unlockable, , ) = cvxLocker.lockedBalances(address(this));
 
-        if (unlockable != 0) cvxLocker.processExpiredLocks(false);
+        if (isShutdown || unlockable != 0) cvxLocker.processExpiredLocks(false);
     }
 
     /**
         @notice Unlock CVX and relock excess
      */
     function _lock() internal {
-        _unlock();
+        _unlock(false);
 
         uint256 balance = CVX.balanceOf(address(this));
         bool balanceGreaterThanRedemptions = balance > outstandingRedemptions;
@@ -197,7 +198,7 @@ contract PirexCvxConvex is Ownable, Pausable {
         bytes memory d = bytes(_delegationSpace);
 
         if (d.length == 0) revert EmptyString();
-        
+
         delegationSpace = bytes32(d);
 
         emit SetDelegationSpace(_delegationSpace, shouldClear);
@@ -207,10 +208,7 @@ contract PirexCvxConvex is Ownable, Pausable {
         @notice Set vote delegate
         @param  voteDelegate  address  Account to delegate votes to
      */
-    function setVoteDelegate(address voteDelegate)
-        external
-        onlyOwner
-    {
+    function setVoteDelegate(address voteDelegate) external onlyOwner {
         if (voteDelegate == address(0)) revert ZeroAddress();
 
         emit SetVoteDelegate(voteDelegate);
@@ -247,7 +245,7 @@ contract PirexCvxConvex is Ownable, Pausable {
         @notice Manually unlock CVX in the case of a mass unlock
      */
     function unlock() external whenPaused onlyOwner {
-        _unlock();
+        _unlock(true);
     }
 
     /**
