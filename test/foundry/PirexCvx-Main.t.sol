@@ -65,6 +65,14 @@ contract PirexCvxMainTest is Test, HelperContract {
         );
     }
 
+    /**
+        @notice Initiate deprecation for the currently set UpxCvx token
+     */
+    function _deprecateUpxCvx() internal {
+        pirexCvx.setPauseState(true);
+        pirexCvx.setUpxCvxDeprecated(true);
+    }
+
     /*//////////////////////////////////////////////////////////////
                         deposit TESTS
     //////////////////////////////////////////////////////////////*/
@@ -713,6 +721,234 @@ contract PirexCvxMainTest is Test, HelperContract {
             vm.prank(account);
 
             pirexCvx.redeem(unlockTimes, assets, account);
+
+            assertEq(CVX.balanceOf(account), oldCvxBalance + postFeeAmount);
+            assertEq(
+                upxCvx.balanceOf(account, unlockTime),
+                oldUpxCvxBalance - postFeeAmount
+            );
+            assertEq(
+                pirexCvx.outstandingRedemptions(),
+                oldOutstandingRedemptions - postFeeAmount
+            );
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        redeemLegacy TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if contract is not paused
+     */
+    function testCannotRedeemLegacyNotPaused() external {
+        uint256[] memory unlockTimes = new uint256[](1);
+        uint256[] memory assets = new uint256[](1);
+        unlockTimes[0] = 0;
+        assets[0] = 0;
+
+        vm.expectRevert("Pausable: not paused");
+
+        pirexCvx.redeemLegacy(unlockTimes, assets, address(this));
+    }
+
+    /**
+        @notice Test tx reversion if legacy redeem is closed
+     */
+    function testCannotRedeemLegacyRedeemClosed() external {
+        pirexCvx.setPauseState(true);
+
+        assertEq(pirexCvx.upxCvxDeprecated(), false);
+
+        uint256[] memory unlockTimes = new uint256[](1);
+        uint256[] memory assets = new uint256[](1);
+        unlockTimes[0] = 0;
+        assets[0] = 0;
+
+        vm.expectRevert(PirexCvx.RedeemClosed.selector);
+
+        pirexCvx.redeemLegacy(unlockTimes, assets, address(this));
+    }
+
+    /**
+        @notice Test tx reversion if redeeming with empty lock array
+     */
+    function testCannotRedeemLegacyEmptyArray() external {
+        _deprecateUpxCvx();
+
+        uint256[] memory unlockTimes = new uint256[](0);
+        uint256[] memory assets = new uint256[](1);
+        assets[0] = 1;
+
+        vm.expectRevert(PirexCvx.EmptyArray.selector);
+
+        pirexCvx.redeemLegacy(unlockTimes, assets, address(this));
+    }
+
+    /**
+        @notice Test tx reversion if redeeming with mismatched arguments length
+     */
+    function testCannotRedeemLegacyMismatchedArrayLengths() external {
+        _deprecateUpxCvx();
+
+        uint256[] memory unlockTimes = new uint256[](1);
+        uint256[] memory assets = new uint256[](2);
+        unlockTimes[0] = 0;
+        assets[0] = 1;
+        assets[1] = 1;
+
+        vm.expectRevert(PirexCvx.MismatchedArrayLengths.selector);
+
+        pirexCvx.redeemLegacy(unlockTimes, assets, address(this));
+    }
+
+    /**
+        @notice Test tx reversion if redeeming for zero address as recipient
+     */
+    function testCannotRedeemLegacyZeroAddress() external {
+        _deprecateUpxCvx();
+
+        uint256[] memory unlockTimes = new uint256[](1);
+        uint256[] memory assets = new uint256[](1);
+        unlockTimes[0] = 0;
+        assets[0] = 1;
+
+        vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
+
+        pirexCvx.redeemLegacy(unlockTimes, assets, address(0));
+    }
+
+    /**
+        @notice Test tx reversion if redeeming with zero amount
+     */
+    function testCannotRedeemLegacyZeroAmount() external {
+        _deprecateUpxCvx();
+
+        uint256[] memory unlockTimes = new uint256[](1);
+        uint256[] memory assets = new uint256[](1);
+        unlockTimes[0] = 0;
+        assets[0] = 0;
+
+        vm.expectRevert(PirexCvx.ZeroAmount.selector);
+
+        pirexCvx.redeemLegacy(unlockTimes, assets, address(this));
+    }
+
+    /**
+        @notice Test tx reversion if redeeming with insufficient asset
+     */
+    function testCannotRedeemLegacyInsufficientAssets() external {
+        _deprecateUpxCvx();
+
+        uint256[] memory unlockTimes = new uint256[](1);
+        uint256[] memory assets = new uint256[](1);
+        unlockTimes[0] = 0;
+        assets[0] = 1;
+
+        vm.expectRevert(stdError.arithmeticError);
+
+        pirexCvx.redeemLegacy(unlockTimes, assets, address(this));
+    }
+
+    /**
+        @notice Test tx reversion due to calling the bugged version of `unlock`
+        @param  amount  uint72   Amount of assets for redeeming
+     */
+    function testCannotRedeemLegacyUnlockBugged(uint72 amount) external {
+        vm.assume(amount != 0);
+
+        address account = secondaryAccounts[0];
+
+        (uint256 unlockTime, , ) = _setupRedemption(account, amount, 0, true);
+
+        _deprecateUpxCvx();
+
+        // Shutdown CVX locker for the forced-unlock simulation
+        vm.prank(CVX_LOCKER_OWNER);
+
+        CVX_LOCKER.shutdown();
+
+        // Attempt to retrieve all the forced-unlock CVX back with the bugged unlock
+        // where we won't perform unlock when no unlockables available (though we should, after shutdown)
+        pirexCvx.unlockBugged();
+
+        // Should be 0 due to no actual unlock was performed
+        assertEq(CVX.balanceOf(address(pirexCvx)), 0);
+
+        (uint256 postFeeAmount, ) = _processRedemption(unlockTime, amount);
+
+        uint256[] memory unlockTimes = new uint256[](1);
+        uint256[] memory assets = new uint256[](1);
+        unlockTimes[0] = unlockTime;
+        assets[0] = postFeeAmount;
+
+        vm.expectRevert("TRANSFER_FAILED");
+        vm.prank(account);
+
+        // Should revert due to insufficient CVX to be returned to the test account
+        pirexCvx.redeemLegacy(unlockTimes, assets, account);
+    }
+
+    /**
+        @notice Test redeeming
+        @param  amount  uint72   Amount of assets for redeeming
+     */
+    function testRedeemLegacy(uint72 amount) external {
+        vm.assume(amount != 0);
+
+        uint256 tLen = secondaryAccounts.length;
+        uint256[] memory accountAssets = new uint256[](tLen);
+        uint256[] memory unlocks = new uint256[](tLen);
+
+        for (uint256 i; i < tLen; ++i) {
+            address account = secondaryAccounts[i];
+            uint256 asset = amount * (i + 1);
+            accountAssets[i] = asset;
+
+            // Simulate deposit and initiateRedemption first with different unlock times
+            vm.warp(block.timestamp + EPOCH_DURATION * i);
+
+            (unlocks[i], , ) = _setupRedemption(account, asset, 0, true);
+        }
+
+        (uint256 totalLocked, , , ) = CVX_LOCKER.lockedBalances(
+            address(pirexCvx)
+        );
+
+        _deprecateUpxCvx();
+
+        // Shutdown CVX locker for the forced-unlock simulation
+        vm.prank(CVX_LOCKER_OWNER);
+
+        CVX_LOCKER.shutdown();
+
+        // Retrieve all the forced-unlock CVX back
+        pirexCvx.unlock();
+
+        // Should be equal to the last total of locked CVX
+        assertEq(CVX.balanceOf(address(pirexCvx)), totalLocked);
+
+        for (uint256 i; i < tLen; ++i) {
+            address account = secondaryAccounts[i];
+            uint256 asset = accountAssets[i];
+            uint256 unlockTime = unlocks[i];
+
+            uint256 oldOutstandingRedemptions = pirexCvx
+                .outstandingRedemptions();
+            uint256 oldCvxBalance = CVX.balanceOf(account);
+            uint256 oldUpxCvxBalance = upxCvx.balanceOf(account, unlockTime);
+
+            (uint256 postFeeAmount, ) = _processRedemption(unlockTime, asset);
+
+            uint256[] memory unlockTimes = new uint256[](1);
+            uint256[] memory assets = new uint256[](1);
+            unlockTimes[0] = unlockTime;
+            assets[0] = postFeeAmount;
+
+            vm.prank(account);
+
+            // No time-warp needed here since all CVX are unlocked regardless of unlock times
+            pirexCvx.redeemLegacy(unlockTimes, assets, account);
 
             assertEq(CVX.balanceOf(account), oldCvxBalance + postFeeAmount);
             assertEq(
