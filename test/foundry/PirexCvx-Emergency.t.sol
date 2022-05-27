@@ -13,6 +13,7 @@ contract PirexCvxEmergency is Test, HelperContract {
     event SetEmergencyMigration(
         PirexCvx.EmergencyMigration _emergencyMigration
     );
+    event SetUpxCvxDeprecated(bool state);
 
     /*//////////////////////////////////////////////////////////////
                         initializeEmergencyExecutor TESTS
@@ -298,11 +299,19 @@ contract PirexCvxEmergency is Test, HelperContract {
         assertEq(pirexCvx.upxCvxDeprecated(), false);
 
         // Attempt to set it to true first
+        vm.expectEmit(false, false, false, true);
+
+        emit SetUpxCvxDeprecated(true);
+
         pirexCvx.setUpxCvxDeprecated(true);
 
         assertEq(pirexCvx.upxCvxDeprecated(), true);
 
         // Attempt to set it to false again
+        vm.expectEmit(false, false, false, true);
+
+        emit SetUpxCvxDeprecated(false);
+
         pirexCvx.setUpxCvxDeprecated(false);
 
         assertEq(pirexCvx.upxCvxDeprecated(), false);

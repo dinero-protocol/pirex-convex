@@ -7,10 +7,19 @@ import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PirexCvxConvex} from "contracts/PirexCvxConvex.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
 import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
+import {DelegateRegistry} from "contracts/mocks/DelegateRegistry.sol";
 import {HelperContract} from "./HelperContract.sol";
 import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
 
 contract PirexCvxConvexTest is Test, HelperContract {
+    event SetConvexContract(
+        PirexCvxConvex.ConvexContract c,
+        address contractAddress
+    );
+    event SetDelegationSpace(string _delegationSpace, bool shouldClear);
+    event SetVoteDelegate(address voteDelegate);
+    event ClearVoteDelegate();
+
     /**
         @notice Redeem CVX for the specified account and verify the subsequent balances
         @param  account     address  Account redeeming CVX
@@ -39,6 +48,90 @@ contract PirexCvxConvexTest is Test, HelperContract {
             cvxBalanceBefore + upxCvxBalanceBefore
         );
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        setConvexContract TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if caller is not authorized
+     */
+    function testCannotSetConvexContractNotAuthorized() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(secondaryAccounts[0]);
+
+        pirexCvx.setConvexContract(
+            PirexCvxConvex.ConvexContract.CvxLocker,
+            address(this)
+        );
+    }
+
+    /**
+        @notice Test tx reversion if the specified address is the zero address
+     */
+    function testCannotSetConvexContractZeroAddress() external {
+        vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
+
+        pirexCvx.setConvexContract(
+            PirexCvxConvex.ConvexContract.CvxLocker,
+            address(0)
+        );
+    }
+
+    /**
+        @notice Test setting CvxLocker
+     */
+    function testSetConvexContractCvxLocker() external {
+        PirexCvxConvex.ConvexContract c = PirexCvxConvex
+            .ConvexContract
+            .CvxLocker;
+        address oldContract = address(pirexCvx.cvxLocker());
+        address newContract = address(this);
+
+        vm.expectEmit(false, false, false, true);
+
+        emit SetConvexContract(c, address(this));
+
+        pirexCvx.setConvexContract(c, address(this));
+
+        address updatedContract = address(pirexCvx.cvxLocker());
+
+        assertFalse(oldContract == newContract);
+        assertEq(updatedContract, newContract);
+
+        // Check the allowances
+        assertEq(CVX.allowance(address(pirexCvx), oldContract), 0);
+        assertEq(
+            CVX.allowance(address(pirexCvx), newContract),
+            type(uint256).max
+        );
+    }
+
+    /**
+        @notice Test setting CvxDelegateRegistry
+     */
+    function testSetConvexContractCvxDelegateRegistry() external {
+        PirexCvxConvex.ConvexContract c = PirexCvxConvex
+            .ConvexContract
+            .CvxDelegateRegistry;
+        address oldContract = address(pirexCvx.cvxDelegateRegistry());
+        address newContract = address(this);
+
+        vm.expectEmit(false, false, false, true);
+
+        emit SetConvexContract(c, address(this));
+
+        pirexCvx.setConvexContract(c, address(this));
+
+        address updatedContract = address(pirexCvx.cvxDelegateRegistry());
+
+        assertFalse(oldContract == newContract);
+        assertEq(updatedContract, newContract);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        lock TESTS
+    //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Fuzz to verify only the correct amounts are locked and left unlocked
@@ -170,5 +263,304 @@ contract PirexCvxConvexTest is Test, HelperContract {
         for (uint256 i; i < lockLen; ++i) {
             _redeemCVX(secondaryAccounts[i], lockData[i].unlockTime);
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setDelegationSpace TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if caller is not authorized
+     */
+    function testCannotSetDelegationSpaceNotAuthorized() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(secondaryAccounts[0]);
+
+        pirexCvx.setDelegationSpace("space.eth", false);
+    }
+
+    /**
+        @notice Test tx reversion if using empty string
+     */
+    function testCannotSetDelegationSpaceEmptyString() external {
+        vm.expectRevert(PirexCvxConvex.EmptyString.selector);
+
+        pirexCvx.setDelegationSpace("", false);
+    }
+
+    /**
+        @notice Test setting delegation space without clearing
+     */
+    function testSetDelegationSpaceWithoutClearing() external {
+        string memory space = "space.eth";
+
+        vm.expectEmit(false, false, false, true);
+
+        emit SetDelegationSpace(space, false);
+
+        pirexCvx.setDelegationSpace(space, false);
+
+        assertEq(pirexCvx.delegationSpace(), bytes32(bytes(space)));
+    }
+
+    /**
+        @notice Test setting delegation space with clearing
+     */
+    function testSetDelegationSpaceWithClearing() external {
+        string memory oldSpace = "old.eth";
+        string memory newSpace = "new.eth";
+
+        pirexCvx.setDelegationSpace(oldSpace, false);
+
+        // Set the vote delegate before clearing it when setting new delegation space
+        pirexCvx.setVoteDelegate(address(this));
+
+        assertEq(pirexCvx.delegationSpace(), bytes32(bytes(oldSpace)));
+
+        pirexCvx.setDelegationSpace(newSpace, true);
+
+        assertEq(pirexCvx.delegationSpace(), bytes32(bytes(newSpace)));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setVoteDelegate TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if caller is not authorized
+     */
+    function testCannotSetVoteDelegateNotAuthorized() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(secondaryAccounts[0]);
+
+        pirexCvx.setVoteDelegate(address(this));
+    }
+
+    /**
+        @notice Test tx reversion if using zero address as delegate
+     */
+    function testCannotSetVoteDelegateZeroAddress() external {
+        vm.expectRevert(PirexCvxConvex.ZeroAddress.selector);
+
+        pirexCvx.setVoteDelegate(address(0));
+    }
+
+    /**
+        @notice Test setting vote delegate
+     */
+    function testSetVoteDelegate() external {
+        DelegateRegistry delegateRegistry = DelegateRegistry(
+            CVX_DELEGATE_REGISTRY
+        );
+        address oldDelegate = delegateRegistry.delegation(
+            address(pirexCvx),
+            pirexCvx.delegationSpace()
+        );
+        address newDelegate = address(this);
+
+        assertFalse(oldDelegate == newDelegate);
+
+        vm.expectEmit(false, false, false, true);
+
+        emit SetVoteDelegate(newDelegate);
+
+        pirexCvx.setVoteDelegate(newDelegate);
+
+        address delegate = delegateRegistry.delegation(
+            address(pirexCvx),
+            pirexCvx.delegationSpace()
+        );
+
+        assertEq(delegate, newDelegate);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        clearVoteDelegate TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if caller is not authorized
+     */
+    function testCannotClearVoteDelegateNotAuthorized() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(secondaryAccounts[0]);
+
+        pirexCvx.clearVoteDelegate();
+    }
+
+    /**
+        @notice Test tx reversion if clearing without first setting delegate
+     */
+    function testCannotClearVoteDelegateNoDelegate() external {
+        vm.expectRevert("No delegate set");
+
+        pirexCvx.clearVoteDelegate();
+    }
+
+    /**
+        @notice Test clearing vote delegate
+     */
+    function testClearVoteDelegate() external {
+        pirexCvx.setDelegationSpace("space.eth", false);
+
+        // Set the vote delegate before clearing it when setting new delegation space
+        pirexCvx.setVoteDelegate(address(this));
+
+        vm.expectEmit(false, false, false, true);
+
+        emit ClearVoteDelegate();
+
+        pirexCvx.clearVoteDelegate();
+
+        assertEq(
+            DelegateRegistry(CVX_DELEGATE_REGISTRY).delegation(
+                address(pirexCvx),
+                pirexCvx.delegationSpace()
+            ),
+            address(0)
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setPauseState TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if caller is not authorized
+     */
+    function testCannotSetPauseStateNotAuthorized() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(secondaryAccounts[0]);
+
+        pirexCvx.setPauseState(true);
+    }
+
+    /**
+        @notice Test tx reversion if unpausing when not paused
+     */
+    function testCannotSetPauseStateNotPaused() external {
+        assertEq(pirexCvx.paused(), false);
+
+        vm.expectRevert("Pausable: not paused");
+
+        pirexCvx.setPauseState(false);
+    }
+
+    /**
+        @notice Test tx reversion if pausing when paused
+     */
+    function testCannotSetPauseStatePaused() external {
+        pirexCvx.setPauseState(true);
+
+        assertEq(pirexCvx.paused(), true);
+
+        vm.expectRevert("Pausable: paused");
+
+        pirexCvx.setPauseState(true);
+    }
+
+    /**
+        @notice Test setting pause state
+     */
+    function testSetPauseState() external {
+        assertEq(pirexCvx.paused(), false);
+
+        pirexCvx.setPauseState(true);
+
+        assertEq(pirexCvx.paused(), true);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        unlock TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if caller is not authorized
+     */
+    function testCannotUnlockNotAuthorized() external {
+        pirexCvx.setPauseState(true);
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(secondaryAccounts[0]);
+
+        pirexCvx.unlock();
+    }
+
+    /**
+        @notice Test tx reversion if the contract is not paused
+     */
+    function testCannotUnlockNotPaused() external {
+        vm.expectRevert("Pausable: not paused");
+
+        pirexCvx.unlock();
+    }
+
+    /**
+        @notice Test manually unlocking all available CVX
+        @param  amount  uint72   Amount of assets for redeeming
+     */
+    function testUnlock(uint72 amount) external {
+        vm.assume(amount != 0);
+
+        _mintAndDepositCVX(amount, address(this), false, address(0), true);
+
+        assertEq(CVX.balanceOf(address(pirexCvx)), 0);
+
+        // Shutdown CVX locker for the forced-unlock simulation
+        vm.prank(CVX_LOCKER_OWNER);
+
+        CVX_LOCKER.shutdown();
+
+        pirexCvx.setPauseState(true);
+
+        // Retrieve all unlocked/available CVX from the locker
+        pirexCvx.unlock();
+
+        assertEq(CVX.balanceOf(address(pirexCvx)), amount);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        pausedRelock TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if caller is not authorized
+     */
+    function testCannotPausedRelockNotAuthorized() external {
+        pirexCvx.setPauseState(true);
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(secondaryAccounts[0]);
+
+        pirexCvx.pausedRelock();
+    }
+
+    /**
+        @notice Test tx reversion if the contract is not paused
+     */
+    function testCannotPausedRelockNotPaused() external {
+        vm.expectRevert("Pausable: not paused");
+
+        pirexCvx.pausedRelock();
+    }
+
+    /**
+        @notice Test manually relocking
+        @param  amount  uint72   Amount of assets for redeeming
+     */
+    function testPausedRelock(uint72 amount) external {
+        vm.assume(amount != 0);
+
+        // Simulate relocking by making a deposit without immediate locking
+        // then manually lock by calling pausedRelock
+        _mintAndDepositCVX(amount, address(this), false, address(0), false);
+
+        assertEq(CVX.balanceOf(address(pirexCvx)), amount);
+
+        pirexCvx.setPauseState(true);
+        pirexCvx.pausedRelock();
+
+        assertEq(CVX.balanceOf(address(pirexCvx)), 0);
+        assertEq(CVX_LOCKER.lockedBalanceOf(address(pirexCvx)), amount);
     }
 }
