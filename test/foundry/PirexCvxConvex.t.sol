@@ -134,6 +134,17 @@ contract PirexCvxConvexTest is Test, HelperContract {
     //////////////////////////////////////////////////////////////*/
 
     /**
+        @notice Test tx reversion if the contract is paused
+     */
+    function testCannotLockPaused() external {
+        pirexCvx.setPauseState(true);
+
+        vm.expectRevert("Pausable: paused");
+
+        pirexCvx.lock();
+    }
+
+    /**
         @notice Fuzz to verify only the correct amounts are locked and left unlocked
         @param  assets             uint256  CVX mint and deposit amount
         @param  redemptionAmount   uint256  CVX amount to be redeemed
@@ -468,6 +479,10 @@ contract PirexCvxConvexTest is Test, HelperContract {
         pirexCvx.setPauseState(true);
 
         assertEq(pirexCvx.paused(), true);
+
+        pirexCvx.setPauseState(false);
+
+        assertEq(pirexCvx.paused(), false);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -497,7 +512,7 @@ contract PirexCvxConvexTest is Test, HelperContract {
 
     /**
         @notice Test manually unlocking all available CVX
-        @param  amount  uint72   Amount of assets for redeeming
+        @param  amount  uint72   Amount of assets
      */
     function testUnlock(uint72 amount) external {
         vm.assume(amount != 0);
@@ -546,7 +561,7 @@ contract PirexCvxConvexTest is Test, HelperContract {
 
     /**
         @notice Test manually relocking
-        @param  amount  uint72   Amount of assets for redeeming
+        @param  amount  uint72   Amount of assets
      */
     function testPausedRelock(uint72 amount) external {
         vm.assume(amount != 0);
