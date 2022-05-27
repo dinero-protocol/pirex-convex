@@ -512,7 +512,7 @@ contract PirexCvxMainTest is Test, HelperContract {
     /**
         @notice Test tx reversion if initiating redemption without redeeming back from UnionVault first
      */
-    function testCannotInitiateRedemptionsWithCompounding() external {
+    function testCannotInitiateRedemptionsWhileCompounding() external {
         address account = address(this);
         uint256 amount = 1e18;
 
@@ -556,6 +556,8 @@ contract PirexCvxMainTest is Test, HelperContract {
 
         // Should not revert as we redeem back from UnionVault first
         unionPirex.redeem(amount, account, account);
+
+        assertEq(pxCvx.balanceOf(account), amount);
 
         pirexCvx.initiateRedemptions(
             lockIndexes,

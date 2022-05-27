@@ -854,7 +854,6 @@ contract PirexCvxRewardTest is Test, HelperContract {
         uint8 fromVal
     ) external {
         vm.assume(amount != 0);
-        // Tune down the rounds since it takes too long for large rounds
         vm.assume(rounds > 0 && rounds < 50);
         vm.assume(fromVal <= uint8(type(PirexCvx.Futures).max));
 

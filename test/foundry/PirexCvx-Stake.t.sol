@@ -51,6 +51,60 @@ contract PirexCvxStakeTest is Test, HelperContract {
     }
 
     /**
+        @notice Test tx reversion if staking without redeeming back from UnionVault first
+     */
+    function testCannotStakeWhileCompounding() external {
+        address account = address(this);
+        uint256 amount = 1e18;
+        uint8 rounds = 5;
+
+        _mintAndDepositCVX(amount, account, true, address(0), true);
+
+        // Should revert due to insufficient amount to burn
+        vm.expectRevert(stdError.arithmeticError);
+
+        pirexCvx.stake(rounds, PirexCvx.Futures.Reward, amount, account);
+    }
+
+    /**
+        @notice Test staking after redeeming first from UnionVault
+        @param  amount  uint72   Amount of assets for staking
+        @param  rounds  uint8    Number of rounds
+        @param  fVal    uint8    Integer representation of the futures enum
+     */
+    function testStakeAfterCompounding(
+        uint72 amount,
+        uint8 rounds,
+        uint8 fVal
+    ) external {
+        vm.assume(amount != 0);
+        vm.assume(rounds > 0 && rounds < 50);
+        vm.assume(fVal <= uint8(type(PirexCvx.Futures).max));
+
+        address account = address(this);
+
+        _mintAndDepositCVX(amount, account, true, address(0), true);
+
+        // Redeem back from UnionVault first before staking
+        unionPirex.redeem(amount, account, account);
+
+        assertEq(pxCvx.balanceOf(account), amount);
+
+        pirexCvx.stake(rounds, PirexCvx.Futures(fVal), amount, account);
+
+        assertEq(pxCvx.balanceOf(account), 0);
+        assertEq(
+            spxCvx.balanceOf(
+                account,
+                pirexCvx.getCurrentEpoch() + EPOCH_DURATION * rounds
+            ),
+            amount
+        );
+
+        _validateFutureNotesBalances(fVal, rounds, account, amount);
+    }
+
+    /**
         @notice Test staking
         @param  amount  uint72   Amount of assets for staking
         @param  rounds  uint8    Number of rounds
@@ -62,7 +116,6 @@ contract PirexCvxStakeTest is Test, HelperContract {
         uint8 fVal
     ) external {
         vm.assume(amount != 0);
-        // Tune down the rounds since it takes too long for large rounds
         vm.assume(rounds > 0 && rounds < 50);
         vm.assume(fVal <= uint8(type(PirexCvx.Futures).max));
 
@@ -141,7 +194,6 @@ contract PirexCvxStakeTest is Test, HelperContract {
      */
     function testUnstake(uint72 amount, uint8 rounds) external {
         vm.assume(amount != 0);
-        // Tune down the rounds since it takes too long for large rounds
         vm.assume(rounds > 0 && rounds < 50);
 
         uint256 spxCvxId = pirexCvx.getCurrentEpoch() + EPOCH_DURATION * rounds;
