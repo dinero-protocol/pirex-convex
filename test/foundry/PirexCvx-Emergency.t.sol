@@ -261,4 +261,50 @@ contract PirexCvxEmergency is Test, HelperContract {
         assertEq(balanceOf[address(pirexCvx)], 0);
         assertEq(balanceOf[recipient], tokenMintAmount);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        setUpxCvxDeprecated TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if contract is not paused
+     */
+    function testCannotSetUpxCvxDeprecatedNotPaused() external {
+        assertEq(pirexCvx.paused(), false);
+
+        vm.expectRevert("Pausable: not paused");
+
+        pirexCvx.setUpxCvxDeprecated(true);
+    }
+
+    /**
+        @notice Test tx reversion if caller is not authorized
+     */
+    function testCannotSetUpxCvxDeprecatedNotAuthorized() external {
+        pirexCvx.setPauseState(true);
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(PRIMARY_ACCOUNT);
+
+        pirexCvx.setUpxCvxDeprecated(true);
+    }
+
+    /**
+        @notice Test setting deprecation status of the currently set UpxCvx
+     */
+    function testSetUpxCvxDeprecated() external {
+        pirexCvx.setPauseState(true);
+
+        assertEq(pirexCvx.upxCvxDeprecated(), false);
+
+        // Attempt to set it to true first
+        pirexCvx.setUpxCvxDeprecated(true);
+
+        assertEq(pirexCvx.upxCvxDeprecated(), true);
+
+        // Attempt to set it to false again
+        pirexCvx.setUpxCvxDeprecated(false);
+
+        assertEq(pirexCvx.upxCvxDeprecated(), false);
+    }
 }
