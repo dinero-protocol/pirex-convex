@@ -510,31 +510,6 @@ contract PirexCvxMainTest is Test, HelperContract {
     }
 
     /**
-        @notice Test tx reversion if initiating redemption without redeeming back from UnionVault first
-     */
-    function testCannotInitiateRedemptionsWhileCompounding() external {
-        address account = address(this);
-        uint256 amount = 1e18;
-
-        _mintAndDepositCVX(amount, account, true, address(0), true);
-
-        uint256[] memory lockIndexes = new uint256[](1);
-        uint256[] memory redemptionAssets = new uint256[](1);
-        lockIndexes[0] = 0;
-        redemptionAssets[0] = amount;
-
-        // Should revert due to insufficient amount to burn
-        vm.expectRevert(stdError.arithmeticError);
-
-        pirexCvx.initiateRedemptions(
-            lockIndexes,
-            PirexCvx.Futures.Reward,
-            redemptionAssets,
-            account
-        );
-    }
-
-    /**
         @notice Test initiating redemption after redeeming back from UnionVault
         @param  amount  uint72  Amount of assets for redemption
      */
@@ -553,6 +528,17 @@ contract PirexCvxMainTest is Test, HelperContract {
         lockIndexes[0] = 0;
         redemptionAssets[0] = amount;
         uint256 unlockTime = lockData[0].unlockTime;
+
+        // Should revert due to insufficient amount to burn
+        // as we haven't redeem back from UnionVault
+        vm.expectRevert(stdError.arithmeticError);
+
+        pirexCvx.initiateRedemptions(
+            lockIndexes,
+            PirexCvx.Futures.Reward,
+            redemptionAssets,
+            account
+        );
 
         // Should not revert as we redeem back from UnionVault first
         unionPirex.redeem(amount, account, account);

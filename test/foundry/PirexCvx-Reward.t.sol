@@ -686,7 +686,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
         pirexCvx.stake(rounds, PirexCvx.Futures.Reward, assets, account);
 
-        // Approve the futures notes contract to allow burning on behalf of the account
+        // Approve the PirexCvx to allow burning on behalf of the account
         rpxCvx.setApprovalForAll(address(pirexCvx), true);
 
         vm.stopPrank();
@@ -739,7 +739,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
         vm.startPrank(account);
 
-        // Approve the futures notes contract to allow burning on behalf of the account
+        // Approve the PirexCvx to allow burning on behalf of the account
         rpxCvx.setApprovalForAll(address(pirexCvx), true);
 
         // Stake and then immediately exchange all the original futures notes to the other type
@@ -875,7 +875,7 @@ contract PirexCvxRewardTest is Test, HelperContract {
 
         vm.startPrank(account);
 
-        // Approve the futures notes contract to allow burning on behalf of the account
+        // Approve the PirexCvx to allow burning on behalf of the account
         fromT.setApprovalForAll(address(pirexCvx), true);
 
         // Stake and then immediately exchange all the original futures notes to the other type
