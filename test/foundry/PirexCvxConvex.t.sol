@@ -139,6 +139,8 @@ contract PirexCvxConvexTest is Test, HelperContract {
     function testCannotLockPaused() external {
         pirexCvx.setPauseState(true);
 
+        assertEq(pirexCvx.paused(), true);
+
         vm.expectRevert("Pausable: paused");
 
         pirexCvx.lock();
