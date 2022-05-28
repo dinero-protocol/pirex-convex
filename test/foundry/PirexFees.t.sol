@@ -226,20 +226,6 @@ contract PirexFeesTest is Test, HelperContract {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion if caller is not authorized as fee distributor
-     */
-    function testCannotDistributeFeesNotDistributor() external {
-        vm.expectRevert(
-            _getRoleErrorMessage(
-                secondaryAccounts[0],
-                pirexFees.FEE_DISTRIBUTOR_ROLE()
-            )
-        );
-        vm.prank(secondaryAccounts[0]);
-        pirexFees.distributeFees(secondaryAccounts[0], address(CVX), 0);
-    }
-
-    /**
         @notice Test distributing fees
         @param  amount  uint256  Amount to be distributed
      */

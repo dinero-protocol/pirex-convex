@@ -1,7 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { uniq } from 'lodash';
 import { callAndReturnEvents, validateEvent } from './helpers';
 import { PirexFees } from '../typechain-types';
 
@@ -14,8 +12,6 @@ describe('PirexFees', function () {
   let feePercentDenominator: number;
 
   let zeroAddress: string;
-  let feeDistributorRole: string;
-  let adminRole: string;
 
   const feeRecipientEnum = {
     treasury: 0,
@@ -36,14 +32,10 @@ describe('PirexFees', function () {
 
   describe('initial state', function () {
     it('Should have predefined state variables', async function () {
-      feeDistributorRole = await pirexFees.FEE_DISTRIBUTOR_ROLE();
       const percentDenominator = await pirexFees.PERCENT_DENOMINATOR();
       const treasuryPercent = await pirexFees.treasuryPercent();
 
       expect(percentDenominator).to.equal(feePercentDenominator).to.equal(100);
-      expect(feeDistributorRole).to.equal(
-        ethers.utils.formatBytes32String('FEE_DISTRIBUTOR')
-      );
       expect(treasuryPercent).to.equal(75);
     });
   });
@@ -52,119 +44,9 @@ describe('PirexFees', function () {
     it('Should set up contract state', async function () {
       const _treasury = await pirexFees.treasury();
       const _contributors = await pirexFees.contributors();
-      
-      adminRole = await pirexFees.DEFAULT_ADMIN_ROLE();
-
-      const adminHasRole = await pirexFees.hasRole(adminRole, admin.address);
-      const notAdminHasAdminRole = await pirexFees.hasRole(
-        adminRole,
-        notAdmin.address
-      );
-      const notAdminHasDepositorsRole = await pirexFees.hasRole(
-        feeDistributorRole,
-        notAdmin.address
-      );
-      const roles = [adminRole, feeDistributorRole];
 
       expect(_treasury).to.equal(treasury.address);
       expect(_contributors).to.equal(contributors.address);
-      expect(adminHasRole).to.equal(true);
-      expect(notAdminHasAdminRole).to.equal(false);
-      expect(notAdminHasDepositorsRole).to.equal(false);
-      expect(uniq(roles).length).to.equal(roles.length);
-    });
-  });
-
-  describe('grantFeeDistributorRole', function () {
-    it('Should revert if distributor is zero address', async function () {
-      const invalidDepositor = zeroAddress;
-
-      await expect(
-        pirexFees.grantFeeDistributorRole(invalidDepositor)
-      ).to.be.revertedWith('ZeroAddress()');
-    });
-
-    it('Should revert if called by non-admin', async function () {
-      const distributor = notAdmin.address;
-
-      await expect(
-        pirexFees.connect(notAdmin).grantFeeDistributorRole(distributor)
-      ).to.be.revertedWith(
-        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${adminRole}`
-      );
-    });
-
-    it('Should grant the distributor role to an address', async function () {
-      const distributor = notAdmin.address;
-      const hasRoleBefore = await pirexFees.hasRole(
-        feeDistributorRole,
-        distributor
-      );
-      const [, grantEvent] = await callAndReturnEvents(
-        pirexFees.grantFeeDistributorRole,
-        [distributor]
-      );
-      const hasRoleAfter = await pirexFees.hasRole(
-        feeDistributorRole,
-        distributor
-      );
-
-      expect(hasRoleBefore).to.equal(false);
-      expect(hasRoleAfter).to.equal(true);
-      validateEvent(grantEvent, 'GrantFeeDistributorRole(address)', {
-        distributor: notAdmin.address,
-      });
-    });
-  });
-
-  describe('revokeFeeDistributorRole', function () {
-    it('Should revert if called by non-admin', async function () {
-      const distributor = notAdmin.address;
-
-      await expect(
-        pirexFees.connect(notAdmin).revokeFeeDistributorRole(distributor)
-      ).to.be.revertedWith(
-        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${adminRole}`
-      );
-    });
-
-    it('Should revoke the fee distributor role from an address', async function () {
-      const distributor = notAdmin.address;
-      const hasRoleBefore = await pirexFees.hasRole(
-        feeDistributorRole,
-        distributor
-      );
-      const [, revokeEvent] = await callAndReturnEvents(
-        pirexFees.revokeFeeDistributorRole,
-        [distributor]
-      );
-      const hasRoleAfter = await pirexFees.hasRole(
-        feeDistributorRole,
-        distributor
-      );
-
-      expect(hasRoleBefore).to.equal(true);
-      expect(hasRoleAfter).to.equal(false);
-      validateEvent(revokeEvent, 'RevokeFeeDistributorRole(address)', {
-        distributor,
-      });
-    });
-
-    it('Should revert if address is not a distributor', async function () {
-      const invalidDistributor1 = notAdmin.address;
-      const invalidDistributor2 = zeroAddress;
-      const distributor1HasRole = await pirexFees.hasRole(
-        feeDistributorRole,
-        invalidDistributor1
-      );
-
-      expect(distributor1HasRole).to.equal(false);
-      await expect(
-        pirexFees.revokeFeeDistributorRole(invalidDistributor1)
-      ).to.be.revertedWith('NotFeeDistributor()');
-      await expect(
-        pirexFees.revokeFeeDistributorRole(invalidDistributor2)
-      ).to.be.revertedWith('NotFeeDistributor()');
     });
   });
 
@@ -194,9 +76,7 @@ describe('PirexFees', function () {
 
       await expect(
         pirexFees.connect(notAdmin).setFeeRecipient(f, recipient)
-      ).to.be.revertedWith(
-        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${adminRole}`
-      );
+      ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('Should set treasury', async function () {
@@ -265,9 +145,7 @@ describe('PirexFees', function () {
 
       await expect(
         pirexFees.connect(notAdmin).setTreasuryPercent(treasuryPercent)
-      ).to.be.revertedWith(
-        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${adminRole}`
-      );
+      ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('Should revert if not called by admin', async function () {
@@ -284,19 +162,6 @@ describe('PirexFees', function () {
       validateEvent(setEvent, 'SetTreasuryPercent(uint8)', {
         _treasuryPercent: treasuryPercent,
       });
-    });
-  });
-
-  describe('distributeFees', function () {
-    it('Should revert if called by non distributor', async function () {
-      const rewardAddress = admin.address;
-      const amount = 1;
-
-      await expect(
-        pirexFees.distributeFees(admin.address, rewardAddress, amount)
-      ).to.be.revertedWith(
-        `AccessControl: account ${admin.address.toLowerCase()} is missing role ${feeDistributorRole}`
-      );
     });
   });
 });

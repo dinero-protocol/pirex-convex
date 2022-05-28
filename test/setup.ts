@@ -191,8 +191,6 @@ before(async function () {
   this.unionPirex = unionPirex;
   this.unionPirexStrategy = unionPirexStrategy;
 
-  await this.pirexFees.grantFeeDistributorRole(pirexCvx.address);
-
   await pxCvx.setOperator(this.pirexCvx.address);
 
   // Common constants
