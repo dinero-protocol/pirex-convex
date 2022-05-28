@@ -510,6 +510,72 @@ contract PirexCvxMainTest is Test, HelperContract {
     }
 
     /**
+        @notice Test initiating redemption with possible compounding
+        @param  amount        uint72  Amount of assets for redemption
+        @param  redeemAmount  uint72  Amount of assets to be redeemed back from UnionVault
+        @param  compound      bool    Whether should compound
+     */
+    function testInitiateRedemptionsWithCompounding(
+        uint72 amount,
+        uint72 redeemAmount,
+        bool compound
+    ) external {
+        vm.assume(amount != 0);
+        vm.assume(redeemAmount != 0 && redeemAmount <= amount);
+
+        address account = address(this);
+
+        _mintAndDepositCVX(amount, account, compound, address(0), true);
+
+        (, , , CvxLockerV2.LockedBalance[] memory lockData) = CVX_LOCKER
+            .lockedBalances(address(pirexCvx));
+
+        uint256 unlockTime = lockData[0].unlockTime;
+        uint256[] memory lockIndexes = new uint256[](1);
+        uint256[] memory redemptionAssets = new uint256[](1);
+        lockIndexes[0] = 0;
+        redemptionAssets[0] = amount;
+        uint256 redeemAfterFee = amount;
+
+        if (compound) {
+            // If compounding, should revert due to insufficient amount to burn
+            // as we haven't redeem back from UnionVault
+            vm.expectRevert(stdError.arithmeticError);
+
+            pirexCvx.initiateRedemptions(
+                lockIndexes,
+                PirexCvx.Futures.Reward,
+                redemptionAssets,
+                account
+            );
+
+            redeemAfterFee = unionPirex.previewRedeem(redeemAmount);
+
+            unionPirex.redeem(redeemAmount, account, account);
+
+            assertEq(pxCvx.balanceOf(account), redeemAfterFee);
+
+            redemptionAssets[0] = redeemAfterFee;
+        }
+
+        // Should not revert again as we redeem back from UnionVault first
+        pirexCvx.initiateRedemptions(
+            lockIndexes,
+            PirexCvx.Futures.Reward,
+            redemptionAssets,
+            account
+        );
+
+        (uint256 postFeeAmount, ) = _processRedemption(
+            unlockTime,
+            redeemAfterFee
+        );
+
+        assertEq(pxCvx.balanceOf(account), 0);
+        assertEq(upxCvx.balanceOf(account, unlockTime), postFeeAmount);
+    }
+
+    /**
         @notice Test initiating redemption with various fees settings
         @param  amount             uint72  Amount of assets for redemption
         @param  fVal               uint8   Integer representation of the futures enum
