@@ -179,6 +179,26 @@ describe('PirexCvx-Base', function () {
       });
     });
 
+    it('Should set votiumMultiMerkleStash', async function () {
+      const votiumBefore = await pirexCvx.votiumMultiMerkleStash();
+      const c = contractEnum.votium;
+      const contractAddress = admin.address;
+      const setEvent = await callAndReturnEvent(pirexCvx.setContract, [
+        c,
+        contractAddress,
+      ]);
+      const votiumAfter = await pirexCvx.votiumMultiMerkleStash();
+
+      await pirexCvx.setContract(c, votiumBefore);
+
+      expect(votiumBefore).to.not.equal(votiumAfter);
+      expect(votiumAfter).to.equal(contractAddress);
+      validateEvent(setEvent, 'SetContract(uint8,address)', {
+        c,
+        contractAddress,
+      });
+    });
+
     it('Should set upxCvx', async function () {
       const upxCvxBefore = await pirexCvx.upxCvx();
       const c = contractEnum.upxCvx;
