@@ -51,17 +51,19 @@ contract PirexCvxStakeTest is Test, HelperContract {
     }
 
     /**
-        @notice Test staking after redeeming first from UnionVault
-        @param  amount        uint72   Amount of assets for staking
-        @param  redeemAmount  uint8    Amount of assets to be redeemed back from UnionVault
-        @param  rounds        uint8    Number of rounds
-        @param  fVal          uint8    Integer representation of the futures enum
+        @notice Test staking with possible compounding
+        @param  amount        uint72  Amount of assets for staking
+        @param  redeemAmount  uint72  Amount of assets to be redeemed back from UnionVault
+        @param  rounds        uint8   Number of rounds
+        @param  fVal          uint8   Integer representation of the futures enum
+        @param  compound      bool    Whether should compound
      */
-    function testStakeAfterCompounding(
+    function testStakeWithCompounding(
         uint72 amount,
-        uint8 redeemAmount,
+        uint72 redeemAmount,
         uint8 rounds,
-        uint8 fVal
+        uint8 fVal,
+        bool compound
     ) external {
         vm.assume(amount != 0);
         vm.assume(redeemAmount != 0 && redeemAmount <= amount);
@@ -70,19 +72,23 @@ contract PirexCvxStakeTest is Test, HelperContract {
 
         address account = address(this);
 
-        _mintAndDepositCVX(amount, account, true, address(0), true);
+        _mintAndDepositCVX(amount, account, compound, address(0), true);
 
-        // Should revert due to insufficient amount to burn
-        // as we haven't redeem back from UnionVault
-        vm.expectRevert(stdError.arithmeticError);
+        uint256 redeemAfterFee = amount;
 
-        pirexCvx.stake(rounds, PirexCvx.Futures(fVal), amount, account);
+        if (compound) {
+            // Should revert due to insufficient amount to burn
+            // as we haven't redeem back from UnionVault
+            vm.expectRevert(stdError.arithmeticError);
 
-        // Redeem back from UnionVault first before staking and confirm the final redeemed amount
-        uint256 redeemAfterFee = unionPirex.previewRedeem(redeemAmount);
-        unionPirex.redeem(redeemAmount, account, account);
+            pirexCvx.stake(rounds, PirexCvx.Futures(fVal), amount, account);
 
-        assertEq(pxCvx.balanceOf(account), redeemAfterFee);
+            // Redeem back from UnionVault first before staking and confirm the final redeemed amount
+            redeemAfterFee = unionPirex.previewRedeem(redeemAmount);
+            unionPirex.redeem(redeemAmount, account, account);
+
+            assertEq(pxCvx.balanceOf(account), redeemAfterFee);
+        }
 
         pirexCvx.stake(rounds, PirexCvx.Futures(fVal), redeemAfterFee, account);
 
