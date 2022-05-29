@@ -23,14 +23,11 @@ contract PirexFees is Ownable {
     address public treasury;
     address public contributors;
 
-    event GrantFeeDistributorRole(address distributor);
-    event RevokeFeeDistributorRole(address distributor);
     event SetFeeRecipient(FeeRecipient f, address recipient);
     event SetTreasuryPercent(uint8 _treasuryPercent);
     event DistributeFees(address token, uint256 amount);
 
     error ZeroAddress();
-    error NotFeeDistributor();
     error InvalidFeePercent();
 
     /**
