@@ -137,9 +137,7 @@ describe('PirexCvx-UnionPirex*', function () {
 
       await expect(
         unionPirex.connect(notAdmin).setWithdrawalPenalty(penalty)
-      ).to.be.revertedWith(
-        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${await unionPirex.DEFAULT_ADMIN_ROLE()}`
-      );
+      ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('Should set withdrawal penalty', async function () {
@@ -156,7 +154,7 @@ describe('PirexCvx-UnionPirex*', function () {
       expect(penaltyAfter).to.equal(penalty);
 
       validateEvent(setEvent, 'WithdrawalPenaltyUpdated(uint256)', {
-        _penalty: penalty,
+        penalty,
       });
     });
   });
@@ -175,9 +173,7 @@ describe('PirexCvx-UnionPirex*', function () {
 
       await expect(
         unionPirex.connect(notAdmin).setPlatform(platform)
-      ).to.be.revertedWith(
-        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${await unionPirex.DEFAULT_ADMIN_ROLE()}`
-      );
+      ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('Should set platform', async function () {
@@ -203,9 +199,7 @@ describe('PirexCvx-UnionPirex*', function () {
 
       await expect(
         unionPirex.connect(notAdmin).setStrategy(strategy)
-      ).to.be.revertedWith(
-        `AccessControl: account ${notAdmin.address.toLowerCase()} is missing role ${await unionPirex.DEFAULT_ADMIN_ROLE()}`
-      );
+      ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('Should revert if strategy is already set', async function () {
@@ -338,8 +332,8 @@ describe('PirexCvx-UnionPirex*', function () {
       });
 
       validateEvent(harvestEvent, 'Harvest(address,uint256)', {
-        _caller: admin.address,
-        _value: rewards,
+        caller: admin.address,
+        value: rewards,
       });
 
       validateEvent(feeTransferEvent, 'Transfer(address,address,uint256)', {
@@ -660,8 +654,8 @@ describe('PirexCvx-UnionPirex*', function () {
       });
 
       validateEvent(harvestEvent, 'Harvest(address,uint256)', {
-        _caller: owner,
-        _value: rewards,
+        caller: owner,
+        value: rewards,
       });
 
       validateEvent(feeTransferEvent, 'Transfer(address,address,uint256)', {

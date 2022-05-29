@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC4626} from "@rari-capital/solmate/src/mixins/ERC4626.sol";
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
-import {ReentrancyGuard} from "@rari-capital/solmate/src/utils/ReentrancyGuard.sol";
 import {FixedPointMathLib} from "@rari-capital/solmate/src/utils/FixedPointMathLib.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import {UnionPirexStaking} from "./UnionPirexStaking.sol";
 
-contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
+contract UnionPirexVault is Ownable, ERC4626 {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
@@ -23,9 +22,9 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     uint256 public platformFee = 500;
     address public platform;
 
-    event Harvest(address indexed _caller, uint256 _value);
-    event WithdrawalPenaltyUpdated(uint256 _penalty);
-    event PlatformFeeUpdated(uint256 _fee);
+    event Harvest(address indexed caller, uint256 value);
+    event WithdrawalPenaltyUpdated(uint256 penalty);
+    event PlatformFeeUpdated(uint256 fee);
     event PlatformUpdated(address indexed _platform);
     event StrategySet(address indexed _strategy);
 
@@ -33,48 +32,37 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
     error ExceedsMax();
     error AlreadySet();
 
-    constructor(address _pxCvx) ERC4626(ERC20(_pxCvx), "Union Pirex", "uCVX") {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    }
+    constructor(address pxCvx) ERC4626(ERC20(pxCvx), "Union Pirex", "uCVX") {}
 
     /**
         @notice Set the withdrawal penalty
-        @param _penalty  uint256  Withdrawal penalty
+        @param  penalty  uint256  Withdrawal penalty
      */
-    function setWithdrawalPenalty(uint256 _penalty)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
-        if (_penalty > MAX_WITHDRAWAL_PENALTY) revert ExceedsMax();
+    function setWithdrawalPenalty(uint256 penalty) external onlyOwner {
+        if (penalty > MAX_WITHDRAWAL_PENALTY) revert ExceedsMax();
 
-        withdrawalPenalty = _penalty;
+        withdrawalPenalty = penalty;
 
-        emit WithdrawalPenaltyUpdated(_penalty);
+        emit WithdrawalPenaltyUpdated(penalty);
     }
 
     /**
         @notice Set the platform fee
-        @param _fee  uint256  Platform fee
+        @param  fee  uint256  Platform fee
      */
-    function setPlatformFee(uint256 _fee)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
-        if (_fee > MAX_PLATFORM_FEE) revert ExceedsMax();
+    function setPlatformFee(uint256 fee) external onlyOwner {
+        if (fee > MAX_PLATFORM_FEE) revert ExceedsMax();
 
-        platformFee = _fee;
+        platformFee = fee;
 
-        emit PlatformFeeUpdated(_fee);
+        emit PlatformFeeUpdated(fee);
     }
 
     /**
         @notice Set the platform
-        @param _platform  address  Platform
+        @param  _platform  address  Platform
      */
-    function setPlatform(address _platform)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
+    function setPlatform(address _platform) external onlyOwner {
         if (_platform == address(0)) revert ZeroAddress();
 
         platform = _platform;
@@ -84,12 +72,10 @@ contract UnionPirexVault is ReentrancyGuard, AccessControl, ERC4626 {
 
     /**
         @notice Set the strategy
-        @param _strategy  address  Strategy
+        @param  _strategy  address  Strategy
      */
-    function setStrategy(address _strategy)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
+    function setStrategy(address _strategy) external onlyOwner {
+        if (_strategy == address(0)) revert ZeroAddress();
         if (address(strategy) != address(0)) revert AlreadySet();
 
         // Set new strategy contract and approve max allowance
