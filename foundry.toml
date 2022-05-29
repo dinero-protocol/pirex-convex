@@ -6,3 +6,4 @@ remappings = ["contracts/=contracts/"]
 libs = ["lib", "node_modules"]
 verbosity = 3
 fuzz_runs = 10 # Change as needed
+optimizer_runs = 179
