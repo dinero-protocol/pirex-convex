@@ -204,11 +204,12 @@ before(async function () {
   this.contractEnum = {
     pxCvx: 0,
     pirexFees: 1,
-    upxCvx: 2,
-    spxCvx: 3,
-    vpxCvx: 4,
-    rpxCvx: 5,
-    unionPirex: 6,
+    votium: 2,
+    upxCvx: 3,
+    spxCvx: 4,
+    vpxCvx: 5,
+    rpxCvx: 6,
+    unionPirex: 7,
   };
   this.convexContractEnum = {
     cvxLocker: 0,

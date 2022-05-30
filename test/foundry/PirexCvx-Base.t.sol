@@ -85,6 +85,21 @@ contract PirexCvxBaseTest is Test, HelperContract {
     }
 
     /**
+        @notice Test setting Votium
+     */
+    function testSetContractVotium() external {
+        address oldContract = address(pirexCvx.votiumMultiMerkleStash());
+        address newContract = address(this);
+
+        _setContract(PirexCvx.Contract.Votium, newContract);
+
+        address updatedContract = address(pirexCvx.votiumMultiMerkleStash());
+
+        assertFalse(oldContract == newContract);
+        assertEq(updatedContract, newContract);
+    }
+
+    /**
         @notice Test setting UpxCvx
      */
     function testSetContractUpxCvx() external {

@@ -38,6 +38,7 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     enum Contract {
         PxCvx,
         PirexFees,
+        Votium,
         UpxCvx,
         SpxCvx,
         VpxCvx,
@@ -246,6 +247,11 @@ contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
 
         if (c == Contract.PirexFees) {
             pirexFees = PirexFees(contractAddress);
+            return;
+        }
+
+        if (c == Contract.Votium) {
+            votiumMultiMerkleStash = IVotiumMultiMerkleStash(contractAddress);
             return;
         }
 
