@@ -37,6 +37,8 @@ async function main() {
     'UnionPirexStrategy',
     unionPirexStrategy
   );
+  const DEFAULT_ADMIN_ROLE = await spxCvxContract.DEFAULT_ADMIN_ROLE();
+  const MINTER_ROLE = await spxCvxContract.MINTER_ROLE();
 
   // Ownable-based
   await pxCvxContract.transferOwnership(pirexMultisig);
@@ -47,59 +49,29 @@ async function main() {
 
   // AccessControl-based - ERC1155Solmate contracts
   await (
-    await spxCvxContract.grantRole(
-      await spxCvxContract.DEFAULT_ADMIN_ROLE(),
-      pirexMultisig
-    )
+    await spxCvxContract.grantRole(DEFAULT_ADMIN_ROLE, pirexMultisig)
   ).wait(1);
-  await spxCvxContract.renounceRole(
-    await spxCvxContract.DEFAULT_ADMIN_ROLE(),
-    deployer.address
-  );
+  await spxCvxContract.renounceRole(DEFAULT_ADMIN_ROLE, deployer.address);
   await (
-    await upxCvxContract.grantRole(
-      await upxCvxContract.DEFAULT_ADMIN_ROLE(),
-      pirexMultisig
-    )
+    await upxCvxContract.grantRole(DEFAULT_ADMIN_ROLE, pirexMultisig)
   ).wait(1);
-  await spxCvxContract.renounceRole(
-    await upxCvxContract.DEFAULT_ADMIN_ROLE(),
-    deployer.address
-  );
+  await spxCvxContract.renounceRole(DEFAULT_ADMIN_ROLE, deployer.address);
 
   // AccessControl-based - ERC1155PresetMinterSupply contracts
   await (
-    await vpxCvxContract.renounceRole(
-      await vpxCvxContract.MINTER_ROLE(),
-      deployer.address
-    )
+    await vpxCvxContract.renounceRole(MINTER_ROLE, deployer.address)
   ).wait(1);
   await (
-    await vpxCvxContract.grantRole(
-      await vpxCvxContract.DEFAULT_ADMIN_ROLE(),
-      pirexMultisig
-    )
+    await vpxCvxContract.grantRole(DEFAULT_ADMIN_ROLE, pirexMultisig)
   ).wait(1);
-  await vpxCvxContract.renounceRole(
-    await vpxCvxContract.DEFAULT_ADMIN_ROLE(),
-    deployer.address
-  );
+  await vpxCvxContract.renounceRole(DEFAULT_ADMIN_ROLE, deployer.address);
   await (
-    await rpxCvxContract.renounceRole(
-      await rpxCvxContract.MINTER_ROLE(),
-      deployer.address
-    )
+    await rpxCvxContract.renounceRole(MINTER_ROLE, deployer.address)
   ).wait(1);
   await (
-    await rpxCvxContract.grantRole(
-      await rpxCvxContract.DEFAULT_ADMIN_ROLE(),
-      pirexMultisig
-    )
+    await rpxCvxContract.grantRole(DEFAULT_ADMIN_ROLE, pirexMultisig)
   ).wait(1);
-  await rpxCvxContract.renounceRole(
-    await rpxCvxContract.DEFAULT_ADMIN_ROLE(),
-    deployer.address
-  );
+  await rpxCvxContract.renounceRole(DEFAULT_ADMIN_ROLE, deployer.address);
 }
 
 main()

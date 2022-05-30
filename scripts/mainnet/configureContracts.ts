@@ -29,6 +29,7 @@ async function main() {
     'UnionPirexVault',
     unionPirexVault
   );
+  const MINTER_ROLE = await vpxCvxContract.MINTER_ROLE();
 
   // PxCvx
   await pxCvxContract.setOperator(pirexCvx);
@@ -48,8 +49,8 @@ async function main() {
   // Tokens - grant minter roles
   await spxCvxContract.grantMinterRole(pirexCvx);
   await upxCvxContract.grantMinterRole(pirexCvx);
-  await vpxCvxContract.grantRole(await vpxCvxContract.MINTER_ROLE(), pirexCvx);
-  await rpxCvxContract.grantRole(await rpxCvxContract.MINTER_ROLE(), pirexCvx);
+  await vpxCvxContract.grantRole(MINTER_ROLE, pirexCvx);
+  await rpxCvxContract.grantRole(MINTER_ROLE, pirexCvx);
 
   // Vault
   await unionPirexVaultContract.setPlatform(pirexMultisig);

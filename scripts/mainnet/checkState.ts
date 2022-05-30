@@ -37,6 +37,8 @@ async function main() {
     'UnionPirexStrategy',
     unionPirexStrategy
   );
+  const MINTER_ROLE = await spxCvxContract.MINTER_ROLE();
+  const DEFAULT_ADMIN_ROLE = await spxCvxContract.DEFAULT_ADMIN_ROLE();
 
   // PxCvx
   console.log('\nPxCvx operator must be PirexCvx');
@@ -59,30 +61,10 @@ async function main() {
 
   // PirexCvx - minter role
   console.log('\nPirexCvx should have minter role');
-  console.log(
-    `SpxCvx: ${await spxCvxContract.hasRole(
-      await spxCvxContract.MINTER_ROLE(),
-      pirexCvx
-    )}`
-  );
-  console.log(
-    `UpxCvx: ${await upxCvxContract.hasRole(
-      await upxCvxContract.MINTER_ROLE(),
-      pirexCvx
-    )}`
-  );
-  console.log(
-    `VpxCvx: ${await vpxCvxContract.hasRole(
-      await vpxCvxContract.MINTER_ROLE(),
-      pirexCvx
-    )}`
-  );
-  console.log(
-    `RpxCvx: ${await rpxCvxContract.hasRole(
-      await rpxCvxContract.MINTER_ROLE(),
-      pirexCvx
-    )}`
-  );
+  console.log(`SpxCvx: ${await spxCvxContract.hasRole(MINTER_ROLE, pirexCvx)}`);
+  console.log(`UpxCvx: ${await upxCvxContract.hasRole(MINTER_ROLE, pirexCvx)}`);
+  console.log(`VpxCvx: ${await vpxCvxContract.hasRole(MINTER_ROLE, pirexCvx)}`);
+  console.log(`RpxCvx: ${await rpxCvxContract.hasRole(MINTER_ROLE, pirexCvx)}`);
 
   // UnionPirexVault
   console.log('\nUnionPirexVault should have the correct contracts set');
@@ -125,84 +107,52 @@ async function main() {
   console.log('\nDeployer does NOT have admin or minter role');
   console.log(
     `SpxCvx: ${
-      (await spxCvxContract.hasRole(
-        await spxCvxContract.MINTER_ROLE(),
-        deployer.address
-      )) === false &&
-      (await spxCvxContract.hasRole(
-        await spxCvxContract.DEFAULT_ADMIN_ROLE(),
-        deployer.address
-      )) === false
+      (await spxCvxContract.hasRole(MINTER_ROLE, deployer.address)) === false &&
+      (await spxCvxContract.hasRole(DEFAULT_ADMIN_ROLE, deployer.address)) ===
+        false
     }`
   );
   console.log(
     `UpxCvx: ${
-      (await spxCvxContract.hasRole(
-        await spxCvxContract.MINTER_ROLE(),
-        deployer.address
-      )) === false &&
-      (await spxCvxContract.hasRole(
-        await spxCvxContract.DEFAULT_ADMIN_ROLE(),
-        deployer.address
-      )) === false
+      (await spxCvxContract.hasRole(MINTER_ROLE, deployer.address)) === false &&
+      (await spxCvxContract.hasRole(DEFAULT_ADMIN_ROLE, deployer.address)) ===
+        false
     }`
   );
   console.log(
     `VpxCvx: ${
-      (await spxCvxContract.hasRole(
-        await spxCvxContract.MINTER_ROLE(),
-        deployer.address
-      )) === false &&
-      (await spxCvxContract.hasRole(
-        await spxCvxContract.DEFAULT_ADMIN_ROLE(),
-        deployer.address
-      )) === false
+      (await spxCvxContract.hasRole(MINTER_ROLE, deployer.address)) === false &&
+      (await spxCvxContract.hasRole(DEFAULT_ADMIN_ROLE, deployer.address)) ===
+        false
     }`
   );
   console.log(
     `RpxCvx: ${
-      (await spxCvxContract.hasRole(
-        await spxCvxContract.MINTER_ROLE(),
-        deployer.address
-      )) === false &&
-      (await spxCvxContract.hasRole(
-        await spxCvxContract.DEFAULT_ADMIN_ROLE(),
-        deployer.address
-      )) === false
+      (await spxCvxContract.hasRole(MINTER_ROLE, deployer.address)) === false &&
+      (await spxCvxContract.hasRole(DEFAULT_ADMIN_ROLE, deployer.address)) ===
+        false
     }`
   );
 
   console.log('\nContract admins are Pirex multisig');
   console.log(
     `SpxCvx: ${
-      (await spxCvxContract.hasRole(
-        await spxCvxContract.DEFAULT_ADMIN_ROLE(),
-        pirexMultisig
-      )) === true
+      (await spxCvxContract.hasRole(DEFAULT_ADMIN_ROLE, pirexMultisig)) === true
     }`
   );
   console.log(
     `UpxCvx: ${
-      (await upxCvxContract.hasRole(
-        await upxCvxContract.DEFAULT_ADMIN_ROLE(),
-        pirexMultisig
-      )) === true
+      (await upxCvxContract.hasRole(DEFAULT_ADMIN_ROLE, pirexMultisig)) === true
     }`
   );
   console.log(
     `VpxCvx: ${
-      (await vpxCvxContract.hasRole(
-        await vpxCvxContract.DEFAULT_ADMIN_ROLE(),
-        pirexMultisig
-      )) === true
+      (await vpxCvxContract.hasRole(DEFAULT_ADMIN_ROLE, pirexMultisig)) === true
     }`
   );
   console.log(
     `RpxCvx: ${
-      (await rpxCvxContract.hasRole(
-        await rpxCvxContract.DEFAULT_ADMIN_ROLE(),
-        pirexMultisig
-      )) === true
+      (await rpxCvxContract.hasRole(DEFAULT_ADMIN_ROLE, pirexMultisig)) === true
     }`
   );
 }
