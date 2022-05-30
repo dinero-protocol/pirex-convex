@@ -60,7 +60,6 @@ NPM: 8.5.0
 **PirexFees.sol**
 
 - Distributes protocol fees to stakeholders
-- Offers a variety of methods for security and administrative purposes (e.g. granting/revoking roles and updating fee recipient addresses)
 
 **UnionPirexVault.sol**
 

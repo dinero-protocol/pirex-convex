@@ -8,121 +8,11 @@ import {HelperContract} from "./HelperContract.sol";
 
 contract PirexFeesTest is Test, HelperContract {
     uint8 public constant MAX_TREASURY_PERCENT = 75;
+    bytes public constant ACCESS_ERROR = "Ownable: caller is not the owner";
 
-    event GrantFeeDistributorRole(address distributor);
-    event RevokeFeeDistributorRole(address distributor);
     event SetFeeRecipient(PirexFees.FeeRecipient f, address recipient);
     event SetTreasuryPercent(uint8 _treasuryPercent);
     event DistributeFees(address token, uint256 amount);
-
-    function _getRoleErrorMessage(address target, bytes32 role)
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return
-            abi.encodePacked(
-                "AccessControl: account ",
-                Strings.toHexString(uint160(target), 20),
-                " is missing role ",
-                Strings.toHexString(uint256(role), 32)
-            );
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        grantFeeDistributorRole TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion if caller is not authorized
-     */
-    function testCannotGrantFeeDistributorRoleNotAuthorized() external {
-        vm.expectRevert(
-            _getRoleErrorMessage(
-                secondaryAccounts[0],
-                pirexFees.DEFAULT_ADMIN_ROLE()
-            )
-        );
-        vm.prank(secondaryAccounts[0]);
-        pirexFees.grantFeeDistributorRole(address(this));
-    }
-
-    /**
-        @notice Test tx reversion if the specified address is the zero address
-     */
-    function testCannotGrantFeeDistributorRoleZeroAddress() external {
-        vm.expectRevert(PirexFees.ZeroAddress.selector);
-        pirexFees.grantFeeDistributorRole(address(0));
-    }
-
-    /**
-        @notice Test granting the fee distributor role
-     */
-    function testGrantFeeDistributorRole() external {
-        address newDistributor = secondaryAccounts[0];
-        assertEq(
-            pirexFees.hasRole(pirexFees.FEE_DISTRIBUTOR_ROLE(), newDistributor),
-            false
-        );
-
-        vm.expectEmit(false, false, false, true);
-        emit GrantFeeDistributorRole(newDistributor);
-
-        pirexFees.grantFeeDistributorRole(newDistributor);
-        assertEq(
-            pirexFees.hasRole(pirexFees.FEE_DISTRIBUTOR_ROLE(), newDistributor),
-            true
-        );
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        revokeFeeDistributorRole TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion if caller is not authorized
-     */
-    function testCannotRevokeFeeDistributorRoleNotAuthorized() external {
-        vm.expectRevert(
-            _getRoleErrorMessage(
-                secondaryAccounts[0],
-                pirexFees.DEFAULT_ADMIN_ROLE()
-            )
-        );
-        vm.prank(secondaryAccounts[0]);
-        pirexFees.revokeFeeDistributorRole(address(this));
-    }
-
-    /**
-        @notice Test tx reversion if the specified address does not have the fee distributor role
-     */
-    function testCannotRevokeFeeDistributorRoleNotFeeDistributor() external {
-        vm.expectRevert(PirexFees.NotFeeDistributor.selector);
-        pirexFees.revokeFeeDistributorRole(address(0));
-    }
-
-    /**
-        @notice Test revoking the fee distributor role
-     */
-    function testRevokeFeeDistributorRole() external {
-        address newDistributor = secondaryAccounts[0];
-
-        // Grant the role first before revoking it
-        pirexFees.grantFeeDistributorRole(newDistributor);
-        assertEq(
-            pirexFees.hasRole(pirexFees.FEE_DISTRIBUTOR_ROLE(), newDistributor),
-            true
-        );
-
-        vm.expectEmit(false, false, false, true);
-        emit RevokeFeeDistributorRole(newDistributor);
-
-        pirexFees.revokeFeeDistributorRole(newDistributor);
-        assertEq(
-            pirexFees.hasRole(pirexFees.FEE_DISTRIBUTOR_ROLE(), newDistributor),
-            false
-        );
-    }
 
     /*//////////////////////////////////////////////////////////////
                         setFeeRecipient TESTS
@@ -132,12 +22,7 @@ contract PirexFeesTest is Test, HelperContract {
         @notice Test tx reversion if caller is not authorized
      */
     function testCannotSetFeeRecipientNotAuthorized() external {
-        vm.expectRevert(
-            _getRoleErrorMessage(
-                secondaryAccounts[0],
-                pirexFees.DEFAULT_ADMIN_ROLE()
-            )
-        );
+        vm.expectRevert(ACCESS_ERROR);
         vm.prank(secondaryAccounts[0]);
         pirexFees.setFeeRecipient(
             PirexFees.FeeRecipient.Contributors,
@@ -188,12 +73,7 @@ contract PirexFeesTest is Test, HelperContract {
         @notice Test tx reversion if caller is not authorized
      */
     function testCannotSetTreasuryPercentNotAuthorized() external {
-        vm.expectRevert(
-            _getRoleErrorMessage(
-                secondaryAccounts[0],
-                pirexFees.DEFAULT_ADMIN_ROLE()
-            )
-        );
+        vm.expectRevert(ACCESS_ERROR);
         vm.prank(secondaryAccounts[0]);
         pirexFees.setTreasuryPercent(MAX_TREASURY_PERCENT);
     }
@@ -226,20 +106,6 @@ contract PirexFeesTest is Test, HelperContract {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion if caller is not authorized as fee distributor
-     */
-    function testCannotDistributeFeesNotDistributor() external {
-        vm.expectRevert(
-            _getRoleErrorMessage(
-                secondaryAccounts[0],
-                pirexFees.FEE_DISTRIBUTOR_ROLE()
-            )
-        );
-        vm.prank(secondaryAccounts[0]);
-        pirexFees.distributeFees(secondaryAccounts[0], address(CVX), 0);
-    }
-
-    /**
         @notice Test distributing fees
         @param  amount  uint256  Amount to be distributed
      */
@@ -262,9 +128,6 @@ contract PirexFeesTest is Test, HelperContract {
         _mintCvx(address(from), amount);
         vm.prank(from);
         CVX.approve(address(pirexFees), amount);
-
-        // Grant distributor role to the primary account so it can call the distributeFees method
-        pirexFees.grantFeeDistributorRole(address(this));
 
         vm.expectEmit(false, false, false, true);
         emit DistributeFees(token, amount);

@@ -105,7 +105,6 @@ abstract contract HelperContract is
         pirexCvx.setPauseState(false);
         pxCvx.setOperator(address(pirexCvx));
         spxCvx.grantMinterRole(address(pirexCvx));
-        pirexFees.grantFeeDistributorRole(address(pirexCvx));
 
         bytes32 minterRole = keccak256("MINTER_ROLE");
 

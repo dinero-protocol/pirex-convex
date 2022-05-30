@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 
-contract PirexFees is AccessControl {
+contract PirexFees is Ownable {
     using SafeTransferLib for ERC20;
 
+    // Types of fee recipients
     enum FeeRecipient {
         Treasury,
         Contributors
     }
-
-    bytes32 public immutable FEE_DISTRIBUTOR_ROLE = bytes32("FEE_DISTRIBUTOR");
 
     uint8 public constant PERCENT_DENOMINATOR = 100;
 
@@ -24,14 +23,11 @@ contract PirexFees is AccessControl {
     address public treasury;
     address public contributors;
 
-    event GrantFeeDistributorRole(address distributor);
-    event RevokeFeeDistributorRole(address distributor);
     event SetFeeRecipient(FeeRecipient f, address recipient);
     event SetTreasuryPercent(uint8 _treasuryPercent);
     event DistributeFees(address token, uint256 amount);
 
     error ZeroAddress();
-    error NotFeeDistributor();
     error InvalidFeePercent();
 
     /**
@@ -41,42 +37,9 @@ contract PirexFees is AccessControl {
     constructor(address _treasury, address _contributors) {
         if (_treasury == address(0)) revert ZeroAddress();
         if (_contributors == address(0)) revert ZeroAddress();
-        
+
         treasury = _treasury;
         contributors = _contributors;
-
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    }
-
-    /**
-        @notice Grant the distributor role to an address
-        @param  distributor  address  Address to grant the distributor role
-     */
-    function grantFeeDistributorRole(address distributor)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
-        if (distributor == address(0)) revert ZeroAddress();
-
-        _grantRole(FEE_DISTRIBUTOR_ROLE, distributor);
-
-        emit GrantFeeDistributorRole(distributor);
-    }
-
-    /**
-     @notice Revoke the distributor role from an address
-     @param  distributor  address  Address to revoke the distributor role
-  */
-    function revokeFeeDistributorRole(address distributor)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
-        if (hasRole(FEE_DISTRIBUTOR_ROLE, distributor) == false)
-            revert NotFeeDistributor();
-
-        _revokeRole(FEE_DISTRIBUTOR_ROLE, distributor);
-
-        emit RevokeFeeDistributorRole(distributor);
     }
 
     /** 
@@ -86,7 +49,7 @@ contract PirexFees is AccessControl {
      */
     function setFeeRecipient(FeeRecipient f, address recipient)
         external
-        onlyRole(DEFAULT_ADMIN_ROLE)
+        onlyOwner
     {
         if (recipient == address(0)) revert ZeroAddress();
 
@@ -104,10 +67,7 @@ contract PirexFees is AccessControl {
         @notice Set treasury fee percent
         @param  _treasuryPercent  uint8  Treasury fee percent
      */
-    function setTreasuryPercent(uint8 _treasuryPercent)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
+    function setTreasuryPercent(uint8 _treasuryPercent) external onlyOwner {
         // Treasury fee percent should never exceed 75
         if (_treasuryPercent > 75) revert InvalidFeePercent();
 
@@ -126,7 +86,7 @@ contract PirexFees is AccessControl {
         address from,
         address token,
         uint256 amount
-    ) external onlyRole(FEE_DISTRIBUTOR_ROLE) {
+    ) external {
         emit DistributeFees(token, amount);
 
         ERC20 t = ERC20(token);
