@@ -73,6 +73,10 @@ const config: HardhatUserConfig = {
     ],
   },
   networks: {
+    mainnet: {
+      url: process.env.MAINNET_URL || '',
+      accounts: [process.env.MAINNET_PRIVATE_KEY || ''],
+    },
     ropsten: {
       url: process.env.ROPSTEN_URL || '',
       accounts:
@@ -93,6 +97,10 @@ const config: HardhatUserConfig = {
       accounts: {
         mnemonic: process.env.SEED,
       },
+    },
+    rinkeby: {
+      url: process.env.RINKEBY_URL || '',
+      accounts: [process.env.RINKEBY_PRIVATE_KEY || ''],
     },
   },
   mocha: {
