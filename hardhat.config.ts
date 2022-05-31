@@ -75,6 +75,7 @@ const config: HardhatUserConfig = {
   networks: {
     mainnet: {
       url: process.env.MAINNET_URL || '',
+      gasPrice: 25000000000,
       ...(process.env.MAINNET_PRIVATE_KEY && {
         accounts: [process.env.MAINNET_PRIVATE_KEY],
       }),

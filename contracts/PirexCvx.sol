@@ -20,7 +20,7 @@ import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
     Hakuna matata - greenbergz
     ZA WARUDO - seiji
     Why not both. The answer to all of life's questions. CVX locked or liquid? Crypto or childcare? - Percival
-    I have a dream: QmU6oGG8J1cKWKiuQU1y9YTiBF89LBUyojTjfvfzZ4GMif - funky
+    Dreams are made of these... QmU6oGG8J1cKWKiuQU1y9YTiBF89LBUyojTjfvfzZ4GMif - funky
     🫡 - Sami
     Put cereal in my coffee, INNOVATING ON CHAIN & OFF CHAIN - Marcel
     Development will continue until morale improves - Alunara
