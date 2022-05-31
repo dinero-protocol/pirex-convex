@@ -12,7 +12,7 @@ export const votiumMultiMerkleStash =
 export const redactedMultisig = '0xA52Fd396891E7A74b641a2Cb1A6999Fcf56B077e';
 
 // Union
-export const unionDistributor = '';
+export const unionDistributor = '0x6ED9c171E02De08aaEDF0Fc1D589923D807061D6';
 
 // Pirex
 export const pirexMultisig = '0x6ED9c171E02De08aaEDF0Fc1D589923D807061D6';
