@@ -31,30 +31,30 @@ async function main() {
   );
   const MINTER_ROLE = await vpxCvxContract.MINTER_ROLE();
 
-  // PxCvx
-  await pxCvxContract.setOperator(pirexCvx);
+  // // PxCvx
+  await (await pxCvxContract.setOperator(pirexCvx)).wait(1);
 
-  // PirexCvx - set fees
-  await pirexCvxContract.setFee('0', '40000'); // Reward
+  // // PirexCvx - set fees
+  await (await pirexCvxContract.setFee('0', '40000')).wait(1); // Reward
 
   // NOTE: Needs to finish before setting RedemptionMin due to check
   await (await pirexCvxContract.setFee('1', '50000')).wait(1); // RedemptionMax
 
-  await pirexCvxContract.setFee('2', '10000'); // RedemptionMin
-  await pirexCvxContract.setFee('3', '5000'); // Developers
+  await (await pirexCvxContract.setFee('2', '10000')).wait(1); // RedemptionMin
+  await (await pirexCvxContract.setFee('3', '5000')).wait(1); // Developers
 
   // PirexCvx - set vault
-  await pirexCvxContract.setContract('7', unionPirexVault);
+  await (await pirexCvxContract.setContract('7', unionPirexVault)).wait(1);
 
   // Tokens - grant minter roles
-  await spxCvxContract.grantMinterRole(pirexCvx);
-  await upxCvxContract.grantMinterRole(pirexCvx);
-  await vpxCvxContract.grantRole(MINTER_ROLE, pirexCvx);
-  await rpxCvxContract.grantRole(MINTER_ROLE, pirexCvx);
+  await (await spxCvxContract.grantMinterRole(pirexCvx)).wait(1);
+  await (await upxCvxContract.grantMinterRole(pirexCvx)).wait(1);
+  await (await vpxCvxContract.grantRole(MINTER_ROLE, pirexCvx)).wait(1);
+  await (await rpxCvxContract.grantRole(MINTER_ROLE, pirexCvx)).wait(1);
 
   // Vault
-  await unionPirexVaultContract.setPlatform(pirexMultisig);
-  await unionPirexVaultContract.setStrategy(unionPirexStrategy);
+  await (await unionPirexVaultContract.setPlatform(pirexMultisig)).wait(1);
+  await (await unionPirexVaultContract.setStrategy(unionPirexStrategy)).wait(1);
 
   // PirexCvx - unpause contract
   await pirexCvxContract.setPauseState(false);

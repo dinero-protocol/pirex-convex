@@ -7,6 +7,11 @@ import {
   redactedMultisig,
   unionDistributor,
   pirexMultisig,
+  pxCvx as pxCvxAddress,
+  spxCvx as spxCvxAddress,
+  upxCvx as upxCvxAddress,
+  vpxCvx as vpxCvxAddress,
+  rpxCvx as rpxCvxAddress,
 } from './constants';
 
 async function main() {
@@ -34,18 +39,18 @@ async function main() {
     cvx,
     cvxLockerV2,
     convexDelegateRegistry,
-    pxCvx.address,
-    upxCvx.address,
-    spxCvx.address,
-    vpxCvx.address,
-    rpxCvx.address,
+    pxCvxAddress,
+    upxCvxAddress,
+    spxCvxAddress,
+    vpxCvxAddress,
+    rpxCvxAddress,
     pirexFees.address,
     votiumMultiMerkleStash
   );
-  const unionPirexVault = await UnionPirexVault.deploy(pxCvx.address);
+  const unionPirexVault = await UnionPirexVault.deploy(pxCvxAddress);
   const unionPirexStrategy = await UnionPirexStrategy.deploy(
     pirexCvx.address,
-    pxCvx.address,
+    pxCvxAddress,
     unionDistributor,
     unionPirexVault.address
   );

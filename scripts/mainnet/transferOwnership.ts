@@ -41,21 +41,21 @@ async function main() {
   const MINTER_ROLE = await spxCvxContract.MINTER_ROLE();
 
   // Ownable-based
-  await pxCvxContract.transferOwnership(pirexMultisig);
-  await pirexFeesContract.transferOwnership(pirexMultisig);
-  await pirexCvxContract.transferOwnership(pirexMultisig);
-  await unionPirexVaultContract.transferOwnership(pirexMultisig);
-  await unionPirexStrategyContract.transferOwnership(pirexMultisig);
+  await (await pxCvxContract.transferOwnership(pirexMultisig)).wait(1);
+  await (await pirexFeesContract.transferOwnership(pirexMultisig)).wait(1);
+  await (await pirexCvxContract.transferOwnership(pirexMultisig)).wait(1);
+  await (await unionPirexVaultContract.transferOwnership(pirexMultisig)).wait(1);
+  await (await unionPirexStrategyContract.transferOwnership(pirexMultisig)).wait(1);
 
   // AccessControl-based - ERC1155Solmate contracts
   await (
     await spxCvxContract.grantRole(DEFAULT_ADMIN_ROLE, pirexMultisig)
   ).wait(1);
-  await spxCvxContract.renounceRole(DEFAULT_ADMIN_ROLE, deployer.address);
+  await (await spxCvxContract.renounceRole(DEFAULT_ADMIN_ROLE, deployer.address)).wait(1);
   await (
     await upxCvxContract.grantRole(DEFAULT_ADMIN_ROLE, pirexMultisig)
   ).wait(1);
-  await spxCvxContract.renounceRole(DEFAULT_ADMIN_ROLE, deployer.address);
+  await (await spxCvxContract.renounceRole(DEFAULT_ADMIN_ROLE, deployer.address)).wait(1);
 
   // AccessControl-based - ERC1155PresetMinterSupply contracts
   await (
@@ -64,14 +64,14 @@ async function main() {
   await (
     await vpxCvxContract.grantRole(DEFAULT_ADMIN_ROLE, pirexMultisig)
   ).wait(1);
-  await vpxCvxContract.renounceRole(DEFAULT_ADMIN_ROLE, deployer.address);
+  await (await vpxCvxContract.renounceRole(DEFAULT_ADMIN_ROLE, deployer.address)).wait(1);
   await (
     await rpxCvxContract.renounceRole(MINTER_ROLE, deployer.address)
   ).wait(1);
   await (
     await rpxCvxContract.grantRole(DEFAULT_ADMIN_ROLE, pirexMultisig)
   ).wait(1);
-  await rpxCvxContract.renounceRole(DEFAULT_ADMIN_ROLE, deployer.address);
+  await (await rpxCvxContract.renounceRole(DEFAULT_ADMIN_ROLE, deployer.address)).wait(1);
 }
 
 main()

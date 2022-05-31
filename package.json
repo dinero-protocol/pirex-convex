@@ -1,7 +1,7 @@
 {
-  "name": "dopswap",
+  "name": "pirex",
   "version": "1.0.0",
-  "description": "",
+  "description": "CVX derivatives",
   "main": "index.js",
   "scripts": {
     "lint-sol": "solhint \"contracts/*.sol\"",
@@ -13,17 +13,18 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kphed/dopswap.git"
+    "url": "git+https://github.com/redacted-cartel/pirex.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/kphed/dopswap/issues"
+    "url": "https://github.com/redacted-cartel/pirex/issues"
   },
-  "homepage": "https://github.com/kphed/dopswap#readme",
+  "homepage": "https://github.com/redacted-cartel/pirex#readme",
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.4",
+    "@nomiclabs/hardhat-etherscan": "^3.0.4",
     "@nomiclabs/hardhat-waffle": "^2.0.2",
     "@typechain/ethers-v5": "^9.0.0",
     "@typechain/hardhat": "^4.0.0",
