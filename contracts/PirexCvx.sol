@@ -14,6 +14,18 @@ import {ERC1155PresetMinterSupply} from "./tokens/ERC1155PresetMinterSupply.sol"
 import {IVotiumMultiMerkleStash} from "./interfaces/IVotiumMultiMerkleStash.sol";
 import {ICvxLocker} from "./interfaces/ICvxLocker.sol";
 
+/**
+    For Jude 🐾 - kings never die. QmPXRvYyDSqiqk9Xj9zsoaLa3UMN2uL5A8J9CPQPHvPQ6i - kp
+    Arise, you have nothing to lose but your barbed wire fences! - never
+    Hakuna matata - greenbergz
+    ZA WARUDO - seiji
+    Why not both. The answer to all of life's questions. CVX locked or liquid? Crypto or childcare? - Percival
+    I have a dream: QmU6oGG8J1cKWKiuQU1y9YTiBF89LBUyojTjfvfzZ4GMif - funky
+    🫡 - Sami
+    Put cereal in my coffee, INNOVATING ON CHAIN & OFF CHAIN - Marcel
+    Development will continue until morale improves - Alunara
+    Imagine using a lame ass quote instead of ascii art - Benny
+*/
 contract PirexCvx is ReentrancyGuard, PirexCvxConvex {
     using SafeTransferLib for ERC20;
     using Bytes32AddressLib for address;
