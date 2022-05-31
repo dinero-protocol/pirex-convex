@@ -19,7 +19,7 @@ contract UnionPirexVault is Ownable, ERC4626 {
     uint256 public constant FEE_DENOMINATOR = 10000;
 
     uint256 public withdrawalPenalty = 300;
-    uint256 public platformFee = 500;
+    uint256 public platformFee = 1000;
     address public platform;
 
     event Harvest(address indexed caller, uint256 value);
