@@ -76,7 +76,7 @@ describe('PirexCvx-UnionPirex*', function () {
       expect(MAX_PLATFORM_FEE).to.equal(2000);
       expect(FEE_DENOMINATOR).to.equal(10000);
       expect(withdrawalPenalty).to.equal(300);
-      expect(platformFee).to.equal(500);
+      expect(platformFee).to.equal(1000);
     });
   });
 
