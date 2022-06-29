@@ -111,6 +111,7 @@ typechain-types
 data
 coverage.json
 .vscode/settings.json
+verify/
 
 # scripts
 scripts/loadEnv.sh

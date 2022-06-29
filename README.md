@@ -4,7 +4,7 @@
 
 Liquid vote-locked Convex with the ability to sell your future bribes and votes and collect upfront liquidity.
 
-We have a "difficulty mode" which we hope will allow us to cater to every type of user:
+We have "difficulty modes" which we hope will allow us to cater to every type of user:
 
 - Easy mode: Deposit CVX and we'll auto-compound your bribes every round into more pxCVX
 - Intermediate mode: Mimic locking with Convex but with the added benefits of liquid CVX (pxCVX) and all 17 weeks' worth of your bribes tokenized

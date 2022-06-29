@@ -6,6 +6,7 @@ import '@nomiclabs/hardhat-waffle';
 import '@typechain/hardhat';
 import 'solidity-coverage';
 import 'hardhat-gas-reporter';
+import "@nomiclabs/hardhat-etherscan";
 
 dotenv.config();
 
@@ -73,6 +74,13 @@ const config: HardhatUserConfig = {
     ],
   },
   networks: {
+    mainnet: {
+      url: process.env.MAINNET_URL || '',
+      gasPrice: 50000000000,
+      ...(process.env.MAINNET_PRIVATE_KEY && {
+        accounts: [process.env.MAINNET_PRIVATE_KEY],
+      }),
+    },
     ropsten: {
       url: process.env.ROPSTEN_URL || '',
       accounts:
@@ -94,6 +102,17 @@ const config: HardhatUserConfig = {
         mnemonic: process.env.SEED,
       },
     },
+    rinkeby: {
+      url: process.env.RINKEBY_URL || '',
+      ...(process.env.RINKEBY_PRIVATE_KEY && {
+        accounts: [process.env.RINKEBY_PRIVATE_KEY],
+      }),
+    },
+  },
+  etherscan: {
+    // Your API key for Etherscan
+    // Obtain one at https://etherscan.io/
+    apiKey: process.env.ETHERSCAN_API
   },
   mocha: {
     timeout: 60000,
