@@ -162,13 +162,12 @@ contract WPxCvx is ERC20, Ownable, ReentrancyGuard {
             pxCVX.safeTransferFrom(msg.sender, address(this), amount);
             _mint(address(this), amount);
 
-            // Swap the wpxCVX for CVX and calculate the final received amount
+            // Swap the wpxCVX for CVX
             uint256 oldBalance = CVX.balanceOf(address(this));
             curvePool.exchange(1, 0, amount, minReceived);
-            uint256 newBalance = CVX.balanceOf(address(this));
 
-            // Transfer the resulting CVX to the user
-            CVX.safeTransfer(msg.sender, newBalance - oldBalance);
+            // Transfer the actual received amount of CVX to the user
+            CVX.safeTransfer(msg.sender, CVX.balanceOf(address(this)) - oldBalance);
         } else {
             // Transfer the CVX to the contract for the actual swap
             CVX.safeTransferFrom(msg.sender, address(this), amount);
@@ -179,7 +178,7 @@ contract WPxCvx is ERC20, Ownable, ReentrancyGuard {
             uint256 newBalance = balanceOf[address(this)];
             uint256 received = newBalance - oldBalance;
 
-            // Burn the wpxCVX and transfer the equivalent amount of pxCVX to the user
+            // Burn the received wpxCVX and transfer the equivalent amount of pxCVX to the user
             _burn(address(this), received);
             pxCVX.safeTransfer(msg.sender, received);
         }
