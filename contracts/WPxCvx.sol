@@ -11,6 +11,12 @@ import {ICurvePool} from "./interfaces/ICurvePool.sol";
 contract WPxCvx is ERC20, Ownable, ReentrancyGuard {
     using SafeTransferLib for ERC20;
 
+    // Enumeration for the token swap
+    enum Token {
+        CVX,
+        pxCVX
+    }
+
     ERC20 public immutable pxCVX;
     ERC20 public immutable CVX;
 
@@ -137,55 +143,45 @@ contract WPxCvx is ERC20, Ownable, ReentrancyGuard {
     }
 
     /** 
-        @notice Swap the specified amount of pxCVX into CVX via the curvePool
-        @param  amount       uint256  Amount of pxCVX
-        @param  minReceived  uint256  Minimum received amount of CVX
+        @notice Swap the specified amount of source token into the counterpart token via the curvePool
+        @param  source       enum     Source token
+        @param  amount       uint256  Amount of source token
+        @param  minReceived  uint256  Minimum received amount of counterpart token
      */
-    function swapToCVX(uint256 amount, uint256 minReceived)
-        external
-        nonReentrant
-    {
+    function swap(
+        Token source,
+        uint256 amount,
+        uint256 minReceived
+    ) external nonReentrant {
         if (address(curvePool) == address(0)) revert PoolNotSet();
         if (amount == 0) revert ZeroAmount();
         if (minReceived == 0) revert ZeroAmount();
 
-        pxCVX.safeTransferFrom(msg.sender, address(this), amount);
+        if (source == Token.pxCVX) {
+            // Transfer the pxCVX to the contract then mint the equivalent amount of wpxCVX
+            pxCVX.safeTransferFrom(msg.sender, address(this), amount);
+            _mint(address(this), amount);
 
-        _mint(address(this), amount);
+            // Swap the wpxCVX for CVX and calculate the final received amount
+            uint256 oldBalance = CVX.balanceOf(address(this));
+            curvePool.exchange(1, 0, amount, minReceived);
+            uint256 newBalance = CVX.balanceOf(address(this));
 
-        uint256 oldBalance = CVX.balanceOf(address(this));
+            // Transfer the resulting CVX to the user
+            CVX.safeTransfer(msg.sender, newBalance - oldBalance);
+        } else {
+            // Transfer the CVX to the contract for the actual swap
+            CVX.safeTransferFrom(msg.sender, address(this), amount);
 
-        curvePool.exchange(1, 0, amount, minReceived);
+            // Swap the CVX for wpxCVX and calculate the final received amount
+            uint256 oldBalance = balanceOf[address(this)];
+            curvePool.exchange(0, 1, amount, minReceived);
+            uint256 newBalance = balanceOf[address(this)];
+            uint256 received = newBalance - oldBalance;
 
-        uint256 newBalance = CVX.balanceOf(address(this));
-
-        CVX.safeTransfer(msg.sender, newBalance - oldBalance);
-    }
-
-    /** 
-        @notice Swap the specified amount of CVX into pxCVX via the curvePool
-        @param  amount       uint256  Amount of CVX
-        @param  minReceived  uint256  Minimum received amount of pxCVX
-     */
-    function swapToPxCVX(uint256 amount, uint256 minReceived)
-        external
-        nonReentrant
-    {
-        if (address(curvePool) == address(0)) revert PoolNotSet();
-        if (amount == 0) revert ZeroAmount();
-        if (minReceived == 0) revert ZeroAmount();
-
-        CVX.safeTransferFrom(msg.sender, address(this), amount);
-
-        uint256 oldBalance = balanceOf[address(this)];
-
-        curvePool.exchange(0, 1, amount, minReceived);
-
-        uint256 newBalance = balanceOf[address(this)];
-        uint256 received = newBalance - oldBalance;
-
-        _burn(address(this), received);
-
-        pxCVX.safeTransfer(msg.sender, received);
+            // Burn the wpxCVX and transfer the equivalent amount of pxCVX to the user
+            _burn(address(this), received);
+            pxCVX.safeTransfer(msg.sender, received);
+        }
     }
 }

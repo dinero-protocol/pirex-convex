@@ -31,6 +31,7 @@ describe('WPxCvx', function () {
   let wpxCvx: WPxCvx;
   let curvePoolHelper: CurvePoolHelper;
   let zeroAddress: string;
+  let tokenEnum: any;
 
   before(async function () {
     ({
@@ -44,6 +45,7 @@ describe('WPxCvx', function () {
       wpxCvx,
       curvePoolHelper,
       zeroAddress,
+      tokenEnum,
     } = this);
 
     // Deposit to get pxCVX
@@ -120,11 +122,9 @@ describe('WPxCvx', function () {
   // as we can't revert the pool address to non zero address after
   describe('swap: PoolNotSet', function () {
     it('Should revert if swapping to CVX before the pool is set', async function () {
-      await expect(wpxCvx.swapToCVX(1, 1)).to.be.revertedWith('PoolNotSet()');
-    });
-
-    it('Should revert if swapping to pxCVX before the pool is set', async function () {
-      await expect(wpxCvx.swapToPxCVX(1, 1)).to.be.revertedWith('PoolNotSet()');
+      await expect(wpxCvx.swap(tokenEnum.cvx, 1, 1)).to.be.revertedWith(
+        'PoolNotSet()'
+      );
     });
   });
 
@@ -407,12 +407,12 @@ describe('WPxCvx', function () {
     });
   });
 
-  describe('swapToCVX', function () {
+  describe('swap: pxCVX -> CVX', function () {
     it('Should revert on zero amount', async function () {
       const invalidAmount = 0;
 
       await expect(
-        wpxCvx.swapToCVX(invalidAmount, invalidAmount)
+        wpxCvx.swap(tokenEnum.pxCvx, invalidAmount, invalidAmount)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
@@ -421,7 +421,7 @@ describe('WPxCvx', function () {
       const invalidAmount = (await pxCvx.balanceOf(admin.address)).mul(2);
 
       await expect(
-        wpxCvx.swapToCVX(invalidAmount, invalidAmount)
+        wpxCvx.swap(tokenEnum.pxCvx, invalidAmount, invalidAmount)
       ).to.be.revertedWith(
         "VM Exception while processing transaction: reverted with reason string 'TRANSFER_FROM_FAILED'"
       );
@@ -435,7 +435,8 @@ describe('WPxCvx', function () {
       // Test with zero slippage, thus minReceived = get_dy
       const minReceived = await curvePoolHelper.getDy(1, 0, amount);
 
-      const events = await callAndReturnEvents(wpxCvx.swapToCVX, [
+      const events = await callAndReturnEvents(wpxCvx.swap, [
+        tokenEnum.pxCvx,
         amount,
         minReceived,
       ]);
@@ -484,12 +485,12 @@ describe('WPxCvx', function () {
     });
   });
 
-  describe('swapToPxCVX', function () {
+  describe('swap: CVX -> pxCVX', function () {
     it('Should revert on zero amount', async function () {
       const invalidAmount = 0;
 
       await expect(
-        wpxCvx.swapToPxCVX(invalidAmount, invalidAmount)
+        wpxCvx.swap(tokenEnum.cvx, invalidAmount, invalidAmount)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
@@ -498,7 +499,7 @@ describe('WPxCvx', function () {
       const invalidAmount = (await cvx.balanceOf(admin.address)).mul(2);
 
       await expect(
-        wpxCvx.swapToPxCVX(invalidAmount, invalidAmount)
+        wpxCvx.swap(tokenEnum.cvx, invalidAmount, invalidAmount)
       ).to.be.revertedWith(
         "VM Exception while processing transaction: reverted with reason string 'TRANSFER_FROM_FAILED'"
       );
@@ -514,7 +515,8 @@ describe('WPxCvx', function () {
 
       await cvx.approve(wpxCvx.address, amount);
 
-      const events = await callAndReturnEvents(wpxCvx.swapToPxCVX, [
+      const events = await callAndReturnEvents(wpxCvx.swap, [
+        tokenEnum.cvx,
         amount,
         minReceived,
       ]);

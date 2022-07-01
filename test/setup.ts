@@ -244,6 +244,10 @@ before(async function () {
     redemptionMax: 1,
     redemptionMin: 2,
   };
+  this.tokenEnum = {
+    cvx: 0,
+    pxCvx: 1,
+  };
 
   // Enable minting rights for PirexCvx contract
   const minterRole = await vpxCvx.MINTER_ROLE();
