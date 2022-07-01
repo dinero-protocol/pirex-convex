@@ -10,12 +10,14 @@ import {PirexCvxMock} from "contracts/mocks/PirexCvxMock.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
 import {PirexFees} from "contracts/PirexFees.sol";
+import {WPxCvx} from "contracts/WPxCvx.sol";
 import {ERC1155PresetMinterSupply} from "contracts/tokens/ERC1155PresetMinterSupply.sol";
 import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
 import {UnionPirexVault} from "contracts/vault/UnionPirexVault.sol";
 import {UnionPirexStrategyMock} from "contracts/mocks/UnionPirexStrategyMock.sol";
 import {MultiMerkleStash} from "contracts/mocks/MultiMerkleStash.sol";
 import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
+import {CurvePoolHelper} from "contracts/mocks/CurvePoolHelper.sol";
 import {IVotiumMultiMerkleStash} from "contracts/interfaces/IVotiumMultiMerkleStash.sol";
 
 interface IConvexToken is IERC20 {
@@ -47,6 +49,8 @@ abstract contract HelperContract is
         0x5409ED021D9299bf6814279A6A1411A7e866A631;
     address public constant TREASURY =
         0x086C98855dF3C78C6b481b6e1D47BeF42E9aC36B;
+    address public constant CURVE_DEPLOYER =
+        0xF18056Bbd320E96A48e3Fbf8bC061322531aac99;
     uint256 public constant EPOCH_DURATION = 1209600;
 
     PirexCvxMock public immutable pirexCvx;
@@ -58,6 +62,8 @@ abstract contract HelperContract is
     UnionPirexVault public immutable unionPirex;
     UnionPirexStrategyMock public immutable unionPirexStrategy;
     PirexFees public immutable pirexFees;
+    WPxCvx public immutable wpxCvx;
+    CurvePoolHelper public immutable curvePoolHelper;
     uint32 public immutable FEE_MAX;
 
     address[3] public secondaryAccounts = [
@@ -91,6 +97,17 @@ abstract contract HelperContract is
             address(pxCvx),
             address(this),
             address(unionPirex)
+        );
+        wpxCvx = new WPxCvx(
+            address(pxCvx),
+            address(CVX),
+            address(pirexCvx),
+            msg.sender
+        );
+        curvePoolHelper = new CurvePoolHelper(
+            CURVE_DEPLOYER,
+            address(CVX),
+            address(wpxCvx)
         );
 
         // Configure contracts

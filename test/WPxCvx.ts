@@ -410,9 +410,14 @@ describe('WPxCvx', function () {
   describe('swap: pxCVX -> CVX', function () {
     it('Should revert on zero amount', async function () {
       const invalidAmount = 0;
+      const validAmount = 1;
 
       await expect(
-        wpxCvx.swap(tokenEnum.pxCvx, invalidAmount, invalidAmount)
+        wpxCvx.swap(tokenEnum.pxCvx, invalidAmount, validAmount)
+      ).to.be.revertedWith('ZeroAmount()');
+
+      await expect(
+        wpxCvx.swap(tokenEnum.pxCvx, validAmount, invalidAmount)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
@@ -488,9 +493,14 @@ describe('WPxCvx', function () {
   describe('swap: CVX -> pxCVX', function () {
     it('Should revert on zero amount', async function () {
       const invalidAmount = 0;
+      const validAmount = 1;
 
       await expect(
-        wpxCvx.swap(tokenEnum.cvx, invalidAmount, invalidAmount)
+        wpxCvx.swap(tokenEnum.cvx, invalidAmount, validAmount)
+      ).to.be.revertedWith('ZeroAmount()');
+
+      await expect(
+        wpxCvx.swap(tokenEnum.cvx, validAmount, invalidAmount)
       ).to.be.revertedWith('ZeroAmount()');
     });
 
