@@ -11,26 +11,30 @@ contract WPxCvxTest is Test, HelperContract {
     /**
         @notice Init curvePool by performing deposit, wrapping, and initial liquidity providing
      */
-    function _setupCurvePool(uint72 initialAmount) internal {
-        uint72 amountPerToken = initialAmount / 2;
+    function _setupCurvePool(uint256 initialAmount) internal {
+        uint256 amountPerToken = initialAmount / 2;
 
+        // Setup to get equal amount of CVX and pxCVX
         _mintCvx(address(this), amountPerToken);
         _mintAndDepositCVX(
             amountPerToken,
             address(this),
             false,
             address(0),
-            false
+            true
         );
 
+        // Wrap the pxCVX into wpxCVX
         pxCvx.approve(address(wpxCvx), type(uint256).max);
-
         wpxCvx.wrap(amountPerToken);
 
+        // Transfer the tokens to the helper to add first liquidity
         CVX.transfer(address(curvePoolHelper), amountPerToken);
         wpxCvx.transfer(address(curvePoolHelper), amountPerToken);
-
         curvePoolHelper.initPool(amountPerToken, amountPerToken);
+
+        // Set the curvePool contract address
+        wpxCvx.setCurvePool(curvePoolHelper.poolAddress());
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -238,5 +242,182 @@ contract WPxCvxTest is Test, HelperContract {
             (snapshotRewards[0] * snapshotBalance) / snapshotSupply
         );
         assertEq(pxCvx.getEpochRedeemedSnapshotRewards(account, epoch), 1);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        wrap TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion on zero amount
+     */
+    function testCannotWrapZeroAmount() external {
+        vm.expectRevert(WPxCvx.ZeroAmount.selector);
+
+        wpxCvx.wrap(0);
+    }
+
+    /**
+        @notice Test tx reversion on insufficient balance
+     */
+    function testCannotWrapInsufficientBalance() external {
+        pxCvx.approve(address(wpxCvx), type(uint256).max);
+
+        vm.expectRevert("TRANSFER_FROM_FAILED");
+
+        wpxCvx.wrap(1);
+    }
+
+    /**
+        @notice Test wrapping pxCVX into wpxCVX
+        @param  amount  uint72  Amount to be wrapped
+     */
+    function testWrap(uint72 amount) external {
+        vm.assume(amount != 0);
+
+        address account = address(this);
+
+        // Deposit to get some pxCVX to be wrapped later
+        _mintAndDepositCVX(amount, account, false, address(0), true);
+
+        pxCvx.approve(address(wpxCvx), type(uint256).max);
+
+        uint256 wpxCvxBalanceBefore = wpxCvx.balanceOf(account);
+        uint256 pxCvxBalanceBefore = pxCvx.balanceOf(account);
+
+        // Wrap the pxCVX into wpxCVX
+        wpxCvx.wrap(amount);
+
+        assertEq(wpxCvx.balanceOf(account), wpxCvxBalanceBefore + amount);
+        assertEq(pxCvx.balanceOf(account), pxCvxBalanceBefore - amount);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        unwrap TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion on zero amount
+     */
+    function testCannotUnwrapZeroAmount() external {
+        vm.expectRevert(WPxCvx.ZeroAmount.selector);
+
+        wpxCvx.unwrap(0);
+    }
+
+    /**
+        @notice Test tx reversion on insufficient balance
+     */
+    function testCannotUnwrapInsufficientBalance() external {
+        wpxCvx.approve(address(wpxCvx), type(uint256).max);
+
+        vm.expectRevert(stdError.arithmeticError);
+
+        wpxCvx.unwrap(1);
+    }
+
+    /**
+        @notice Test unwrapping wpxCVX back into pxCVX
+        @param  amount  uint72  Amount to be unwrapped
+     */
+    function testUnwrap(uint72 amount) external {
+        vm.assume(amount != 0);
+
+        address account = address(this);
+
+        // Deposit to get some pxCVX to be wrapped later
+        _mintAndDepositCVX(amount, account, false, address(0), true);
+
+        pxCvx.approve(address(wpxCvx), type(uint256).max);
+        wpxCvx.approve(address(wpxCvx), type(uint256).max);
+
+        uint256 wpxCvxBalanceBefore = wpxCvx.balanceOf(account);
+        uint256 pxCvxBalanceBefore = pxCvx.balanceOf(account);
+
+        // Wrap first so we have some wpxCVX to test unwrapping
+        wpxCvx.wrap(amount);
+
+        assertEq(wpxCvx.balanceOf(account), wpxCvxBalanceBefore + amount);
+        assertEq(pxCvx.balanceOf(account), pxCvxBalanceBefore - amount);
+
+        // Attempt to unwrap
+        wpxCvx.unwrap(amount);
+
+        assertEq(wpxCvx.balanceOf(account), wpxCvxBalanceBefore);
+        assertEq(pxCvx.balanceOf(account), pxCvxBalanceBefore);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        swap TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if the curvePool is not yet set
+     */
+    function testCannotSwapPoolNotSet() external {
+        vm.expectRevert(WPxCvx.PoolNotSet.selector);
+
+        wpxCvx.swap(WPxCvx.Token.CVX, 1, 1);
+    }
+
+    /**
+        @notice Test tx reversion on zero amount
+     */
+    function testCannotSwapZeroAmount() external {
+        _setupCurvePool(10e18);
+
+        vm.expectRevert(WPxCvx.ZeroAmount.selector);
+
+        wpxCvx.swap(WPxCvx.Token.CVX, 0, 1);
+
+        vm.expectRevert(WPxCvx.ZeroAmount.selector);
+
+        wpxCvx.swap(WPxCvx.Token.CVX, 1, 0);
+    }
+
+    /**
+        @notice Test swapping from source to counterpart token
+        @param  source  uint8   Integer representation of the token enum
+        @param  amount  uint72  Amount to be swapped
+     */
+    function testSwap(uint8 source, uint72 amount) external {
+        vm.assume(source <= uint8(type(WPxCvx.Token).max));
+        vm.assume(amount > 1e18);
+
+        // Setup the curvePool with large enough liquidity
+        _setupCurvePool(uint256(amount) * 10);
+
+        address account = address(this);
+        WPxCvx.Token sourceToken = WPxCvx.Token(source);
+
+        if (sourceToken == WPxCvx.Token.pxCVX) {
+            _mintAndDepositCVX(amount, account, false, address(0), true);
+
+            pxCvx.approve(address(wpxCvx), amount);
+
+            uint256 cvxBalanceBefore = CVX.balanceOf(account);
+            uint256 pxCvxBalanceBefore = pxCvx.balanceOf(account);
+
+            // Test swapping from pxCVX to CVX with zero slippage
+            uint256 minReceived = curvePoolHelper.getDy(1, 0, amount);
+            wpxCvx.swap(sourceToken, amount, minReceived);
+
+            assertEq(CVX.balanceOf(account), cvxBalanceBefore + minReceived);
+            assertEq(pxCvx.balanceOf(account), pxCvxBalanceBefore - amount);
+        } else {
+            _mintCvx(account, amount);
+
+            CVX.approve(address(wpxCvx), amount);
+
+            uint256 cvxBalanceBefore = CVX.balanceOf(account);
+            uint256 pxCvxBalanceBefore = pxCvx.balanceOf(account);
+
+            // Test swapping from CVX to pxCVX with zero slippage
+            uint256 minReceived = curvePoolHelper.getDy(0, 1, amount);
+            wpxCvx.swap(sourceToken, amount, minReceived);
+
+            assertEq(CVX.balanceOf(account), cvxBalanceBefore - amount);
+            assertEq(pxCvx.balanceOf(account), pxCvxBalanceBefore + minReceived);
+        }
     }
 }
