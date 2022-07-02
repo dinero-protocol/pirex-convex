@@ -417,7 +417,10 @@ contract WPxCvxTest is Test, HelperContract {
             wpxCvx.swap(sourceToken, amount, minReceived);
 
             assertEq(CVX.balanceOf(account), cvxBalanceBefore - amount);
-            assertEq(pxCvx.balanceOf(account), pxCvxBalanceBefore + minReceived);
+            assertEq(
+                pxCvx.balanceOf(account),
+                pxCvxBalanceBefore + minReceived
+            );
         }
     }
 }
