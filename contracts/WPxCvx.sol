@@ -8,7 +8,7 @@ import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.s
 import {PirexCvx} from "./PirexCvx.sol";
 import {ICurvePool} from "./interfaces/ICurvePool.sol";
 
-contract WPxCvx is ERC20, Ownable, ReentrancyGuard {
+contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
     using SafeTransferLib for ERC20;
 
     // Enumeration for the token swap
@@ -79,6 +79,8 @@ contract WPxCvx is ERC20, Ownable, ReentrancyGuard {
     function setCurvePool(address _curvePool) external onlyOwner {
         if (_curvePool == address(0)) revert ZeroAddress();
 
+        emit SetCurvePool(_curvePool);
+
         address oldCurvePool = address(curvePool);
 
         // Clear out approvals for old pool contract when needed
@@ -91,8 +93,6 @@ contract WPxCvx is ERC20, Ownable, ReentrancyGuard {
         curvePool = ICurvePool(_curvePool);
         ERC20(address(this)).safeApprove(_curvePool, type(uint256).max);
         CVX.safeApprove(_curvePool, type(uint256).max);
-
-        emit SetCurvePool(_curvePool);
     }
 
     /** 

@@ -7,7 +7,7 @@ import {
   ConvexToken,
   Crv,
   MultiMerkleStash,
-  WPxCvx,
+  WpxCvx,
   CurvePoolHelper,
 } from '../typechain-types';
 import {
@@ -19,8 +19,8 @@ import {
 } from './helpers';
 import { BalanceTree } from '../lib/merkle';
 
-// Tests WPxCvx functionalities tied to the Curve pool
-describe('WPxCvx', function () {
+// Tests WpxCvx functionalities tied to the Curve pool
+describe('WpxCvx', function () {
   let admin: SignerWithAddress;
   let notAdmin: SignerWithAddress;
   let pxCvx: PxCvx;
@@ -28,7 +28,7 @@ describe('WPxCvx', function () {
   let cvx: ConvexToken;
   let crv: Crv;
   let votiumMultiMerkleStash: MultiMerkleStash;
-  let wpxCvx: WPxCvx;
+  let wpxCvx: WpxCvx;
   let curvePoolHelper: CurvePoolHelper;
   let zeroAddress: string;
   let tokenEnum: any;

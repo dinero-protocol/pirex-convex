@@ -10,7 +10,7 @@ import {PirexCvxMock} from "contracts/mocks/PirexCvxMock.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
 import {PirexFees} from "contracts/PirexFees.sol";
-import {WPxCvx} from "contracts/WPxCvx.sol";
+import {WpxCvx} from "contracts/WpxCvx.sol";
 import {ERC1155PresetMinterSupply} from "contracts/tokens/ERC1155PresetMinterSupply.sol";
 import {ERC1155Solmate} from "contracts/tokens/ERC1155Solmate.sol";
 import {UnionPirexVault} from "contracts/vault/UnionPirexVault.sol";
@@ -62,7 +62,7 @@ abstract contract HelperContract is
     UnionPirexVault public immutable unionPirex;
     UnionPirexStrategyMock public immutable unionPirexStrategy;
     PirexFees public immutable pirexFees;
-    WPxCvx public immutable wpxCvx;
+    WpxCvx public immutable wpxCvx;
     CurvePoolHelper public immutable curvePoolHelper;
     uint32 public immutable FEE_MAX;
 
@@ -98,7 +98,7 @@ abstract contract HelperContract is
             address(this),
             address(unionPirex)
         );
-        wpxCvx = new WPxCvx(
+        wpxCvx = new WpxCvx(
             address(pxCvx),
             address(CVX),
             address(pirexCvx),

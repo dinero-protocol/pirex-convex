@@ -5,9 +5,9 @@ import "forge-std/Test.sol";
 import {HelperContract} from "./HelperContract.sol";
 import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
-import {WPxCvx} from "contracts/WPxCvx.sol";
+import {WpxCvx} from "contracts/WpxCvx.sol";
 
-contract WPxCvxTest is Test, HelperContract {
+contract WpxCvxTest is Test, HelperContract {
     /**
         @notice Init curvePool by performing deposit, wrapping, and initial liquidity providing
      */
@@ -55,7 +55,7 @@ contract WPxCvxTest is Test, HelperContract {
         @notice Test tx reversion if the specified address is the zero address
      */
     function testCannotSetPirexCvxZeroAddress() external {
-        vm.expectRevert(WPxCvx.ZeroAddress.selector);
+        vm.expectRevert(WpxCvx.ZeroAddress.selector);
 
         wpxCvx.setPirexCvx(address(0));
     }
@@ -93,7 +93,7 @@ contract WPxCvxTest is Test, HelperContract {
         @notice Test tx reversion if the specified address is the zero address
      */
     function testCannotSetCurvePoolZeroAddress() external {
-        vm.expectRevert(WPxCvx.ZeroAddress.selector);
+        vm.expectRevert(WpxCvx.ZeroAddress.selector);
 
         wpxCvx.setCurvePool(address(0));
     }
@@ -143,7 +143,7 @@ contract WPxCvxTest is Test, HelperContract {
         @notice Test tx reversion if the specified address is the zero address
      */
     function testCannotSetRewardReceiverZeroAddress() external {
-        vm.expectRevert(WPxCvx.ZeroAddress.selector);
+        vm.expectRevert(WpxCvx.ZeroAddress.selector);
 
         wpxCvx.setRewardReceiver(address(0));
     }
@@ -252,7 +252,7 @@ contract WPxCvxTest is Test, HelperContract {
         @notice Test tx reversion on zero amount
      */
     function testCannotWrapZeroAmount() external {
-        vm.expectRevert(WPxCvx.ZeroAmount.selector);
+        vm.expectRevert(WpxCvx.ZeroAmount.selector);
 
         wpxCvx.wrap(0);
     }
@@ -300,7 +300,7 @@ contract WPxCvxTest is Test, HelperContract {
         @notice Test tx reversion on zero amount
      */
     function testCannotUnwrapZeroAmount() external {
-        vm.expectRevert(WPxCvx.ZeroAmount.selector);
+        vm.expectRevert(WpxCvx.ZeroAmount.selector);
 
         wpxCvx.unwrap(0);
     }
@@ -355,9 +355,9 @@ contract WPxCvxTest is Test, HelperContract {
         @notice Test tx reversion if the curvePool is not yet set
      */
     function testCannotSwapPoolNotSet() external {
-        vm.expectRevert(WPxCvx.PoolNotSet.selector);
+        vm.expectRevert(WpxCvx.PoolNotSet.selector);
 
-        wpxCvx.swap(WPxCvx.Token.CVX, 1, 1);
+        wpxCvx.swap(WpxCvx.Token.CVX, 1, 1);
     }
 
     /**
@@ -366,13 +366,13 @@ contract WPxCvxTest is Test, HelperContract {
     function testCannotSwapZeroAmount() external {
         _setupCurvePool(10e18);
 
-        vm.expectRevert(WPxCvx.ZeroAmount.selector);
+        vm.expectRevert(WpxCvx.ZeroAmount.selector);
 
-        wpxCvx.swap(WPxCvx.Token.CVX, 0, 1);
+        wpxCvx.swap(WpxCvx.Token.CVX, 0, 1);
 
-        vm.expectRevert(WPxCvx.ZeroAmount.selector);
+        vm.expectRevert(WpxCvx.ZeroAmount.selector);
 
-        wpxCvx.swap(WPxCvx.Token.CVX, 1, 0);
+        wpxCvx.swap(WpxCvx.Token.CVX, 1, 0);
     }
 
     /**
@@ -381,16 +381,16 @@ contract WPxCvxTest is Test, HelperContract {
         @param  amount  uint72  Amount to be swapped
      */
     function testSwap(uint8 source, uint72 amount) external {
-        vm.assume(source <= uint8(type(WPxCvx.Token).max));
+        vm.assume(source <= uint8(type(WpxCvx.Token).max));
         vm.assume(amount > 1e18);
 
         // Setup the curvePool with large enough liquidity
         _setupCurvePool(uint256(amount) * 10);
 
         address account = address(this);
-        WPxCvx.Token sourceToken = WPxCvx.Token(source);
+        WpxCvx.Token sourceToken = WpxCvx.Token(source);
 
-        if (sourceToken == WPxCvx.Token.pxCVX) {
+        if (sourceToken == WpxCvx.Token.pxCVX) {
             _mintAndDepositCVX(amount, account, false, address(0), true);
 
             pxCvx.approve(address(wpxCvx), amount);

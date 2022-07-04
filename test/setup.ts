@@ -16,7 +16,7 @@ import {
   UnionPirexStrategy,
   UnionPirexVault,
   CurvePoolHelper,
-  WPxCvx,
+  WpxCvx,
 } from '../typechain-types';
 
 let admin: SignerWithAddress;
@@ -36,7 +36,7 @@ let cvxDelegateRegistry: DelegateRegistry;
 let votiumAddressRegistry: AddressRegistry;
 let votiumMultiMerkleStash: MultiMerkleStash;
 let curvePoolHelper: CurvePoolHelper;
-let wpxCvx: WPxCvx;
+let wpxCvx: WpxCvx;
 
 before(async function () {
   [admin, notAdmin, treasury, contributors] = await ethers.getSigners();
@@ -178,7 +178,7 @@ before(async function () {
   await unionPirex.setStrategy(unionPirexStrategy.address);
 
   // Curve pool related deployments
-  wpxCvx = await (await ethers.getContractFactory('WPxCvx')).deploy(
+  wpxCvx = await (await ethers.getContractFactory('WpxCvx')).deploy(
     pxCvx.address,
     cvx.address,
     pirexCvx.address,
