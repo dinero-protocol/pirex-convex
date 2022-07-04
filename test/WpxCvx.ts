@@ -33,6 +33,8 @@ describe('WpxCvx', function () {
   let zeroAddress: string;
   let tokenEnum: any;
 
+  const { MaxUint256: uint256Max } = ethers.constants;
+
   before(async function () {
     ({
       admin,
@@ -145,16 +147,83 @@ describe('WpxCvx', function () {
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
-    it('Should set the curve pool on valid address', async function () {
-      const newCurvePool = await curvePoolHelper.poolAddress();
+    it('Should set the curve pool', async function () {
+      const curvePool = await curvePoolHelper.poolAddress();
       const curvePoolBefore = await wpxCvx.curvePool();
-
-      await wpxCvx.setCurvePool(newCurvePool);
-
+      const [setEvent, wpCvxApprovalEvent, cvxApprovalEvent] =
+        await callAndReturnEvents(wpxCvx.setCurvePool, [curvePool]);
       const curvePoolAfter = await wpxCvx.curvePool();
+
+      expect(curvePoolBefore).to.equal(zeroAddress);
+      expect(curvePoolAfter).to.not.equal(curvePoolBefore);
+      expect(curvePoolAfter).to.equal(curvePool);
+
+      validateEvent(setEvent, 'SetCurvePool(address)', {
+        curvePool,
+      });
+
+      validateEvent(wpCvxApprovalEvent, 'Approval(address,address,uint256)', {
+        owner: wpxCvx.address,
+        spender: curvePool,
+        amount: uint256Max,
+      });
+
+      validateEvent(cvxApprovalEvent, 'Approval(address,address,uint256)', {
+        owner: wpxCvx.address,
+        spender: curvePool,
+        amount: uint256Max,
+      });
+    });
+
+    it('Should update the curve pool', async function () {
+      const newCurvePool = admin.address;
+      const curvePoolBefore = await wpxCvx.curvePool();
+      const [
+        setEvent,
+        oldWpCvxApprovalEvent,
+        oldCvxApprovalEvent,
+        wpCvxApprovalEvent,
+        cvxApprovalEvent,
+      ] = await callAndReturnEvents(wpxCvx.setCurvePool, [newCurvePool]);
+      const curvePoolAfter = await wpxCvx.curvePool();
+
+      // Revert changes made for test
+      await wpxCvx.setCurvePool(curvePoolBefore);
 
       expect(curvePoolAfter).to.not.equal(curvePoolBefore);
       expect(curvePoolAfter).to.equal(newCurvePool);
+
+      validateEvent(setEvent, 'SetCurvePool(address)', {
+        curvePool: newCurvePool,
+      });
+
+      validateEvent(
+        oldWpCvxApprovalEvent,
+        'Approval(address,address,uint256)',
+        {
+          owner: wpxCvx.address,
+          spender: curvePoolBefore,
+          amount: 0,
+        }
+      );
+
+      validateEvent(oldCvxApprovalEvent, 'Approval(address,address,uint256)', {
+        owner: wpxCvx.address,
+        spender: curvePoolBefore,
+        amount: 0,
+      });
+
+      validateEvent(wpCvxApprovalEvent, 'Approval(address,address,uint256)', {
+        owner: wpxCvx.address,
+        spender: newCurvePool,
+        amount: uint256Max,
+      });
+
+      validateEvent(cvxApprovalEvent, 'Approval(address,address,uint256)', {
+        owner: wpxCvx.address,
+        spender: newCurvePool,
+        amount: uint256Max,
+      });
     });
   });
 

@@ -8,6 +8,8 @@ import {PxCvx} from "contracts/PxCvx.sol";
 import {WpxCvx} from "contracts/WpxCvx.sol";
 
 contract WpxCvxTest is Test, HelperContract {
+    event SetCurvePool(address curvePool);
+
     /**
         @notice Init curvePool by performing deposit, wrapping, and initial liquidity providing
      */
@@ -104,6 +106,42 @@ contract WpxCvxTest is Test, HelperContract {
     function testSetCurvePool() external {
         address oldContract = address(wpxCvx.curvePool());
         address newContract = address(this);
+
+        vm.expectEmit(true, false, false, true);
+
+        emit SetCurvePool(newContract);
+
+        wpxCvx.setCurvePool(newContract);
+
+        address updatedContract = address(wpxCvx.curvePool());
+
+        assertFalse(oldContract == newContract);
+        assertEq(oldContract, address(0));
+        assertEq(updatedContract, newContract);
+
+        // Check the allowances
+        assertEq(CVX.allowance(address(wpxCvx), oldContract), 0);
+        assertEq(wpxCvx.allowance(address(wpxCvx), oldContract), 0);
+        assertEq(
+            CVX.allowance(address(wpxCvx), newContract),
+            type(uint256).max
+        );
+        assertEq(
+            wpxCvx.allowance(address(wpxCvx), newContract),
+            type(uint256).max
+        );
+    }
+
+    /**
+        @notice Test updating curvePool
+     */
+    function testSetCurvePoolUpdate() external {
+        address oldContract = address(wpxCvx.curvePool());
+        address newContract = curvePoolHelper.poolAddress();
+
+        vm.expectEmit(true, false, false, true);
+
+        emit SetCurvePool(newContract);
 
         wpxCvx.setCurvePool(newContract);
 
