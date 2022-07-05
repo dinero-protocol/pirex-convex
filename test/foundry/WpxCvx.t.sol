@@ -8,7 +8,7 @@ import {PxCvx} from "contracts/PxCvx.sol";
 import {WpxCvx} from "contracts/WpxCvx.sol";
 
 contract WpxCvxTest is Test, HelperContract {
-    event SetCurvePool(address curvePool, uint256 cvxIndex);
+    event SetCurvePool(address curvePool);
 
     /**
         @notice Init curvePool by performing deposit, wrapping, and initial liquidity providing
@@ -106,11 +106,10 @@ contract WpxCvxTest is Test, HelperContract {
     function testSetCurvePool() external {
         address oldContract = address(wpxCvx.curvePool());
         address newContract = curvePoolHelper.poolAddress();
-        uint256 cvxIndex = 0;
 
         vm.expectEmit(true, false, false, true);
 
-        emit SetCurvePool(newContract, cvxIndex);
+        emit SetCurvePool(newContract);
 
         wpxCvx.setCurvePool(newContract);
 
@@ -119,7 +118,6 @@ contract WpxCvxTest is Test, HelperContract {
         assertFalse(oldContract == newContract);
         assertEq(oldContract, address(0));
         assertEq(updatedContract, newContract);
-        assertEq(wpxCvx.cvxIndex(), cvxIndex);
 
         // Check the allowances
         assertEq(CVX.allowance(address(wpxCvx), oldContract), 0);
@@ -141,9 +139,8 @@ contract WpxCvxTest is Test, HelperContract {
         // Should be initially address(0)
         assertEq(address(wpxCvx.curvePool()), address(0));
 
-        address oldContract = address(curvePoolMock);
+        address oldContract = address(this);
         address newContract = curvePoolHelper.poolAddress();
-        uint256 cvxIndex = 0;
 
         // First time setting curvePool
         wpxCvx.setCurvePool(oldContract);
@@ -152,7 +149,7 @@ contract WpxCvxTest is Test, HelperContract {
 
         vm.expectEmit(true, false, false, true);
 
-        emit SetCurvePool(newContract, cvxIndex);
+        emit SetCurvePool(newContract);
 
         // Attempt to update the curvePool again with actual pool
         wpxCvx.setCurvePool(newContract);
@@ -161,7 +158,6 @@ contract WpxCvxTest is Test, HelperContract {
 
         assertFalse(oldContract == newContract);
         assertEq(updatedContract, newContract);
-        assertEq(wpxCvx.cvxIndex(), cvxIndex);
 
         // Check the allowances
         assertEq(CVX.allowance(address(wpxCvx), oldContract), 0);
@@ -408,7 +404,7 @@ contract WpxCvxTest is Test, HelperContract {
     function testCannotSwapPoolNotSet() external {
         vm.expectRevert(WpxCvx.PoolNotSet.selector);
 
-        wpxCvx.swap(WpxCvx.Token.CVX, 1, 1);
+        wpxCvx.swap(WpxCvx.Token.CVX, 1, 1, 0, 1);
     }
 
     /**
@@ -419,11 +415,11 @@ contract WpxCvxTest is Test, HelperContract {
 
         vm.expectRevert(WpxCvx.ZeroAmount.selector);
 
-        wpxCvx.swap(WpxCvx.Token.CVX, 0, 1);
+        wpxCvx.swap(WpxCvx.Token.CVX, 0, 1, 0, 1);
 
         vm.expectRevert(WpxCvx.ZeroAmount.selector);
 
-        wpxCvx.swap(WpxCvx.Token.CVX, 1, 0);
+        wpxCvx.swap(WpxCvx.Token.CVX, 1, 0, 0, 1);
     }
 
     /**
@@ -451,7 +447,7 @@ contract WpxCvxTest is Test, HelperContract {
 
             // Test swapping from pxCVX to CVX with zero slippage
             uint256 minReceived = curvePoolHelper.getDy(1, 0, amount);
-            wpxCvx.swap(sourceToken, amount, minReceived);
+            wpxCvx.swap(sourceToken, amount, minReceived, 1, 0);
 
             assertEq(CVX.balanceOf(account), cvxBalanceBefore + minReceived);
             assertEq(pxCvx.balanceOf(account), pxCvxBalanceBefore - amount);
@@ -465,7 +461,7 @@ contract WpxCvxTest is Test, HelperContract {
 
             // Test swapping from CVX to pxCVX with zero slippage
             uint256 minReceived = curvePoolHelper.getDy(0, 1, amount);
-            wpxCvx.swap(sourceToken, amount, minReceived);
+            wpxCvx.swap(sourceToken, amount, minReceived, 0, 1);
 
             assertEq(CVX.balanceOf(account), cvxBalanceBefore - amount);
             assertEq(

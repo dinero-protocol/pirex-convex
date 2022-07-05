@@ -9,7 +9,6 @@ import {
   MultiMerkleStash,
   WpxCvx,
   CurvePoolHelper,
-  CurvePoolMock,
 } from '../typechain-types';
 import {
   callAndReturnEvents,
@@ -31,7 +30,6 @@ describe('WpxCvx', function () {
   let votiumMultiMerkleStash: MultiMerkleStash;
   let wpxCvx: WpxCvx;
   let curvePoolHelper: CurvePoolHelper;
-  let curvePoolMock: CurvePoolMock;
   let zeroAddress: string;
   let tokenEnum: any;
 
@@ -48,7 +46,6 @@ describe('WpxCvx', function () {
       votiumMultiMerkleStash,
       wpxCvx,
       curvePoolHelper,
-      curvePoolMock,
       zeroAddress,
       tokenEnum,
     } = this);
@@ -127,7 +124,7 @@ describe('WpxCvx', function () {
   // as we can't revert the pool address to non zero address after
   describe('swap: PoolNotSet', function () {
     it('Should revert if swapping to CVX before the pool is set', async function () {
-      await expect(wpxCvx.swap(tokenEnum.cvx, 1, 1)).to.be.revertedWith(
+      await expect(wpxCvx.swap(tokenEnum.cvx, 1, 1, 0, 1)).to.be.revertedWith(
         'PoolNotSet()'
       );
     });
@@ -153,20 +150,18 @@ describe('WpxCvx', function () {
     it('Should set the curve pool', async function () {
       const curvePool = await curvePoolHelper.poolAddress();
       const curvePoolBefore = await wpxCvx.curvePool();
-      const [
-        setEvent,
-        cvxApprovalEvent,
-      ] = await callAndReturnEvents(wpxCvx.setCurvePool, [curvePool]);
+      const [setEvent, cvxApprovalEvent] = await callAndReturnEvents(
+        wpxCvx.setCurvePool,
+        [curvePool]
+      );
       const curvePoolAfter = await wpxCvx.curvePool();
-      const cvxIndex = await wpxCvx.cvxIndex();
 
       expect(curvePoolBefore).to.equal(zeroAddress);
       expect(curvePoolAfter).to.not.equal(curvePoolBefore);
       expect(curvePoolAfter).to.equal(curvePool);
 
-      validateEvent(setEvent, 'SetCurvePool(address,uint256)', {
+      validateEvent(setEvent, 'SetCurvePool(address)', {
         curvePool,
-        cvxIndex,
       });
 
       validateEvent(cvxApprovalEvent, 'Approval(address,address,uint256)', {
@@ -177,15 +172,11 @@ describe('WpxCvx', function () {
     });
 
     it('Should update the curve pool', async function () {
-      const newCurvePool = curvePoolMock.address;
+      const newCurvePool = admin.address;
       const curvePoolBefore = await wpxCvx.curvePool();
-      const [
-        setEvent,
-        oldCvxApprovalEvent,
-        cvxApprovalEvent,
-      ] = await callAndReturnEvents(wpxCvx.setCurvePool, [newCurvePool]);
+      const [setEvent, oldCvxApprovalEvent, cvxApprovalEvent] =
+        await callAndReturnEvents(wpxCvx.setCurvePool, [newCurvePool]);
       const curvePoolAfter = await wpxCvx.curvePool();
-      const cvxIndex = await wpxCvx.cvxIndex();
 
       // Revert changes made for test
       await wpxCvx.setCurvePool(curvePoolBefore);
@@ -193,9 +184,8 @@ describe('WpxCvx', function () {
       expect(curvePoolAfter).to.not.equal(curvePoolBefore);
       expect(curvePoolAfter).to.equal(newCurvePool);
 
-      validateEvent(setEvent, 'SetCurvePool(address,uint256)', {
+      validateEvent(setEvent, 'SetCurvePool(address)', {
         curvePool: newCurvePool,
-        cvxIndex,
       });
 
       validateEvent(oldCvxApprovalEvent, 'Approval(address,address,uint256)', {
@@ -389,11 +379,8 @@ describe('WpxCvx', function () {
       const wpxCvxBalanceBefore = await wpxCvx.balanceOf(account);
       const pxCvxBalanceBefore = await pxCvx.balanceOf(account);
 
-      const [
-        wpxCvxTransferEvent,
-        wrapEvent,
-        pxCvxTransferEvent,
-      ] = await callAndReturnEvents(wpxCvx.wrap, [amount]);
+      const [wpxCvxTransferEvent, wrapEvent, pxCvxTransferEvent] =
+        await callAndReturnEvents(wpxCvx.wrap, [amount]);
 
       const wpxCvxBalanceAfter = await wpxCvx.balanceOf(account);
       const pxCvxBalanceAfter = await pxCvx.balanceOf(account);
@@ -444,11 +431,8 @@ describe('WpxCvx', function () {
       const wpxCvxBalanceBefore = await wpxCvx.balanceOf(account);
       const pxCvxBalanceBefore = await pxCvx.balanceOf(account);
 
-      const [
-        wpxCvxTransferEvent,
-        unwrapEvent,
-        pxCvxTransferEvent,
-      ] = await callAndReturnEvents(wpxCvx.unwrap, [amount]);
+      const [wpxCvxTransferEvent, unwrapEvent, pxCvxTransferEvent] =
+        await callAndReturnEvents(wpxCvx.unwrap, [amount]);
 
       const wpxCvxBalanceAfter = await wpxCvx.balanceOf(account);
       const pxCvxBalanceAfter = await pxCvx.balanceOf(account);
@@ -479,22 +463,44 @@ describe('WpxCvx', function () {
     it('Should revert on zero amount', async function () {
       const invalidAmount = 0;
       const validAmount = 1;
+      const fromIndex = 1;
+      const toIndex = 0;
 
       await expect(
-        wpxCvx.swap(tokenEnum.pxCvx, invalidAmount, validAmount)
+        wpxCvx.swap(
+          tokenEnum.pxCvx,
+          invalidAmount,
+          validAmount,
+          fromIndex,
+          toIndex
+        )
       ).to.be.revertedWith('ZeroAmount()');
 
       await expect(
-        wpxCvx.swap(tokenEnum.pxCvx, validAmount, invalidAmount)
+        wpxCvx.swap(
+          tokenEnum.pxCvx,
+          validAmount,
+          invalidAmount,
+          fromIndex,
+          toIndex
+        )
       ).to.be.revertedWith('ZeroAmount()');
     });
 
     it('Should revert on insufficient pxCVX balance', async function () {
       // Use double the available balance
       const invalidAmount = (await pxCvx.balanceOf(admin.address)).mul(2);
+      const fromIndex = 1;
+      const toIndex = 0;
 
       await expect(
-        wpxCvx.swap(tokenEnum.pxCvx, invalidAmount, invalidAmount)
+        wpxCvx.swap(
+          tokenEnum.pxCvx,
+          invalidAmount,
+          invalidAmount,
+          fromIndex,
+          toIndex
+        )
       ).to.be.revertedWith(
         "VM Exception while processing transaction: reverted with reason string 'TRANSFER_FROM_FAILED'"
       );
@@ -504,6 +510,8 @@ describe('WpxCvx', function () {
       const curvePool = await curvePoolHelper.poolAddress();
       const amount = toBN(1e18);
       const account = admin.address;
+      const fromIndex = 1;
+      const toIndex = 0;
       const cvxBalanceBefore = await cvx.balanceOf(account);
       const pxCvxBalanceBefore = await pxCvx.balanceOf(account);
       // Test with zero slippage, thus minReceived = get_dy
@@ -513,6 +521,8 @@ describe('WpxCvx', function () {
         tokenEnum.pxCvx,
         amount,
         minReceived,
+        fromIndex,
+        toIndex,
       ]);
 
       const pxCvxTransferEvent = events[0];
@@ -564,22 +574,44 @@ describe('WpxCvx', function () {
     it('Should revert on zero amount', async function () {
       const invalidAmount = 0;
       const validAmount = 1;
+      const fromIndex = 0;
+      const toIndex = 1;
 
       await expect(
-        wpxCvx.swap(tokenEnum.cvx, invalidAmount, validAmount)
+        wpxCvx.swap(
+          tokenEnum.cvx,
+          invalidAmount,
+          validAmount,
+          fromIndex,
+          toIndex
+        )
       ).to.be.revertedWith('ZeroAmount()');
 
       await expect(
-        wpxCvx.swap(tokenEnum.cvx, validAmount, invalidAmount)
+        wpxCvx.swap(
+          tokenEnum.cvx,
+          validAmount,
+          invalidAmount,
+          fromIndex,
+          toIndex
+        )
       ).to.be.revertedWith('ZeroAmount()');
     });
 
     it('Should revert on insufficient CVX balance', async function () {
       // Use double the available balance
       const invalidAmount = (await cvx.balanceOf(admin.address)).mul(2);
+      const fromIndex = 0;
+      const toIndex = 1;
 
       await expect(
-        wpxCvx.swap(tokenEnum.cvx, invalidAmount, invalidAmount)
+        wpxCvx.swap(
+          tokenEnum.cvx,
+          invalidAmount,
+          invalidAmount,
+          fromIndex,
+          toIndex
+        )
       ).to.be.revertedWith(
         "VM Exception while processing transaction: reverted with reason string 'TRANSFER_FROM_FAILED'"
       );
@@ -589,6 +621,8 @@ describe('WpxCvx', function () {
       const curvePool = await curvePoolHelper.poolAddress();
       const amount = toBN(1e18);
       const account = admin.address;
+      const fromIndex = 0;
+      const toIndex = 1;
       const cvxBalanceBefore = await cvx.balanceOf(account);
       const pxCvxBalanceBefore = await pxCvx.balanceOf(account);
       // Test with zero slippage, thus minReceived = get_dy
@@ -600,14 +634,16 @@ describe('WpxCvx', function () {
         tokenEnum.cvx,
         amount,
         minReceived,
+        fromIndex,
+        toIndex,
       ]);
 
       const cvxTransferEvent = events[0];
       const wpxCvxTransferEvent = events[2];
       const exchangeEvent = events[4];
-      const swapEvent = events[6];
-      const wpxCvxBurnEvent = events[7];
-      const pxCvxTransferEvent = events[8];
+      const wpxCvxBurnEvent = events[6];
+      const pxCvxTransferEvent = events[7];
+      const swapEvent = events[8];
 
       const cvxBalanceAfter = await cvx.balanceOf(account);
       const pxCvxBalanceAfter = await pxCvx.balanceOf(account);
@@ -633,13 +669,6 @@ describe('WpxCvx', function () {
         amount: minReceived,
       });
 
-      validateEvent(swapEvent, 'Swap(address,uint8,uint256,uint256)', {
-        account: account,
-        source: tokenEnum.cvx,
-        sent: amount,
-        received: minReceived,
-      });
-
       validateEvent(wpxCvxBurnEvent, 'Transfer(address,address,uint256)', {
         from: wpxCvx.address,
         to: zeroAddress,
@@ -650,6 +679,13 @@ describe('WpxCvx', function () {
         from: wpxCvx.address,
         to: account,
         amount: minReceived,
+      });
+
+      validateEvent(swapEvent, 'Swap(address,uint8,uint256,uint256)', {
+        account: account,
+        source: tokenEnum.cvx,
+        sent: amount,
+        received: minReceived,
       });
     });
   });

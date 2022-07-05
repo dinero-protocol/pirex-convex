@@ -18,7 +18,6 @@ import {UnionPirexStrategyMock} from "contracts/mocks/UnionPirexStrategyMock.sol
 import {MultiMerkleStash} from "contracts/mocks/MultiMerkleStash.sol";
 import {CvxLockerV2} from "contracts/mocks/CvxLocker.sol";
 import {CurvePoolHelper} from "contracts/mocks/CurvePoolHelper.sol";
-import {CurvePoolMock} from "contracts/mocks/CurvePoolMock.sol";
 import {IVotiumMultiMerkleStash} from "contracts/interfaces/IVotiumMultiMerkleStash.sol";
 
 interface IConvexToken is IERC20 {
@@ -65,7 +64,6 @@ abstract contract HelperContract is
     PirexFees public immutable pirexFees;
     WpxCvx public immutable wpxCvx;
     CurvePoolHelper public immutable curvePoolHelper;
-    CurvePoolMock public immutable curvePoolMock;
     uint32 public immutable FEE_MAX;
 
     address[3] public secondaryAccounts = [
@@ -111,7 +109,6 @@ abstract contract HelperContract is
             address(CVX),
             address(wpxCvx)
         );
-        curvePoolMock = new CurvePoolMock();
 
         // Configure contracts
         pirexCvx.setFee(PirexCvx.Fees.Reward, uint32(40000));

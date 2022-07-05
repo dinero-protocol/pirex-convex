@@ -16,7 +16,6 @@ import {
   UnionPirexStrategy,
   UnionPirexVault,
   CurvePoolHelper,
-  CurvePoolMock,
   WpxCvx,
 } from '../typechain-types';
 
@@ -37,7 +36,6 @@ let cvxDelegateRegistry: DelegateRegistry;
 let votiumAddressRegistry: AddressRegistry;
 let votiumMultiMerkleStash: MultiMerkleStash;
 let curvePoolHelper: CurvePoolHelper;
-let curvePoolMock: CurvePoolMock;
 let wpxCvx: WpxCvx;
 
 before(async function () {
@@ -191,7 +189,6 @@ before(async function () {
     cvx.address,
     wpxCvx.address,
   );
-  curvePoolMock = await (await ethers.getContractFactory('CurvePoolMock')).deploy();
 
   // Common addresses and contracts
   this.admin = admin;
@@ -213,7 +210,6 @@ before(async function () {
   this.unionPirexStrategy = unionPirexStrategy;
   this.wpxCvx = wpxCvx;
   this.curvePoolHelper = curvePoolHelper;
-  this.curvePoolMock = curvePoolMock;
 
   await pxCvx.setOperator(this.pirexCvx.address);
 
