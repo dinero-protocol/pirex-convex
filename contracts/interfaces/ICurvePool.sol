@@ -16,6 +16,10 @@ interface ICurvePool {
         uint256 i,
         uint256 j,
         uint256 dx,
-        uint256 minDy
-    ) external payable;
+        uint256 minDy,
+        bool useEth,
+        address receiver
+    ) external payable returns (uint256);
+
+    function coins(uint256 i) external view returns (address);
 }

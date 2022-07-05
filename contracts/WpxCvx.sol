@@ -20,6 +20,10 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
     ERC20 public immutable pxCVX;
     ERC20 public immutable CVX;
 
+    // Token indices used for identification purposes in the curvePool
+    uint256 public cvxIndex;
+    uint256 public wpxCvxIndex;
+
     PirexCvx public pirexCvx;
 
     // Contract of the curvePool for the CVX/wpxCVX pair
@@ -29,8 +33,15 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
     address public rewardReceiver;
 
     event SetPirexCvx(address pirexCvx);
-    event SetCurvePool(address curvePool);
+    event SetCurvePool(
+        address curvePool,
+        uint256 cvxIndex,
+        uint256 wpxCvxIndex
+    );
     event SetRewardReceiver(address rewardReceiver);
+    event Wrap(address account, uint256 amount);
+    event Unwrap(address account, uint256 amount);
+    event Swap(address account, Token source, uint256 sent, uint256 received);
 
     error ZeroAddress();
     error ZeroAmount();
@@ -61,7 +72,7 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
     }
 
     /** 
-        @notice Set the pirexCvx contract, should only be called on emergency migration
+        @notice Set the pirexCvx contract
         @param  _pirexCvx  address  New pirexCvx address
      */
     function setPirexCvx(address _pirexCvx) external onlyOwner {
@@ -74,24 +85,33 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
 
     /** 
         @notice Set the curvePool contract for the CVX/wpxCVX pair
-        @param  _curvePool  address  New curvePool address
+        @param  _curvePool    address  New curvePool address
      */
     function setCurvePool(address _curvePool) external onlyOwner {
         if (_curvePool == address(0)) revert ZeroAddress();
 
-        emit SetCurvePool(_curvePool);
-
         address oldCurvePool = address(curvePool);
+        curvePool = ICurvePool(_curvePool);
+
+        // Update the token indices used by the curvePool
+        if (curvePool.coins(0) == address(CVX)) {
+            cvxIndex = 0;
+            wpxCvxIndex = 1;
+        } else {
+            cvxIndex = 1;
+            wpxCvxIndex = 0;
+        }
+
+        emit SetCurvePool(_curvePool, cvxIndex, wpxCvxIndex);
 
         // Clear out approvals for old pool contract when needed
         if (oldCurvePool != address(0)) {
-            ERC20(address(this)).safeApprove(oldCurvePool, 0);
+            allowance[address(this)][oldCurvePool] = 0;
             CVX.safeApprove(oldCurvePool, 0);
         }
 
         // Set the approval on both wpxCVX and CVX for the new pool contract
-        curvePool = ICurvePool(_curvePool);
-        ERC20(address(this)).safeApprove(_curvePool, type(uint256).max);
+        allowance[address(this)][_curvePool] = type(uint256).max;
         CVX.safeApprove(_curvePool, type(uint256).max);
     }
 
@@ -125,9 +145,11 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
     function wrap(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
 
-        pxCVX.safeTransferFrom(msg.sender, address(this), amount);
-
         _mint(msg.sender, amount);
+
+        emit Wrap(msg.sender, amount);
+
+        pxCVX.safeTransferFrom(msg.sender, address(this), amount);
     }
 
     /** 
@@ -138,6 +160,8 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
         if (amount == 0) revert ZeroAmount();
 
         _burn(msg.sender, amount);
+
+        emit Unwrap(msg.sender, amount);
 
         pxCVX.safeTransfer(msg.sender, amount);
     }
@@ -158,25 +182,36 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
         if (minReceived == 0) revert ZeroAmount();
 
         if (source == Token.pxCVX) {
-            // Transfer the pxCVX to the contract then mint the equivalent amount of wpxCVX
+            // Transfer the pxCVX to the contract and mint the equivalent amount of wpxCVX
             pxCVX.safeTransferFrom(msg.sender, address(this), amount);
             _mint(address(this), amount);
 
-            // Swap the wpxCVX for CVX
-            uint256 oldBalance = CVX.balanceOf(address(this));
-            curvePool.exchange(1, 0, amount, minReceived);
+            // Swap the wpxCVX for CVX and directly send to the user
+            uint256 received = curvePool.exchange(
+                wpxCvxIndex,
+                cvxIndex,
+                amount,
+                minReceived,
+                false,
+                msg.sender
+            );
 
-            // Transfer the actual received amount of CVX to the user
-            CVX.safeTransfer(msg.sender, CVX.balanceOf(address(this)) - oldBalance);
+            emit Swap(msg.sender, source, amount, received);
         } else {
             // Transfer the CVX to the contract for the actual swap
             CVX.safeTransferFrom(msg.sender, address(this), amount);
 
             // Swap the CVX for wpxCVX and calculate the final received amount
-            uint256 oldBalance = balanceOf[address(this)];
-            curvePool.exchange(0, 1, amount, minReceived);
-            uint256 newBalance = balanceOf[address(this)];
-            uint256 received = newBalance - oldBalance;
+            uint256 received = curvePool.exchange(
+                cvxIndex,
+                wpxCvxIndex,
+                amount,
+                minReceived,
+                false,
+                address(this)
+            );
+
+            emit Swap(msg.sender, source, amount, received);
 
             // Burn the received wpxCVX and transfer the equivalent amount of pxCVX to the user
             _burn(address(this), received);
