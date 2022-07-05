@@ -156,21 +156,17 @@ describe('WpxCvx', function () {
       const [
         setEvent,
         cvxApprovalEvent,
-      ] = await callAndReturnEvents(wpxCvx.setCurvePool, [
-        curvePool,
-      ]);
+      ] = await callAndReturnEvents(wpxCvx.setCurvePool, [curvePool]);
       const curvePoolAfter = await wpxCvx.curvePool();
       const cvxIndex = await wpxCvx.cvxIndex();
-      const wpxCvxIndex = await wpxCvx.wpxCvxIndex();
 
       expect(curvePoolBefore).to.equal(zeroAddress);
       expect(curvePoolAfter).to.not.equal(curvePoolBefore);
       expect(curvePoolAfter).to.equal(curvePool);
 
-      validateEvent(setEvent, 'SetCurvePool(address,uint256,uint256)', {
+      validateEvent(setEvent, 'SetCurvePool(address,uint256)', {
         curvePool,
         cvxIndex,
-        wpxCvxIndex,
       });
 
       validateEvent(cvxApprovalEvent, 'Approval(address,address,uint256)', {
@@ -187,12 +183,9 @@ describe('WpxCvx', function () {
         setEvent,
         oldCvxApprovalEvent,
         cvxApprovalEvent,
-      ] = await callAndReturnEvents(wpxCvx.setCurvePool, [
-        newCurvePool,
-      ]);
+      ] = await callAndReturnEvents(wpxCvx.setCurvePool, [newCurvePool]);
       const curvePoolAfter = await wpxCvx.curvePool();
       const cvxIndex = await wpxCvx.cvxIndex();
-      const wpxCvxIndex = await wpxCvx.wpxCvxIndex();
 
       // Revert changes made for test
       await wpxCvx.setCurvePool(curvePoolBefore);
@@ -200,10 +193,9 @@ describe('WpxCvx', function () {
       expect(curvePoolAfter).to.not.equal(curvePoolBefore);
       expect(curvePoolAfter).to.equal(newCurvePool);
 
-      validateEvent(setEvent, 'SetCurvePool(address,uint256,uint256)', {
+      validateEvent(setEvent, 'SetCurvePool(address,uint256)', {
         curvePool: newCurvePool,
         cvxIndex,
-        wpxCvxIndex,
       });
 
       validateEvent(oldCvxApprovalEvent, 'Approval(address,address,uint256)', {

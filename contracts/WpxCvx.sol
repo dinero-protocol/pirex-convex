@@ -20,9 +20,8 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
     ERC20 public immutable pxCVX;
     ERC20 public immutable CVX;
 
-    // Token indices used for identification purposes in the curvePool
+    // CVX token index used for identification purposes in the curvePool
     uint256 public cvxIndex;
-    uint256 public wpxCvxIndex;
 
     PirexCvx public pirexCvx;
 
@@ -33,11 +32,7 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
     address public rewardReceiver;
 
     event SetPirexCvx(address pirexCvx);
-    event SetCurvePool(
-        address curvePool,
-        uint256 cvxIndex,
-        uint256 wpxCvxIndex
-    );
+    event SetCurvePool(address curvePool, uint256 cvxIndex);
     event SetRewardReceiver(address rewardReceiver);
     event Wrap(address indexed account, uint256 amount);
     event Unwrap(address indexed account, uint256 amount);
@@ -98,16 +93,15 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
         address oldCurvePool = address(curvePool);
         curvePool = ICurvePool(_curvePool);
 
-        // Update the token indices used by the curvePool
+        // Update the CVX token index used by the curvePool
+        // We can infer the index for wpxCvx based on the value of cvxIndex
         if (curvePool.coins(0) == address(CVX)) {
             cvxIndex = 0;
-            wpxCvxIndex = 1;
         } else {
             cvxIndex = 1;
-            wpxCvxIndex = 0;
         }
 
-        emit SetCurvePool(_curvePool, cvxIndex, wpxCvxIndex);
+        emit SetCurvePool(_curvePool, cvxIndex);
 
         // Clear out approvals for old pool contract when needed
         if (oldCurvePool != address(0)) {
@@ -186,6 +180,9 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
         if (amount == 0) revert ZeroAmount();
         if (minReceived == 0) revert ZeroAmount();
 
+        // We can infer both actual indices just by the cvxIndex value
+        uint256 index = cvxIndex;
+
         if (source == Token.pxCVX) {
             // Transfer the pxCVX to the contract and mint the equivalent amount of wpxCVX
             pxCVX.safeTransferFrom(msg.sender, address(this), amount);
@@ -193,8 +190,8 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
 
             // Swap the wpxCVX for CVX and directly send to the user
             uint256 received = curvePool.exchange(
-                wpxCvxIndex,
-                cvxIndex,
+                1 - index,
+                index,
                 amount,
                 minReceived,
                 false,
@@ -208,8 +205,8 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
 
             // Swap the CVX for wpxCVX and calculate the final received amount
             uint256 received = curvePool.exchange(
-                cvxIndex,
-                wpxCvxIndex,
+                index,
+                1 - index,
                 amount,
                 minReceived,
                 false,
