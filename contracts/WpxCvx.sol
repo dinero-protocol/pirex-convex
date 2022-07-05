@@ -85,7 +85,7 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
 
     /** 
         @notice Set the curvePool contract for the CVX/wpxCVX pair
-        @param  _curvePool    address  New curvePool address
+        @param  _curvePool  address  New curvePool address
      */
     function setCurvePool(address _curvePool) external onlyOwner {
         if (_curvePool == address(0)) revert ZeroAddress();
