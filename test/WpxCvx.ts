@@ -487,6 +487,17 @@ describe('WpxCvx', function () {
       ).to.be.revertedWith('ZeroAmount()');
     });
 
+    it('Should revert on invalid indices', async function () {
+      const amount = 1;
+      const minAmount = 1;
+      const fromIndex = 0;
+      const toIndex = 0;
+
+      await expect(
+        wpxCvx.swap(tokenEnum.pxCvx, amount, minAmount, fromIndex, toIndex)
+      ).to.be.revertedWith('InvalidIndices()');
+    });
+
     it('Should revert on insufficient pxCVX balance', async function () {
       // Use double the available balance
       const invalidAmount = (await pxCvx.balanceOf(admin.address)).mul(2);
@@ -596,6 +607,17 @@ describe('WpxCvx', function () {
           toIndex
         )
       ).to.be.revertedWith('ZeroAmount()');
+    });
+
+    it('Should revert on invalid indices', async function () {
+      const amount = 1;
+      const minAmount = 1;
+      const fromIndex = 0;
+      const toIndex = 0;
+
+      await expect(
+        wpxCvx.swap(tokenEnum.cvx, amount, minAmount, fromIndex, toIndex)
+      ).to.be.revertedWith('InvalidIndices()');
     });
 
     it('Should revert on insufficient CVX balance', async function () {

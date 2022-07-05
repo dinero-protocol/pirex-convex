@@ -43,6 +43,7 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
     error ZeroAddress();
     error ZeroAmount();
     error PoolNotSet();
+    error InvalidIndices();
 
     /**
         @notice The curvePool has to be set after as the pool can only be created after deploying wpxCVX 
@@ -172,6 +173,7 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
         if (address(curvePool) == address(0)) revert PoolNotSet();
         if (amount == 0) revert ZeroAmount();
         if (minReceived == 0) revert ZeroAmount();
+        if (fromIndex == toIndex) revert InvalidIndices();
 
         uint256 received;
 

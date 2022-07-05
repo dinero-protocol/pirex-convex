@@ -423,6 +423,17 @@ contract WpxCvxTest is Test, HelperContract {
     }
 
     /**
+        @notice Test tx reversion on invalid indices
+     */
+    function testCannotSwapInvalidIndices() external {
+        _setupCurvePool(10e18);
+
+        vm.expectRevert(WpxCvx.InvalidIndices.selector);
+
+        wpxCvx.swap(WpxCvx.Token.CVX, 1, 1, 0, 0);
+    }
+
+    /**
         @notice Test swapping from source to counterpart token
         @param  source  uint8   Integer representation of the token enum
         @param  amount  uint72  Amount to be swapped
