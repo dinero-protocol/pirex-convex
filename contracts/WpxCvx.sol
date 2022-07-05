@@ -39,9 +39,14 @@ contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
         uint256 wpxCvxIndex
     );
     event SetRewardReceiver(address rewardReceiver);
-    event Wrap(address account, uint256 amount);
-    event Unwrap(address account, uint256 amount);
-    event Swap(address account, Token source, uint256 sent, uint256 received);
+    event Wrap(address indexed account, uint256 amount);
+    event Unwrap(address indexed account, uint256 amount);
+    event Swap(
+        address indexed account,
+        Token source,
+        uint256 sent,
+        uint256 received
+    );
 
     error ZeroAddress();
     error ZeroAmount();
