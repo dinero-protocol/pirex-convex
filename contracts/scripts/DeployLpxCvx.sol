@@ -13,7 +13,7 @@ contract DeployLpxCvx is Script {
         address(0x6ED9c171E02De08aaEDF0Fc1D589923D807061D6);
 
     function run() public {
-        vm.broadcast();
+        vm.startBroadcast();
         LpxCvx lpxCvx = new LpxCvx(_pxCVX, _CVX, _pirexCvx, _rewardReceiver);
         vm.stopBroadcast();
     }
