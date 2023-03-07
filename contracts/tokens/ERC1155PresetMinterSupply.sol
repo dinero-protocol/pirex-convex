@@ -2,11 +2,11 @@
 
 pragma solidity 0.8.12;
 
-import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import {ERC1155Supply} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
-import {ERC1155Burnable} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
+import {ERC1155} from "openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import {ERC1155Supply} from "openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
+import {ERC1155Burnable} from "openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
+import {AccessControl} from "openzeppelin/contracts/access/AccessControl.sol";
+import {Context} from "openzeppelin/contracts/utils/Context.sol";
 
 /**
  * @dev {ERC1155} token, including:

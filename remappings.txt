@@ -1,5 +1,5 @@
 contracts/=contracts/
 ds-test/=lib/ds-test/src/
 forge-std/=lib/forge-std/src/
-@openzeppelin/=lib/openzeppelin-contracts/
+openzeppelin/=lib/openzeppelin-contracts/
 @rari-capital/=lib/

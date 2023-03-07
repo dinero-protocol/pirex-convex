@@ -1,6 +1,6 @@
 /**
  *Submitted for verification at Etherscan.io on 2021-04-23
-*/
+ */
 
 // https://etherscan.io/address/0x989aeb4d175e16225e39e87d0d97a3360524ad80#code
 
@@ -10,51 +10,103 @@
 
 pragma solidity 0.6.12;
 
-
 interface ICurveGauge {
     function deposit(uint256) external;
+
     function balanceOf(address) external view returns (uint256);
+
     function withdraw(uint256) external;
+
     function claim_rewards() external;
-    function reward_tokens(uint256) external view returns(address);//v2
-    function rewarded_token() external view returns(address);//v1
+
+    function reward_tokens(uint256) external view returns (address); //v2
+
+    function rewarded_token() external view returns (address); //v1
 }
 
 interface ICurveVoteEscrow {
     function create_lock(uint256, uint256) external;
+
     function increase_amount(uint256) external;
+
     function increase_unlock_time(uint256) external;
+
     function withdraw() external;
+
     function smart_wallet_checker() external view returns (address);
 }
 
-interface IVoting{
-    function vote(uint256, bool, bool) external; //voteId, support, executeIfDecided
-    function getVote(uint256) external view returns(bool,bool,uint64,uint64,uint64,uint64,uint256,uint256,uint256,bytes memory); 
-    function vote_for_gauge_weights(address,uint256) external;
+interface IVoting {
+    function vote(
+        uint256,
+        bool,
+        bool
+    ) external; //voteId, support, executeIfDecided
+
+    function getVote(uint256)
+        external
+        view
+        returns (
+            bool,
+            bool,
+            uint64,
+            uint64,
+            uint64,
+            uint64,
+            uint256,
+            uint256,
+            uint256,
+            bytes memory
+        );
+
+    function vote_for_gauge_weights(address, uint256) external;
 }
 
-interface IMinter{
+interface IMinter {
     function mint(address) external;
 }
 
-interface IFeeDistro{
+interface IFeeDistro {
     function claim() external;
 }
 
-interface IDeposit{
-    function isShutdown() external view returns(bool);
-    function balanceOf(address _account) external view returns(uint256);
-    function totalSupply() external view returns(uint256);
-    function poolInfo(uint256) external view returns(address,address,address,address,address, bool);
-    function rewardClaimed(uint256,address,uint256) external;
-    function withdrawTo(uint256,uint256,address) external;
-    function claimRewards(uint256,address) external returns(bool);
-    function rewardArbitrator() external returns(address);
+interface IDeposit {
+    function isShutdown() external view returns (bool);
+
+    function balanceOf(address _account) external view returns (uint256);
+
+    function totalSupply() external view returns (uint256);
+
+    function poolInfo(uint256)
+        external
+        view
+        returns (
+            address,
+            address,
+            address,
+            address,
+            address,
+            bool
+        );
+
+    function rewardClaimed(
+        uint256,
+        address,
+        uint256
+    ) external;
+
+    function withdrawTo(
+        uint256,
+        uint256,
+        address
+    ) external;
+
+    function claimRewards(uint256, address) external returns (bool);
+
+    function rewardArbitrator() external returns (address);
 }
 
-
-// File: @openzeppelin\contracts\math\SafeMath.sol
+// File: openzeppelin\contracts\math\SafeMath.sol
 
 pragma solidity >=0.6.0 <0.8.0;
 
@@ -77,7 +129,11 @@ library SafeMath {
      *
      * _Available since v3.4._
      */
-    function tryAdd(uint256 a, uint256 b) internal pure returns (bool, uint256) {
+    function tryAdd(uint256 a, uint256 b)
+        internal
+        pure
+        returns (bool, uint256)
+    {
         uint256 c = a + b;
         if (c < a) return (false, 0);
         return (true, c);
@@ -88,7 +144,11 @@ library SafeMath {
      *
      * _Available since v3.4._
      */
-    function trySub(uint256 a, uint256 b) internal pure returns (bool, uint256) {
+    function trySub(uint256 a, uint256 b)
+        internal
+        pure
+        returns (bool, uint256)
+    {
         if (b > a) return (false, 0);
         return (true, a - b);
     }
@@ -98,7 +158,11 @@ library SafeMath {
      *
      * _Available since v3.4._
      */
-    function tryMul(uint256 a, uint256 b) internal pure returns (bool, uint256) {
+    function tryMul(uint256 a, uint256 b)
+        internal
+        pure
+        returns (bool, uint256)
+    {
         // Gas optimization: this is cheaper than requiring 'a' not being zero, but the
         // benefit is lost if 'b' is also tested.
         // See: https://github.com/OpenZeppelin/openzeppelin-contracts/pull/522
@@ -113,7 +177,11 @@ library SafeMath {
      *
      * _Available since v3.4._
      */
-    function tryDiv(uint256 a, uint256 b) internal pure returns (bool, uint256) {
+    function tryDiv(uint256 a, uint256 b)
+        internal
+        pure
+        returns (bool, uint256)
+    {
         if (b == 0) return (false, 0);
         return (true, a / b);
     }
@@ -123,7 +191,11 @@ library SafeMath {
      *
      * _Available since v3.4._
      */
-    function tryMod(uint256 a, uint256 b) internal pure returns (bool, uint256) {
+    function tryMod(uint256 a, uint256 b)
+        internal
+        pure
+        returns (bool, uint256)
+    {
         if (b == 0) return (false, 0);
         return (true, a % b);
     }
@@ -223,7 +295,11 @@ library SafeMath {
      *
      * - Subtraction cannot overflow.
      */
-    function sub(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
+    function sub(
+        uint256 a,
+        uint256 b,
+        string memory errorMessage
+    ) internal pure returns (uint256) {
         require(b <= a, errorMessage);
         return a - b;
     }
@@ -243,7 +319,11 @@ library SafeMath {
      *
      * - The divisor cannot be zero.
      */
-    function div(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
+    function div(
+        uint256 a,
+        uint256 b,
+        string memory errorMessage
+    ) internal pure returns (uint256) {
         require(b > 0, errorMessage);
         return a / b;
     }
@@ -263,13 +343,17 @@ library SafeMath {
      *
      * - The divisor cannot be zero.
      */
-    function mod(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
+    function mod(
+        uint256 a,
+        uint256 b,
+        string memory errorMessage
+    ) internal pure returns (uint256) {
         require(b > 0, errorMessage);
         return a % b;
     }
 }
 
-// File: @openzeppelin\contracts\token\ERC20\IERC20.sol
+// File: openzeppelin\contracts\token\ERC20\IERC20.sol
 
 pragma solidity >=0.6.0 <0.8.0;
 
@@ -294,7 +378,9 @@ interface IERC20 {
      *
      * Emits a {Transfer} event.
      */
-    function transfer(address recipient, uint256 amount) external returns (bool);
+    function transfer(address recipient, uint256 amount)
+        external
+        returns (bool);
 
     /**
      * @dev Returns the remaining number of tokens that `spender` will be
@@ -303,7 +389,10 @@ interface IERC20 {
      *
      * This value changes when {approve} or {transferFrom} are called.
      */
-    function allowance(address owner, address spender) external view returns (uint256);
+    function allowance(address owner, address spender)
+        external
+        view
+        returns (uint256);
 
     /**
      * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
@@ -330,7 +419,11 @@ interface IERC20 {
      *
      * Emits a {Transfer} event.
      */
-    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+    function transferFrom(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) external returns (bool);
 
     /**
      * @dev Emitted when `value` tokens are moved from one account (`from`) to
@@ -344,10 +437,14 @@ interface IERC20 {
      * @dev Emitted when the allowance of a `spender` for an `owner` is set by
      * a call to {approve}. `value` is the new allowance.
      */
-    event Approval(address indexed owner, address indexed spender, uint256 value);
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 value
+    );
 }
 
-// File: @openzeppelin\contracts\utils\Address.sol
+// File: openzeppelin\contracts\utils\Address.sol
 
 pragma solidity >=0.6.2 <0.8.0;
 
@@ -379,7 +476,9 @@ library Address {
 
         uint256 size;
         // solhint-disable-next-line no-inline-assembly
-        assembly { size := extcodesize(account) }
+        assembly {
+            size := extcodesize(account)
+        }
         return size > 0;
     }
 
@@ -400,11 +499,17 @@ library Address {
      * https://solidity.readthedocs.io/en/v0.5.11/security-considerations.html#use-the-checks-effects-interactions-pattern[checks-effects-interactions pattern].
      */
     function sendValue(address payable recipient, uint256 amount) internal {
-        require(address(this).balance >= amount, "Address: insufficient balance");
+        require(
+            address(this).balance >= amount,
+            "Address: insufficient balance"
+        );
 
         // solhint-disable-next-line avoid-low-level-calls, avoid-call-value
-        (bool success, ) = recipient.call{ value: amount }("");
-        require(success, "Address: unable to send value, recipient may have reverted");
+        (bool success, ) = recipient.call{value: amount}("");
+        require(
+            success,
+            "Address: unable to send value, recipient may have reverted"
+        );
     }
 
     /**
@@ -425,8 +530,11 @@ library Address {
      *
      * _Available since v3.1._
      */
-    function functionCall(address target, bytes memory data) internal returns (bytes memory) {
-      return functionCall(target, data, "Address: low-level call failed");
+    function functionCall(address target, bytes memory data)
+        internal
+        returns (bytes memory)
+    {
+        return functionCall(target, data, "Address: low-level call failed");
     }
 
     /**
@@ -435,7 +543,11 @@ library Address {
      *
      * _Available since v3.1._
      */
-    function functionCall(address target, bytes memory data, string memory errorMessage) internal returns (bytes memory) {
+    function functionCall(
+        address target,
+        bytes memory data,
+        string memory errorMessage
+    ) internal returns (bytes memory) {
         return functionCallWithValue(target, data, 0, errorMessage);
     }
 
@@ -450,8 +562,18 @@ library Address {
      *
      * _Available since v3.1._
      */
-    function functionCallWithValue(address target, bytes memory data, uint256 value) internal returns (bytes memory) {
-        return functionCallWithValue(target, data, value, "Address: low-level call with value failed");
+    function functionCallWithValue(
+        address target,
+        bytes memory data,
+        uint256 value
+    ) internal returns (bytes memory) {
+        return
+            functionCallWithValue(
+                target,
+                data,
+                value,
+                "Address: low-level call with value failed"
+            );
     }
 
     /**
@@ -460,12 +582,22 @@ library Address {
      *
      * _Available since v3.1._
      */
-    function functionCallWithValue(address target, bytes memory data, uint256 value, string memory errorMessage) internal returns (bytes memory) {
-        require(address(this).balance >= value, "Address: insufficient balance for call");
+    function functionCallWithValue(
+        address target,
+        bytes memory data,
+        uint256 value,
+        string memory errorMessage
+    ) internal returns (bytes memory) {
+        require(
+            address(this).balance >= value,
+            "Address: insufficient balance for call"
+        );
         require(isContract(target), "Address: call to non-contract");
 
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory returndata) = target.call{ value: value }(data);
+        (bool success, bytes memory returndata) = target.call{value: value}(
+            data
+        );
         return _verifyCallResult(success, returndata, errorMessage);
     }
 
@@ -475,8 +607,17 @@ library Address {
      *
      * _Available since v3.3._
      */
-    function functionStaticCall(address target, bytes memory data) internal view returns (bytes memory) {
-        return functionStaticCall(target, data, "Address: low-level static call failed");
+    function functionStaticCall(address target, bytes memory data)
+        internal
+        view
+        returns (bytes memory)
+    {
+        return
+            functionStaticCall(
+                target,
+                data,
+                "Address: low-level static call failed"
+            );
     }
 
     /**
@@ -485,7 +626,11 @@ library Address {
      *
      * _Available since v3.3._
      */
-    function functionStaticCall(address target, bytes memory data, string memory errorMessage) internal view returns (bytes memory) {
+    function functionStaticCall(
+        address target,
+        bytes memory data,
+        string memory errorMessage
+    ) internal view returns (bytes memory) {
         require(isContract(target), "Address: static call to non-contract");
 
         // solhint-disable-next-line avoid-low-level-calls
@@ -499,8 +644,16 @@ library Address {
      *
      * _Available since v3.4._
      */
-    function functionDelegateCall(address target, bytes memory data) internal returns (bytes memory) {
-        return functionDelegateCall(target, data, "Address: low-level delegate call failed");
+    function functionDelegateCall(address target, bytes memory data)
+        internal
+        returns (bytes memory)
+    {
+        return
+            functionDelegateCall(
+                target,
+                data,
+                "Address: low-level delegate call failed"
+            );
     }
 
     /**
@@ -509,7 +662,11 @@ library Address {
      *
      * _Available since v3.4._
      */
-    function functionDelegateCall(address target, bytes memory data, string memory errorMessage) internal returns (bytes memory) {
+    function functionDelegateCall(
+        address target,
+        bytes memory data,
+        string memory errorMessage
+    ) internal returns (bytes memory) {
         require(isContract(target), "Address: delegate call to non-contract");
 
         // solhint-disable-next-line avoid-low-level-calls
@@ -517,7 +674,11 @@ library Address {
         return _verifyCallResult(success, returndata, errorMessage);
     }
 
-    function _verifyCallResult(bool success, bytes memory returndata, string memory errorMessage) private pure returns(bytes memory) {
+    function _verifyCallResult(
+        bool success,
+        bytes memory returndata,
+        string memory errorMessage
+    ) private pure returns (bytes memory) {
         if (success) {
             return returndata;
         } else {
@@ -537,7 +698,7 @@ library Address {
     }
 }
 
-// File: @openzeppelin\contracts\token\ERC20\SafeERC20.sol
+// File: openzeppelin\contracts\token\ERC20\SafeERC20.sol
 
 pragma solidity >=0.6.0 <0.8.0;
 
@@ -554,12 +715,27 @@ library SafeERC20 {
     using SafeMath for uint256;
     using Address for address;
 
-    function safeTransfer(IERC20 token, address to, uint256 value) internal {
-        _callOptionalReturn(token, abi.encodeWithSelector(token.transfer.selector, to, value));
+    function safeTransfer(
+        IERC20 token,
+        address to,
+        uint256 value
+    ) internal {
+        _callOptionalReturn(
+            token,
+            abi.encodeWithSelector(token.transfer.selector, to, value)
+        );
     }
 
-    function safeTransferFrom(IERC20 token, address from, address to, uint256 value) internal {
-        _callOptionalReturn(token, abi.encodeWithSelector(token.transferFrom.selector, from, to, value));
+    function safeTransferFrom(
+        IERC20 token,
+        address from,
+        address to,
+        uint256 value
+    ) internal {
+        _callOptionalReturn(
+            token,
+            abi.encodeWithSelector(token.transferFrom.selector, from, to, value)
+        );
     }
 
     /**
@@ -569,25 +745,60 @@ library SafeERC20 {
      * Whenever possible, use {safeIncreaseAllowance} and
      * {safeDecreaseAllowance} instead.
      */
-    function safeApprove(IERC20 token, address spender, uint256 value) internal {
+    function safeApprove(
+        IERC20 token,
+        address spender,
+        uint256 value
+    ) internal {
         // safeApprove should only be called when setting an initial allowance,
         // or when resetting it to zero. To increase and decrease it, use
         // 'safeIncreaseAllowance' and 'safeDecreaseAllowance'
         // solhint-disable-next-line max-line-length
-        require((value == 0) || (token.allowance(address(this), spender) == 0),
+        require(
+            (value == 0) || (token.allowance(address(this), spender) == 0),
             "SafeERC20: approve from non-zero to non-zero allowance"
         );
-        _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, value));
+        _callOptionalReturn(
+            token,
+            abi.encodeWithSelector(token.approve.selector, spender, value)
+        );
     }
 
-    function safeIncreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-        uint256 newAllowance = token.allowance(address(this), spender).add(value);
-        _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
+    function safeIncreaseAllowance(
+        IERC20 token,
+        address spender,
+        uint256 value
+    ) internal {
+        uint256 newAllowance = token.allowance(address(this), spender).add(
+            value
+        );
+        _callOptionalReturn(
+            token,
+            abi.encodeWithSelector(
+                token.approve.selector,
+                spender,
+                newAllowance
+            )
+        );
     }
 
-    function safeDecreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-        uint256 newAllowance = token.allowance(address(this), spender).sub(value, "SafeERC20: decreased allowance below zero");
-        _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
+    function safeDecreaseAllowance(
+        IERC20 token,
+        address spender,
+        uint256 value
+    ) internal {
+        uint256 newAllowance = token.allowance(address(this), spender).sub(
+            value,
+            "SafeERC20: decreased allowance below zero"
+        );
+        _callOptionalReturn(
+            token,
+            abi.encodeWithSelector(
+                token.approve.selector,
+                spender,
+                newAllowance
+            )
+        );
     }
 
     /**
@@ -601,10 +812,17 @@ library SafeERC20 {
         // we're implementing it ourselves. We use {Address.functionCall} to perform this call, which verifies that
         // the target address contains contract code and also asserts for success in the low-level call.
 
-        bytes memory returndata = address(token).functionCall(data, "SafeERC20: low-level call failed");
-        if (returndata.length > 0) { // Return data is optional
+        bytes memory returndata = address(token).functionCall(
+            data,
+            "SafeERC20: low-level call failed"
+        );
+        if (returndata.length > 0) {
+            // Return data is optional
             // solhint-disable-next-line max-line-length
-            require(abi.decode(returndata, (bool)), "SafeERC20: ERC20 operation did not succeed");
+            require(
+                abi.decode(returndata, (bool)),
+                "SafeERC20: ERC20 operation did not succeed"
+            );
         }
     }
 }
@@ -613,24 +831,27 @@ library SafeERC20 {
 
 pragma solidity 0.6.12;
 
-
 contract CurveVoterProxy {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
 
-    address public constant mintr = address(0xd061D61a4d941c39E5453435B6345Dc261C2fcE0);
-    address public constant crv = address(0xD533a949740bb3306d119CC777fa900bA034cd52);
+    address public constant mintr =
+        address(0xd061D61a4d941c39E5453435B6345Dc261C2fcE0);
+    address public constant crv =
+        address(0xD533a949740bb3306d119CC777fa900bA034cd52);
 
-    address public constant escrow = address(0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2);
-    address public constant gaugeController = address(0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB);
-    
+    address public constant escrow =
+        address(0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2);
+    address public constant gaugeController =
+        address(0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB);
+
     address public owner;
     address public operator;
     address public depositor;
-    
-    mapping (address => bool) private stashPool;
-    mapping (address => bool) private protectedTokens;
+
+    mapping(address => bool) private stashPool;
+    mapping(address => bool) private protectedTokens;
 
     constructor() public {
         owner = msg.sender;
@@ -647,8 +868,11 @@ contract CurveVoterProxy {
 
     function setOperator(address _operator) external {
         require(msg.sender == owner, "!auth");
-        require(operator == address(0) || IDeposit(operator).isShutdown() == true, "needs shutdown");
-        
+        require(
+            operator == address(0) || IDeposit(operator).isShutdown() == true,
+            "needs shutdown"
+        );
+
         operator = _operator;
     }
 
@@ -658,21 +882,23 @@ contract CurveVoterProxy {
         depositor = _depositor;
     }
 
-    function setStashAccess(address _stash, bool _status) external returns(bool){
+    function setStashAccess(address _stash, bool _status)
+        external
+        returns (bool)
+    {
         require(msg.sender == operator, "!auth");
-        if(_stash != address(0)){
+        if (_stash != address(0)) {
             stashPool[_stash] = _status;
         }
         return true;
     }
 
-
-    function deposit(address _token, address _gauge) external returns(bool){
+    function deposit(address _token, address _gauge) external returns (bool) {
         require(msg.sender == operator, "!auth");
-        if(protectedTokens[_token] == false){
+        if (protectedTokens[_token] == false) {
             protectedTokens[_token] = true;
         }
-        if(protectedTokens[_gauge] == false){
+        if (protectedTokens[_gauge] == false) {
             protectedTokens[_gauge] = true;
         }
         uint256 balance = IERC20(_token).balanceOf(address(this));
@@ -689,7 +915,7 @@ contract CurveVoterProxy {
         require(stashPool[msg.sender] == true, "!auth");
 
         //check protection
-        if(protectedTokens[address(_asset)] == true){
+        if (protectedTokens[address(_asset)] == true) {
             return 0;
         }
 
@@ -699,7 +925,11 @@ contract CurveVoterProxy {
     }
 
     // Withdraw partial funds
-    function withdraw(address _token, address _gauge, uint256 _amount) public returns(bool){
+    function withdraw(
+        address _token,
+        address _gauge,
+        uint256 _amount
+    ) public returns (bool) {
         require(msg.sender == operator, "!auth");
         uint256 _balance = IERC20(_token).balanceOf(address(this));
         if (_balance < _amount) {
@@ -710,19 +940,30 @@ contract CurveVoterProxy {
         return true;
     }
 
-     function withdrawAll(address _token, address _gauge) external returns(bool){
+    function withdrawAll(address _token, address _gauge)
+        external
+        returns (bool)
+    {
         require(msg.sender == operator, "!auth");
-        uint256 amount = balanceOfPool(_gauge).add(IERC20(_token).balanceOf(address(this)));
+        uint256 amount = balanceOfPool(_gauge).add(
+            IERC20(_token).balanceOf(address(this))
+        );
         withdraw(_token, _gauge, amount);
         return true;
     }
 
-    function _withdrawSome(address _gauge, uint256 _amount) internal returns (uint256) {
+    function _withdrawSome(address _gauge, uint256 _amount)
+        internal
+        returns (uint256)
+    {
         ICurveGauge(_gauge).withdraw(_amount);
         return _amount;
     }
 
-    function createLock(uint256 _value, uint256 _unlockTime) external returns(bool){
+    function createLock(uint256 _value, uint256 _unlockTime)
+        external
+        returns (bool)
+    {
         require(msg.sender == depositor, "!auth");
         IERC20(crv).safeApprove(escrow, 0);
         IERC20(crv).safeApprove(escrow, _value);
@@ -730,7 +971,7 @@ contract CurveVoterProxy {
         return true;
     }
 
-    function increaseAmount(uint256 _value) external returns(bool){
+    function increaseAmount(uint256 _value) external returns (bool) {
         require(msg.sender == depositor, "!auth");
         IERC20(crv).safeApprove(escrow, 0);
         IERC20(crv).safeApprove(escrow, _value);
@@ -738,25 +979,32 @@ contract CurveVoterProxy {
         return true;
     }
 
-    function increaseTime(uint256 _value) external returns(bool){
+    function increaseTime(uint256 _value) external returns (bool) {
         require(msg.sender == depositor, "!auth");
         ICurveVoteEscrow(escrow).increase_unlock_time(_value);
         return true;
     }
 
-    function release() external returns(bool){
+    function release() external returns (bool) {
         require(msg.sender == depositor, "!auth");
         ICurveVoteEscrow(escrow).withdraw();
         return true;
     }
 
-    function vote(uint256 _voteId, address _votingAddress, bool _support) external returns(bool){
+    function vote(
+        uint256 _voteId,
+        address _votingAddress,
+        bool _support
+    ) external returns (bool) {
         require(msg.sender == operator, "!auth");
-        IVoting(_votingAddress).vote(_voteId,_support,false);
+        IVoting(_votingAddress).vote(_voteId, _support, false);
         return true;
     }
 
-    function voteGaugeWeight(address _gauge, uint256 _weight) external returns(bool){
+    function voteGaugeWeight(address _gauge, uint256 _weight)
+        external
+        returns (bool)
+    {
         require(msg.sender == operator, "!auth");
 
         //vote
@@ -764,31 +1012,34 @@ contract CurveVoterProxy {
         return true;
     }
 
-    function claimCrv(address _gauge) external returns (uint256){
+    function claimCrv(address _gauge) external returns (uint256) {
         require(msg.sender == operator, "!auth");
-        
+
         uint256 _balance = 0;
-        try IMinter(mintr).mint(_gauge){
+        try IMinter(mintr).mint(_gauge) {
             _balance = IERC20(crv).balanceOf(address(this));
             IERC20(crv).safeTransfer(operator, _balance);
-        }catch{}
+        } catch {}
 
         return _balance;
     }
 
-    function claimRewards(address _gauge) external returns(bool){
+    function claimRewards(address _gauge) external returns (bool) {
         require(msg.sender == operator, "!auth");
         ICurveGauge(_gauge).claim_rewards();
         return true;
     }
 
-    function claimFees(address _distroContract, address _token) external returns (uint256){
+    function claimFees(address _distroContract, address _token)
+        external
+        returns (uint256)
+    {
         require(msg.sender == operator, "!auth");
         IFeeDistro(_distroContract).claim();
         uint256 _balance = IERC20(_token).balanceOf(address(this));
         IERC20(_token).safeTransfer(operator, _balance);
         return _balance;
-    }    
+    }
 
     function balanceOfPool(address _gauge) public view returns (uint256) {
         return ICurveGauge(_gauge).balanceOf(address(this));
@@ -799,11 +1050,10 @@ contract CurveVoterProxy {
         uint256 _value,
         bytes calldata _data
     ) external returns (bool, bytes memory) {
-        require(msg.sender == operator,"!auth");
+        require(msg.sender == operator, "!auth");
 
-        (bool success, bytes memory result) = _to.call{value:_value}(_data);
+        (bool success, bytes memory result) = _to.call{value: _value}(_data);
 
         return (success, result);
     }
-
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import "@openzeppelin/lib/forge-std/src/Script.sol";
+import "openzeppelin/lib/forge-std/src/Script.sol";
 import {LpxCvx} from "../LpxCvx.sol";
 
 contract DeployLpxCvx is Script {
@@ -14,7 +14,7 @@ contract DeployLpxCvx is Script {
 
     function run() public {
         vm.startBroadcast();
-        LpxCvx lpxCvx = new LpxCvx(_pxCVX, _CVX, _pirexCvx, _rewardReceiver);
+        new LpxCvx(_pxCVX, _CVX, _pirexCvx, _rewardReceiver);
         vm.stopBroadcast();
     }
 }

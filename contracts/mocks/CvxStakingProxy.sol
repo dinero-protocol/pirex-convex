@@ -3,10 +3,10 @@ pragma solidity ^0.8.0;
 
 // https://etherscan.io/address/0xe096ccec4a1d36f191189fe61e803d8b2044dfc3#code
 
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import {Address} from "openzeppelin/contracts/utils/Address.sol";
+import {IERC20} from "openzeppelin/contracts/interfaces/IERC20.sol";
+import {SafeERC20} from "openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeMath} from "openzeppelin/contracts/utils/math/SafeMath.sol";
 
 interface ICrvDepositor {
     function deposit(uint256, bool) external;

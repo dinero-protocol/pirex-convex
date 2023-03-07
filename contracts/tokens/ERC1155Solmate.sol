@@ -4,8 +4,8 @@
 pragma solidity 0.8.12;
 
 import {ERC1155} from "@rari-capital/solmate/src/tokens/ERC1155.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
+import {AccessControl} from "openzeppelin/contracts/access/AccessControl.sol";
+import {Context} from "openzeppelin/contracts/utils/Context.sol";
 
 /**
  * @dev {ERC1155} token, including:

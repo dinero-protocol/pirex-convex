@@ -3,7 +3,7 @@ pragma solidity 0.8.12;
 
 import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "openzeppelin/contracts/access/Ownable.sol";
 
 // https://docs.synthetix.io/contracts/source/contracts/StakingRewards/
 // https://github.com/Synthetixio/synthetix/blob/v2.66.0/contracts/StakingRewards.sol

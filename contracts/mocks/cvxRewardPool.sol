@@ -307,7 +307,7 @@ interface IVestedEscrow {
         returns (bool);
 }
 
-// File: @openzeppelin\contracts\math\SafeMath.sol
+// File: openzeppelin\contracts\math\SafeMath.sol
 
 pragma solidity >=0.6.0 <0.8.0;
 
@@ -554,7 +554,7 @@ library SafeMath {
     }
 }
 
-// File: @openzeppelin\contracts\token\ERC20\IERC20.sol
+// File: openzeppelin\contracts\token\ERC20\IERC20.sol
 pragma solidity >=0.6.0 <0.8.0;
 
 /**
@@ -644,7 +644,7 @@ interface IERC20 {
     );
 }
 
-// File: @openzeppelin\contracts\utils\Address.sol
+// File: openzeppelin\contracts\utils\Address.sol
 
 pragma solidity >=0.6.2 <0.8.0;
 
@@ -898,7 +898,7 @@ library Address {
     }
 }
 
-// File: @openzeppelin\contracts\token\ERC20\SafeERC20.sol
+// File: openzeppelin\contracts\token\ERC20\SafeERC20.sol
 
 pragma solidity >=0.6.0 <0.8.0;
 
