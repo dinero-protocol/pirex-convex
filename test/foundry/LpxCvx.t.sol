@@ -7,7 +7,7 @@ import {PirexCvx} from "contracts/PirexCvx.sol";
 import {PxCvx} from "contracts/PxCvx.sol";
 import {LpxCvx} from "contracts/LpxCvx.sol";
 
-contract WpxCvxTest is Test, HelperContract {
+contract lpxCvxTest is Test, HelperContract {
     event SetCurvePool(address curvePool);
 
     /**
@@ -26,7 +26,7 @@ contract WpxCvxTest is Test, HelperContract {
             true
         );
 
-        // Wrap the pxCVX into wpxCVX
+        // Wrap the pxCVX into lpxCVX
         pxCvx.approve(address(lpxCvx), type(uint256).max);
         lpxCvx.wrap(amountPerToken);
 
@@ -316,7 +316,7 @@ contract WpxCvxTest is Test, HelperContract {
     }
 
     /**
-        @notice Test wrapping pxCVX into wpxCVX
+        @notice Test wrapping pxCVX into lpxCVX
         @param  amount  uint72  Amount to be wrapped
      */
     function testWrap(uint72 amount) external {
@@ -329,13 +329,13 @@ contract WpxCvxTest is Test, HelperContract {
 
         pxCvx.approve(address(lpxCvx), type(uint256).max);
 
-        uint256 wpxCvxBalanceBefore = lpxCvx.balanceOf(account);
+        uint256 lpxCvxBalanceBefore = lpxCvx.balanceOf(account);
         uint256 pxCvxBalanceBefore = pxCvx.balanceOf(account);
 
-        // Wrap the pxCVX into wpxCVX
+        // Wrap the pxCVX into lpxCVX
         lpxCvx.wrap(amount);
 
-        assertEq(lpxCvx.balanceOf(account), wpxCvxBalanceBefore + amount);
+        assertEq(lpxCvx.balanceOf(account), lpxCvxBalanceBefore + amount);
         assertEq(pxCvx.balanceOf(account), pxCvxBalanceBefore - amount);
     }
 
@@ -364,7 +364,7 @@ contract WpxCvxTest is Test, HelperContract {
     }
 
     /**
-        @notice Test unwrapping wpxCVX back into pxCVX
+        @notice Test unwrapping lpxCVX back into pxCVX
         @param  amount  uint72  Amount to be unwrapped
      */
     function testUnwrap(uint72 amount) external {
@@ -378,19 +378,19 @@ contract WpxCvxTest is Test, HelperContract {
         pxCvx.approve(address(lpxCvx), type(uint256).max);
         lpxCvx.approve(address(lpxCvx), type(uint256).max);
 
-        uint256 wpxCvxBalanceBefore = lpxCvx.balanceOf(account);
+        uint256 lpxCvxBalanceBefore = lpxCvx.balanceOf(account);
         uint256 pxCvxBalanceBefore = pxCvx.balanceOf(account);
 
-        // Wrap first so we have some wpxCVX to test unwrapping
+        // Wrap first so we have some lpxCVX to test unwrapping
         lpxCvx.wrap(amount);
 
-        assertEq(lpxCvx.balanceOf(account), wpxCvxBalanceBefore + amount);
+        assertEq(lpxCvx.balanceOf(account), lpxCvxBalanceBefore + amount);
         assertEq(pxCvx.balanceOf(account), pxCvxBalanceBefore - amount);
 
         // Attempt to unwrap
         lpxCvx.unwrap(amount);
 
-        assertEq(lpxCvx.balanceOf(account), wpxCvxBalanceBefore);
+        assertEq(lpxCvx.balanceOf(account), lpxCvxBalanceBefore);
         assertEq(pxCvx.balanceOf(account), pxCvxBalanceBefore);
     }
 

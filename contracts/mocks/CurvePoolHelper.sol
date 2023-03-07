@@ -34,23 +34,23 @@ contract CurvePoolHelper {
 
     ICurveDeployer public deployer;
     ERC20 public CVX;
-    ERC20 public wpxCVX;
+    ERC20 public lpxCVX;
 
     constructor(
         address _deployer,
         address _CVX,
-        address _wpxCVX
+        address _lpxCVX
     ) {
         deployer = ICurveDeployer(_deployer);
         CVX = ERC20(_CVX);
-        wpxCVX = ERC20(_wpxCVX);
+        lpxCVX = ERC20(_lpxCVX);
 
-        address[2] memory pair = [_CVX, _wpxCVX];
+        address[2] memory pair = [_CVX, _lpxCVX];
 
         // Using suggested parameters for creating the pool with 1:1 price ratio
         deployer.deploy_pool(
-            "CVX/wpxCVX",
-            "CVXwpxCVX",
+            "CVX/lpxCVX",
+            "CVXlpxCVX",
             pair,
             400000,
             145000000000000,
@@ -66,7 +66,7 @@ contract CurvePoolHelper {
     }
 
     function poolAddress() public view returns (address) {
-        return deployer.find_pool_for_coins(address(CVX), address(wpxCVX), 0);
+        return deployer.find_pool_for_coins(address(CVX), address(lpxCVX), 0);
     }
 
     function initPool(uint256 amount1, uint256 amount2) external {
@@ -74,12 +74,16 @@ contract CurvePoolHelper {
         uint256[2] memory amounts = [amount1, amount2];
 
         CVX.safeApprove(pool, type(uint256).max);
-        wpxCVX.safeApprove(pool, type(uint256).max);
+        lpxCVX.safeApprove(pool, type(uint256).max);
 
         ICurvePool(pool).add_liquidity(amounts, 0);
     }
 
-    function getDy(uint256 i, uint256 j, uint256 amount) external view returns (uint256) {
+    function getDy(
+        uint256 i,
+        uint256 j,
+        uint256 amount
+    ) external view returns (uint256) {
         address pool = poolAddress();
 
         return ICurvePool(pool).get_dy(i, j, amount);

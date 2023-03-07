@@ -22,7 +22,7 @@ contract LpxCvx is ERC20, Ownable, ReentrancyGuard {
 
     PirexCvx public pirexCvx;
 
-    // Contract of the curvePool for the CVX/wpxCVX pair
+    // Contract of the curvePool for the CVX/lpxCVX pair
     ICurvePool public curvePool;
 
     // Receiver of the redeemed snapshot rewards from pirexCvx
@@ -46,7 +46,7 @@ contract LpxCvx is ERC20, Ownable, ReentrancyGuard {
     error InvalidIndices();
 
     /**
-        @notice The curvePool has to be set after as the pool can only be created after deploying wpxCVX 
+        @notice The curvePool has to be set after as the pool can only be created after deploying lpxCVX 
         @param  _pxCVX           address  pxCVX address
         @param  _CVX             address  CVX address
         @param  _pirexCvx        address  pirexCvx address
@@ -57,7 +57,7 @@ contract LpxCvx is ERC20, Ownable, ReentrancyGuard {
         address _CVX,
         address _pirexCvx,
         address _rewardReceiver
-    ) ERC20("Wrapped Pirex CVX", "wpxCVX", 18) {
+    ) ERC20("LP Pirex CVX", "lpxCvx", 18) {
         if (_pxCVX == address(0)) revert ZeroAddress();
         if (_CVX == address(0)) revert ZeroAddress();
         if (_pirexCvx == address(0)) revert ZeroAddress();
@@ -82,7 +82,7 @@ contract LpxCvx is ERC20, Ownable, ReentrancyGuard {
     }
 
     /** 
-        @notice Set the curvePool contract for the CVX/wpxCVX pair
+        @notice Set the curvePool contract for the CVX/lpxCVX pair
         @param  _curvePool  address  New curvePool address
      */
     function setCurvePool(address _curvePool) external onlyOwner {
@@ -99,7 +99,7 @@ contract LpxCvx is ERC20, Ownable, ReentrancyGuard {
             CVX.safeApprove(oldCurvePool, 0);
         }
 
-        // Set the approval on both wpxCVX and CVX for the new pool contract
+        // Set the approval on both lpxCVX and CVX for the new pool contract
         allowance[address(this)][_curvePool] = type(uint256).max;
         CVX.safeApprove(_curvePool, type(uint256).max);
     }
@@ -128,7 +128,7 @@ contract LpxCvx is ERC20, Ownable, ReentrancyGuard {
     }
 
     /** 
-        @notice Wrap the specified amount of pxCVX into wpxCVX
+        @notice Wrap the specified amount of pxCVX into lpxCVX
         @param  amount  uint256  Amount of pxCVX
      */
     function wrap(uint256 amount) external nonReentrant {
@@ -142,8 +142,8 @@ contract LpxCvx is ERC20, Ownable, ReentrancyGuard {
     }
 
     /** 
-        @notice Unwrap the specified amount of wpxCVX back into pxCVX
-        @param  amount  uint256  Amount of wpxCVX
+        @notice Unwrap the specified amount of lpxCVX back into pxCVX
+        @param  amount  uint256  Amount of lpxCVX
      */
     function unwrap(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
@@ -178,11 +178,11 @@ contract LpxCvx is ERC20, Ownable, ReentrancyGuard {
         uint256 received;
 
         if (source == Token.pxCVX) {
-            // Transfer the pxCVX to the contract and mint the equivalent amount of wpxCVX
+            // Transfer the pxCVX to the contract and mint the equivalent amount of lpxCVX
             pxCVX.safeTransferFrom(msg.sender, address(this), amount);
             _mint(address(this), amount);
 
-            // Swap the wpxCVX for CVX and directly send to the user
+            // Swap the lpxCVX for CVX and directly send to the user
             received = curvePool.exchange(
                 fromIndex,
                 toIndex,
@@ -195,7 +195,7 @@ contract LpxCvx is ERC20, Ownable, ReentrancyGuard {
             // Transfer the CVX to the contract for the actual swap
             CVX.safeTransferFrom(msg.sender, address(this), amount);
 
-            // Swap the CVX for wpxCVX and calculate the final received amount
+            // Swap the CVX for lpxCVX and calculate the final received amount
             received = curvePool.exchange(
                 fromIndex,
                 toIndex,
@@ -205,7 +205,7 @@ contract LpxCvx is ERC20, Ownable, ReentrancyGuard {
                 address(this)
             );
 
-            // Burn the received wpxCVX and transfer the equivalent amount of pxCVX to the user
+            // Burn the received lpxCVX and transfer the equivalent amount of pxCVX to the user
             _burn(address(this), received);
             pxCVX.safeTransfer(msg.sender, received);
         }
