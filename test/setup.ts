@@ -16,7 +16,7 @@ import {
   UnionPirexStrategy,
   UnionPirexVault,
   CurvePoolHelper,
-  WpxCvx,
+  LpxCvx,
 } from '../typechain-types';
 
 let admin: SignerWithAddress;
@@ -36,7 +36,7 @@ let cvxDelegateRegistry: DelegateRegistry;
 let votiumAddressRegistry: AddressRegistry;
 let votiumMultiMerkleStash: MultiMerkleStash;
 let curvePoolHelper: CurvePoolHelper;
-let wpxCvx: WpxCvx;
+let lpxCvx: LpxCvx;
 
 before(async function () {
   [admin, notAdmin, treasury, contributors] = await ethers.getSigners();
@@ -178,7 +178,7 @@ before(async function () {
   await unionPirex.setStrategy(unionPirexStrategy.address);
 
   // Curve pool related deployments
-  wpxCvx = await (await ethers.getContractFactory('WpxCvx')).deploy(
+  lpxCvx = await (await ethers.getContractFactory('LpxCvx')).deploy(
     pxCvx.address,
     cvx.address,
     pirexCvx.address,
@@ -187,7 +187,7 @@ before(async function () {
   curvePoolHelper = await (await ethers.getContractFactory('CurvePoolHelper')).deploy(
     curveDeployerAddr,
     cvx.address,
-    wpxCvx.address,
+    lpxCvx.address,
   );
 
   // Common addresses and contracts
@@ -208,7 +208,7 @@ before(async function () {
   this.pirexCvx = pirexCvx;
   this.unionPirex = unionPirex;
   this.unionPirexStrategy = unionPirexStrategy;
-  this.wpxCvx = wpxCvx;
+  this.lpxCvx = lpxCvx;
   this.curvePoolHelper = curvePoolHelper;
 
   await pxCvx.setOperator(this.pirexCvx.address);

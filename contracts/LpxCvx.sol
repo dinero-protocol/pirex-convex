@@ -8,7 +8,7 @@ import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.s
 import {PirexCvx} from "./PirexCvx.sol";
 import {ICurvePool} from "./interfaces/ICurvePool.sol";
 
-contract WpxCvx is ERC20, Ownable, ReentrancyGuard {
+contract LpxCvx is ERC20, Ownable, ReentrancyGuard {
     using SafeTransferLib for ERC20;
 
     // Enumeration for the token swap
