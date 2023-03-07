@@ -25,11 +25,11 @@ jobs:
               - node_modules
           root: .
       - run:
-          name: clean-and-compile
-          command: npx hardhat clean && npx hardhat compile
-      - run:
           name: git-submodule
           command: git submodule update --init
+      - run:
+          name: clean-and-compile
+          command: npx hardhat clean && npx hardhat compile
       - run:
           name: lint
           command: npm run lint
